@@ -1,0 +1,180 @@
+# ============================================
+# JCOQL+ NL INTERFACE - GITIGNORE
+# ============================================
+
+# ===== SECRETS & API KEYS =====
+.env
+.env.local
+.env.*.local
+*.key
+*.pem
+secrets/
+config/secrets.json
+
+# ===== PYTHON =====
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+wheels/
+*.egg-info/
+.installed.cfg
+*.egg
+MANIFEST
+
+# Virtual Environments
+venv/
+env/
+ENV/
+env.bak/
+venv.bak/
+.venv/
+
+# PyCharm
+.idea/
+
+# Jupyter Notebook
+.ipynb_checkpoints
+*.ipynb
+
+# pytest
+.pytest_cache/
+.coverage
+htmlcov/
+
+# ===== NODE.JS =====
+node_modules/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+lerna-debug.log*
+.pnpm-debug.log*
+
+# Build outputs
+dist/
+build/
+.next/
+out/
+
+# Dependencies
+package-lock.json
+yarn.lock
+pnpm-lock.yaml
+
+# ===== FRONTEND (REACT) =====
+.DS_Store
+*.local
+.vite/
+.turbo/
+
+# ===== DATABASES =====
+*.db
+*.sqlite
+*.sqlite3
+chromadb/
+chroma_data/
+vector_store/
+
+# ===== IDE & EDITORS =====
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+.project
+.classpath
+.settings/
+
+# ===== OS =====
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+Thumbs.db
+Desktop.ini
+
+# ===== LOGS =====
+logs/
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# ===== TESTING =====
+coverage/
+.nyc_output/
+test-results/
+playwright-report/
+
+# ===== TEMPORARY FILES =====
+tmp/
+temp/
+*.tmp
+*.bak
+*.swp
+
+# ===== DOCUMENTATION BUILD =====
+docs/_build/
+site/
+
+# ===== PROJECT SPECIFIC =====
+# Output files
+outputs/*.docx
+outputs/*.pdf
+outputs/*.txt
+
+# User data (keep structure, ignore content)
+data/uploads/*
+!data/uploads/.gitkeep
+
+# Models (if downloading local models)
+models/*.bin
+models/*.gguf
+
+# ===== DOCKER =====
+docker-compose.override.yml
+.dockerignore
+```
+
+4. **Scroll down** → **Click "Commit new file"**
+
+---
+
+## **VERIFICA:**
+
+Dopo questi 2 commit, dovresti vedere nella pagina principale del repository:
+```
+jcoql-nl-interface/
+├── README.md         ✓
+└── .gitignore        ✓
+```
+
+---
+
+## **PROSSIMO STEP: Clona sul tuo PC**
+
+**Adesso cloniamo il repository sul tuo computer!**
+
+### **Copia URL del repository:**
+
+Sulla pagina GitHub, click sul bottone verde **"<> Code"**
+
+Vedrai 3 tab: HTTPS, SSH, GitHub CLI
+
+**Seleziona tab "HTTPS"** e copia l'URL tipo:
+```
+https://github.com/TUO_USERNAME/jcoql-nl-interface.git
