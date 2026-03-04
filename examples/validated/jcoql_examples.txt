@@ -1,0 +1,114 @@
+==============================================
+JCOQL+ EXAMPLES - OFFICIAL ANTLR COMPLIANT
+==============================================
+
+Validati con NotebookLM - Settimana 0 (90% accuracy)
+
+ESEMPIO 1: GET COLLECTION e FILTER Base
+----------------------------------------------
+Descrizione: Trova tutti i negozi a Bergamo.
+Query:
+GET COLLECTION stores;
+FILTER CASE WHERE .city = 'Bergamo';
+
+ESEMPIO 2: Comparazione Numerica
+----------------------------------------------
+Descrizione: Prodotti con prezzo superiore a 100.
+Query:
+GET COLLECTION products;
+FILTER CASE WHERE .price > 100;
+
+ESEMPIO 3: Logica AND
+----------------------------------------------
+Descrizione: Hotel a Milano, rating > 4, prezzo < 200.
+Query:
+GET COLLECTION hotels;
+FILTER CASE WHERE .city = 'Milano' AND .rating > 4 AND .price < 200;
+
+ESEMPIO 4: Logica OR
+----------------------------------------------
+Descrizione: Ristoranti a Roma o Firenze.
+Query:
+GET COLLECTION restaurants;
+FILTER CASE WHERE .city = 'Roma' OR .city = 'Firenze';
+
+ESEMPIO 5: Range Numerico (INRANGE)
+----------------------------------------------
+Descrizione: Superficie tra 50 e 100 mq (estremi inclusi).
+Query:
+GET COLLECTION apartments;
+FILTER CASE WHERE .superficie INRANGE [ 50 , 100 ];
+
+ESEMPIO 6: Verifica Assenza Campo (WITHOUT)
+----------------------------------------------
+Descrizione: Utenti senza email registrata.
+Query:
+GET COLLECTION users;
+FILTER CASE WHERE WITHOUT .email;
+
+ESEMPIO 7: Verifica Presenza Campo (WITH)
+----------------------------------------------
+Descrizione: Documenti che hanno una foto.
+Query:
+GET COLLECTION items;
+FILTER CASE WHERE WITH .photo;
+
+ESEMPIO 8: Null Check (FIELD ... IS NULL)
+----------------------------------------------
+Descrizione: Trova dove il campo 'note' è esplicitamente null.
+Query:
+GET COLLECTION reports;
+FILTER CASE WHERE FIELD .note IS NULL;
+
+ESEMPIO 9: CASE e GENERATE (Logica Condizionale)
+----------------------------------------------
+Descrizione: Etichetta i prodotti in base al prezzo.
+Query:
+GET COLLECTION products;
+FILTER CASE 
+  WHERE .price < 50 GENERATE ADD FIELDS { .fascia : 'economico' }
+  WHERE .price INRANGE [ 50 , 150 ] GENERATE ADD FIELDS { .fascia : 'medio' }
+  WHERE .price > 150 GENERATE ADD FIELDS { .fascia : 'costoso' };
+
+ESEMPIO 10: GENERATE BUILD (Trasformazione Totale)
+----------------------------------------------
+Descrizione: Mantieni solo ID e calcola il prezzo scontato.
+Query:
+GET COLLECTION products;
+FILTER CASE WHERE .price > 0 
+  GENERATE BUILD { .id , .discounted_price : .price * 0.9 };
+
+ESEMPIO 11: REMOVE FIELDS
+----------------------------------------------
+Descrizione: Rimuovi dati sensibili.
+Query:
+GET COLLECTION staff;
+FILTER CASE WHERE WITH .password 
+  GENERATE REMOVE FIELDS { .password , .token };
+
+ESEMPIO 12: EXPAND UNPACK (Unnesting)
+----------------------------------------------
+Descrizione: Trasforma ogni elemento dell'array 'reviews' in un documento.
+Query:
+GET COLLECTION restaurants;
+EXPAND UNPACK .rating > 0 ARRAY .reviews TO .single_review;
+
+ESEMPIO 13: SAVE AS
+----------------------------------------------
+Descrizione: Salva i risultati in una nuova collezione.
+Query:
+GET COLLECTION stores;
+FILTER CASE WHERE .city = 'Bergamo';
+SAVE AS bergamo_stores;
+
+ESEMPIO 14: Condizioni Complesse con Parentesi
+----------------------------------------------
+Descrizione: Query complessa con precedenza operatori.
+Query:
+GET COLLECTION restaurants;
+FILTER CASE WHERE (.city = 'Milano' OR .city = 'Roma') 
+  AND .rating > 4 AND NOT .closed;
+
+==============================================
+FINE ESEMPI VALIDATI
+==============================================
