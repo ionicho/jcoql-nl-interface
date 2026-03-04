@@ -148,33 +148,3 @@ models/*.gguf
 # ===== DOCKER =====
 docker-compose.override.yml
 .dockerignore
-```
-
-4. **Scroll down** → **Click "Commit new file"**
-
----
-
-## **VERIFICA:**
-
-Dopo questi 2 commit, dovresti vedere nella pagina principale del repository:
-```
-jcoql-nl-interface/
-├── README.md         ✓
-└── .gitignore        ✓
-```
-
----
-
-## **PROSSIMO STEP: Clona sul tuo PC**
-
-**Adesso cloniamo il repository sul tuo computer!**
-
-### **Copia URL del repository:**
-
-Sulla pagina GitHub, click sul bottone verde **"<> Code"**
-
-Vedrai 3 tab: HTTPS, SSH, GitHub CLI
-
-**Seleziona tab "HTTPS"** e copia l'URL tipo:
-```
-https://github.com/TUO_USERNAME/jcoql-nl-interface.git
