@@ -32,11 +32,11 @@ def load_resources():
     
     # Inizializzazione LLM con parametri di stabilità
     llm = ChatGoogleGenerativeAI(
-        model="gemini-2.0-flash", 
-        google_api_key=API_KEY,
-        temperature=0,
-        max_retries=2  # Prova a riconnettersi automaticamente in caso di errore di rete
-    )
+    model="gemini-2.5-flash",  # ← NUOVO MODELLO
+    google_api_key=API_KEY,
+    temperature=0,
+    max_retries=2
+)
     return collection, llm
 
 try:

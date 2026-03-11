@@ -78,10 +78,11 @@ def load_examples_to_chromadb():
     print(f"📊 Current documents: {collection.count()}")
     print()
     
-    # Load examples from files
     example_files = [
-        'examples/validated/jcoql_examples.txt',
-        'examples/validated/jcoql_examples_EXTENDED.txt'
+    'examples/validated/jcoql_examples.txt',
+    'examples/validated/jcoql_examples_EXTENDED.txt',
+    'examples/validated/jcoql_examples_INRANGE.txt',
+    'examples/validated/jcoql_examples_ADVANCED.txt' 
     ]
     
     all_examples = []
