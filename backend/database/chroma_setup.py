@@ -41,6 +41,19 @@ def setup_chromadb():
         print(f"❌ Error: {e}")
         return None, None
 
+
+def get_chroma_collection():
+    """Get or create ChromaDB collection"""
+    client = chromadb.PersistentClient(path="./chroma_data")
+    
+    collection = client.get_or_create_collection(
+        name="jcoql_examples",
+        metadata={"hnsw:space": "cosine"}
+    )
+    
+    return collection
+
+
 if __name__ == "__main__":
     print("=" * 60)
     print("CHROMADB SETUP TEST")

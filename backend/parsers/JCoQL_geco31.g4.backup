@@ -1,0 +1,453 @@
+grammar JCoQL;
+
+// ########### Syntax Rules ###########
+// Start Symbol
+start
+    : ( getCollection
+      | setIntermediateAs
+      | saveAs
+      | spatialJoin
+      | joinOfCollections
+      | filterClause
+      | group
+      | expand
+      | mergeCollections
+      | intersectCollections
+      | subtractCollections
+      | useDb
+      | trajectoryMatching
+      | createFuzzyOperator
+      | createJavaScriptFunction
+      )* EOF
+    ;
+
+collectionReference
+    : ID ( AT ID )? ( AS ID )?
+    ;
+
+fieldRef
+    : ( FIELD_NAME )+
+    ;
+
+value
+    : INT
+    | FLOAT
+    | APEX_VALUE
+    | QUOTED_VALUE
+    | BOOLEAN
+    ;
+
+outputFieldSpec
+    : fieldRef ( COLON ( fieldRef | value | objectStructure ) )?
+    ;
+
+parameter
+    : ID TYPE ID
+    ;
+
+generateAction
+    : GENERATE
+      ( objectStructure ( geometricOption )?
+      | geometricOption
+      | COUNT LP fieldRef RP
+      )
+    ;
+
+objectStructure
+    : LBR outputFieldSpec ( COMMA outputFieldSpec )* RBR
+    ;
+
+geometricOption
+    : KEEPING GEOMETRY
+    | DROPPING GEOMETRY
+    | SETTING GEOMETRY
+      ( POINT LP fieldRef COMMA fieldRef RP
+      | AGGREGATE LP fieldRef RP
+      | fieldRef
+      | TO_POLYLINE LP fieldRef RP
+      )
+    ;
+
+caseClause
+    : CASE ( whereCase )+ others
+    ;
+
+others
+    : KEEP OTHERS | DROP OTHERS
+    ;
+
+whereCase
+    : WHERE orCondition ( generateAction )? ( fuzzyCheck )* ( alphaCut )* ( keepDropFuzzySets )?
+    ;
+
+orCondition
+    : andCondition ( OR andCondition )*
+    ;
+
+andCondition
+    : notCondition ( AND notCondition )*
+    ;
+
+notCondition
+    : ( NOT )? predicate
+    ;
+
+predicate
+    : expression ( comparator expression )?
+    | withPredicate
+    | withoutPredicate
+    | ( WITHIN | KNOWN | UNKNOWN ) FUZZY SETS ID ( COMMA ID )*
+    | ifFails
+    | OVERLAP LP RP
+    | INSIDE LP (LEFT|RIGHT) RP
+    | HOWMEET LP (LEFT|RIGHT) RP
+    ;
+
+withPredicate
+    : WITH (ID|ARRAY)? fieldRef ( COMMA fieldRef )*
+    ;
+
+withoutPredicate
+    : WITHOUT fieldRef ( COMMA fieldRef )*
+    ;
+
+expression
+    : (ADD |SUB)? term ( (ADD|SUB) term )*
+    ;
+
+term
+    : factor ( (MUL|DIV) factor )*
+    ;
+
+factor
+    : fieldRef
+    | LP orCondition RP
+    | INT
+    | FLOAT
+    | APEX_VALUE
+    | QUOTED_VALUE
+    | ID ( LP (functionParams)? RP )?
+    ;
+
+functionParams
+    : expression ( COMMA expression )*
+    ;
+
+comparator
+    : ( EQ | NEQ | LT | GT | LE | GE | INRANGE )
+    ;
+
+numeric
+    : ( ADD | SUB )? ( FLOAT | INT )
+    ;
+
+// Fuzzy extensions
+fuzzyCheck
+    : CHECK_FOR FUZZY SET ID USING orCondition
+    ;
+
+alphaCut
+    : ALPHACUT numeric ON ID
+    ;
+
+keepDropFuzzySets
+    : DROPPING ALL FUZZY SETS
+    | KEEPING ALL FUZZY SETS
+    | DROPPING FUZZY SETS ID ( COMMA ID )*
+    | KEEPING FUZZY SETS ID ( COMMA ID )*
+    ;
+
+addFields
+    : ADD_ST FIELDS nonFuzzyFunction AS fieldRef ( COMMA nonFuzzyFunction AS fieldRef )*
+    ;
+
+fuzzySetReference
+    : ID ( AS ID )?
+    | RIGHT LP ID RP ( AS ID )?
+    | LEFT LP ID RP ( AS ID )?
+    | ( INSIDE LP ( LEFT | RIGHT ) RP | OVERLAP LP RP | HOWMEET LP ( LEFT | RIGHT ) RP ) AS ID
+    ;
+
+nonFuzzyFunction
+    : DISTANCE LP ID RP ( comparator numeric )?
+    | AREA LP ID RP ( comparator numeric )?
+    | ORIENTATION LP ( LEFT | RIGHT ) ( COMMA ID COLON numeric )? RP
+    | INCLUDED LP ( LEFT | RIGHT) RP
+    | MEET
+    | INTERSECT
+    ;
+
+setKeepDropFuzzySets
+    : KEEP (ALL | LEFT | RIGHT) SOURCE FUZZY SETS
+    | DROP SOURCE FUZZY SETS
+    ;
+
+addNewFuzzySets
+    : ADD_ST NEW FUZZY SETS fuzzySetReference ( COMMA fuzzySetReference )*
+    ;
+
+ifFails
+    : IFFAILS LP orIffCondition COMMA numeric RP
+    ;
+
+orIffCondition
+    : andIffCondition ( OR andIffCondition )*
+    ;
+
+andIffCondition
+    : notIffCondition ( AND notIffCondition )*
+    ;
+
+notIffCondition
+    : (NOT)? predicate
+    ;
+
+// --------------- Basic operators -----------------
+getCollection
+    : GET COLLECTION ID ( AT ID )? SC
+    ;
+
+setIntermediateAs
+    : SET INTERMEDIATE AS ID SC
+    ;
+
+saveAs
+    : SAVE AS ID AT ID SC
+    ;
+
+spatialJoin
+    : SPATIAL JOIN OF COLLECTIONS collectionReference COMMA collectionReference
+      ( ON nonFuzzyFunction )? SET GEOMETRY ( INTERSECTION | RIGHT | LEFT | ALL )
+      ( addFields )? ( setKeepDropFuzzySets )? ( addNewFuzzySets )? ( caseClause )?
+      SC
+    ;
+
+joinOfCollections
+    : JOIN OF COLLECTIONS collectionReference COMMA collectionReference
+      ( addFields )? ( setKeepDropFuzzySets )? ( addNewFuzzySets )? ( caseClause )?
+      SC
+    ;
+
+filterClause
+    : FILTER caseClause SC
+    ;
+
+group
+    : GROUP ( groupPartition )+ others SC
+    ;
+
+groupPartition
+    : PARTITION orCondition BY fieldRef( COMMA fieldRef )* INTO fieldRef 
+      ( DROP GROUPING FIELDS )?
+      ( ORDER BY fieldRef ( VERSUS )? ( COMMA fieldRef ( VERSUS )? )* )?
+      ( generateAction )?
+    ;
+
+expand
+    : EXPAND ( unpack )+ others SC
+    ;
+
+unpack
+    : UNPACK orCondition ARRAY fieldRef TO ID ( generateAction )?
+    ;
+
+mergeCollections
+    : ( ALL )? MERGE COLLECTIONS collectionReference ( COMMA collectionReference )+ SC
+    ;
+
+intersectCollections
+    : INTERSECT COLLECTIONS collectionReference COMMA collectionReference SC
+    ;
+
+subtractCollections
+    : SUBTRACT COLLECTIONS collectionReference COMMA collectionReference SC
+    ;
+
+useDb
+    : USE DB (ID | APEX_VALUE) (AS (ID | APEX_VALUE) )?
+      ( COMMA DB (ID | APEX_VALUE) ( AS (ID | APEX_VALUE) )? )*
+      ON ( DEFAULT SERVER | SERVER (ID | APEX_VALUE) ( (ID | APEX_VALUE) )? )
+      SC
+    ;
+
+trajectoryMatching
+    : TRAJECTORY MATCHING collectionReference COMMA collectionReference
+      ( trajectoryPartition )+ others SC
+    ;
+
+trajectoryPartition
+    : PARTITION orCondition ( partitionMatching )+
+    ;
+
+partitionMatching
+    : MATCHING fieldRef WRT fieldRef THRESHOLD LP ID RP numeric
+      ( WHERE orCondition )? INTO fieldRef
+      ( ADDING fieldRef TO INPUT )? ( MIN SIMILARITY numeric )?
+    ;
+
+createFuzzyOperator
+    : CREATE_FO ID PARAMETERS parameter ( COMMA parameter )*
+      PRECONDITION orCondition EVALUATE expression
+      RANGE LP numeric COMMA numeric RP
+      POLYLINE LP numeric COMMA numeric RP ( COMMA LP numeric COMMA numeric RP )*
+      SC
+    ;
+
+createJavaScriptFunction
+    : CREATE_JF ID PARAMETERS parameter ( COMMA parameter )*
+      PRECONDITION orCondition BODY bodyContent END_BODY SC
+    ;
+
+bodyContent
+    : ~END_BODY*
+    ;
+
+// ************************************
+// ***
+// *** LEXER (SCANNER)
+// ***
+// ************************************
+
+// Boolean Operators
+AND : 'AND';
+OR : 'OR';
+NOT : 'NOT';
+
+// Keywords (alphabetical order)
+ADDING : 'ADDING';
+ADD_ST : 'ADD';
+AGGREGATE : 'AGGREGATE';
+ALL : 'ALL';
+ALPHACUT : 'ALPHA-CUT';
+AREA : 'AREA';
+ARRAY : 'ARRAY';
+AS : 'AS';
+BODY : 'BODY';
+BOOLEAN : 'TRUE' | 'FALSE';
+BY : 'BY';
+CASE : 'CASE';
+CHECK_FOR : 'CHECK' WS 'FOR';
+COLLECTION : 'COLLECTION';
+COLLECTIONS : 'COLLECTIONS';
+COUNT : 'COUNT';
+CREATE_FO : 'CREATE' WS 'FUZZY' WS 'OPERATOR';
+CREATE_JF : 'CREATE' WS 'JAVASCRIPT' WS 'FUNCTION';
+DB : 'DB';
+DEFAULT : 'DEFAULT';
+DIRECTION : 'DIRECTION';
+DISTANCE : 'DISTANCE';
+DROP : 'DROP';
+DROPPING : 'DROPPING';
+END_BODY : 'END' WS 'BODY';
+EVALUATE : 'EVALUATE';
+EXPAND : 'EXPAND';
+FIELDS : 'FIELDS';
+FILTER : 'FILTER';
+FUZZY : 'FUZZY';
+GENERATE : 'GENERATE';
+GEOMETRY : 'GEOMETRY';
+GET : 'GET';
+GROUP : 'GROUP';
+GROUPING : 'GROUPING';
+HOWMEET : 'HOW-MEET';
+IFFAILS : 'IF-FAILS';
+INCLUDED : 'INCLUDED';
+INPUT : 'INPUT';
+INSIDE : 'INSIDE';
+INTERMEDIATE : 'INTERMEDIATE';
+INTERSECT : 'INTERSECT';
+INTERSECTION : 'INTERSECTION';
+INTO : 'INTO';
+INRANGE : 'INRANGE';
+JOIN : 'JOIN';
+KEEP : 'KEEP';
+KEEPING : 'KEEPING';
+KNOWN : 'KNOWN';
+LEFT : 'LEFT';
+MATCHING : 'MATCHING';
+MEET : 'MEET';
+MERGE : 'MERGE';
+MIN : 'MIN';
+NEW : 'NEW';
+OF : 'OF';
+ON : 'ON';
+ORIENTATION : 'ORIENTATION';
+OTHERS : 'OTHERS';
+ORDER : 'ORDER' | 'SORTED';
+OVERLAP : 'OVERLAP';
+PARAMETERS : 'PARAMETERS';
+PARTITION : 'PARTITION';
+PERIMETER : 'PERIMETER';
+POINT : 'POINT';
+POLYLINE : 'POLYLINE';
+PRECONDITION : 'PRECONDITION';
+RANGE : 'RANGE';
+RIGHT : 'RIGHT';
+SAVE : 'SAVE';
+SERVER : 'SERVER';
+SET : 'SET';
+SETS : 'SETS';
+SETTING : 'SETTING';
+SIMILARITY : 'SIMILARITY';
+SOURCE : 'SOURCE';
+SPATIAL : 'SPATIAL';
+SUBTRACT : 'SUBTRACT';
+THRESHOLD : 'THRESHOLD';
+TO : 'TO';
+TO_POLYLINE : 'TO_POLYLINE';
+TRAJECTORY : 'TRAJECTORY';
+TYPE : 'TYPE';
+UNKNOWN : 'UNKNOWN';
+UNPACK : 'UNPACK';
+USE : 'USE';
+USING : 'USING';
+VERSUS : 'DESC' | 'ASC';
+WHERE : 'WHERE';
+WITH : 'WITH';
+WITHIN : 'WITHIN';
+WITHOUT : 'WITHOUT';
+WRT : 'WRT';
+
+// Literals
+INT: '0' | [1-9] [0-9]* ;
+FLOAT: [1-9] [0-9]* DOT [0-9]+ | '0' DOT [0-9]+;
+ID: [A-Za-z] [A-Za-z0-9_]*;
+FIELD_NAME: ( DOT [A-Za-z0-9_]+ )
+          | DOT '"' ~["]* '"'
+          | DOT '~geometry'
+          | '~geometry';
+
+// Punctuation
+AT : '@';
+EQ : '=';
+NEQ : '!=';
+LE : '<=';
+GE : '>=';
+LT : '<';
+GT : '>';
+DOT : '.';
+ADD : '+';
+SUB : '-';
+MUL : '*';
+DIV : '\\';
+COMMA : ',';
+COLON : ':';
+SC : ';';
+LP : '(';
+RP : ')';
+LB : '[';
+RB : ']';
+LBR : '{';
+RBR : '}';
+APEX : '\'';
+
+// String literals
+APEX_VALUE : '\'' ~[']* '\'' ;
+QUOTED_VALUE : '"' ~["]* '"' ;
+
+// Whitespace
+fragment WS : [ \t\r\n]+ ;
+WHITE_SPACES : WS -> skip ;
+
+// Catch-all error token
+SCAN_ERROR : . ;

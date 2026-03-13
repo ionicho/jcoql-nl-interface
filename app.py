@@ -1,87 +1,140 @@
-import streamlit as st
-import os
-from dotenv import load_dotenv
-from langchain_google_genai import ChatGoogleGenerativeAI
-import chromadb
-
-# 1. Configurazione della pagina
-st.set_page_config(page_title="JCoQL+ AI Assistant", page_icon="💎", layout="centered")
-
-# 2. Caricamento variabili d'ambiente
-load_dotenv()
-API_KEY = os.getenv('GEMINI_API_KEY')
-
-# 3. Stile CSS personalizzato
-st.markdown("""
-    <style>
-    .main { background-color: #f5f7f9; }
-    .stCodeBlock { border: 2px solid #4A90E2; border-radius: 10px; padding: 10px; }
-    .stTextArea textarea { font-family: 'Cascadia Code', monospace; }
-    </style>
-    """, unsafe_allow_html=True)
-
-st.title("💎 JCoQL+ AI Interface")
-st.write("Traduci il linguaggio naturale in query JCoQL+ utilizzando l'intelligenza artificiale.")
-
-# 4. Inizializzazione Risorse (Database e Modello)
-@st.cache_resource
-def load_resources():
-    # Connessione al DB vettoriale ChromaDB
-    client = chromadb.PersistentClient(path="./chroma_data")
-    collection = client.get_collection(name="jcoql_examples")
-    
-    # Inizializzazione LLM con parametri di stabilità
-    llm = ChatGoogleGenerativeAI(
-    model="gemini-2.5-flash",  # ← NUOVO MODELLO
-    google_api_key=API_KEY,
-    temperature=0,
-    max_retries=2
-)
-    return collection, llm
-
-try:
-    collection, llm = load_resources()
-
-    # 5. Interfaccia Input
-    query_input = st.text_area(
-        "Cosa vuoi chiedere al database?", 
-        placeholder="Esempio: Prendi tutti i documenti dalla collezione 'ordini' dove il prezzo è minore di 50",
-        height=120
-    )
-
-    if st.button("Genera Query JCoQL+ 🚀"):
-        if query_input:
-            with st.spinner("Generazione in corso..."):
-                # A. Recupero Semantico (RAG) - Ridotto a 1 esempio per risparmiare quota
-                results = collection.query(query_texts=[query_input], n_results=1)
-                context = "\n\n".join(results['documents'][0])
-                
-                # B. Creazione del Prompt Unificato
-                prompt_definitivo = f"""
-Sei un esperto traduttore di linguaggio naturale in query JCoQL+.
-Usa strettamente la sintassi mostrata in questo esempio:
-
-{context}
-
-Richiesta dell'utente: {query_input}
-
-Rispondi esclusivamente con il codice della query JCoQL+, senza spiegazioni o testo aggiuntivo.
+#!/usr/bin/env python3
 """
-                
-                # C. Chiamata al modello
-                response = llm.invoke(prompt_definitivo)
-                
-                # D. Visualizzazione Risultato
-                st.success("Query JCoQL+ generata con successo!")
-                st.code(response.content, language="sql")
-                
-                st.info("💡 Puoi copiare questo codice e usarlo nel tuo engine JCoQL.")
-        else:
-            st.warning("⚠️ Per favore, inserisci una richiesta prima di generare!")
+JCoQL+ Natural Language Interface
+Streamlit App con RAG + ANTLR Validation
+"""
+import streamlit as st
+import sys
+from pathlib import Path
 
-except Exception as e:
-    st.error(f"❌ Errore di sistema: {e}")
-    if "429" in str(e):
-        st.warning("🚨 Limite di quota raggiunto. Assicurati di aver inserito la NUOVA API KEY nel file .env e riprova tra qualche minuto.")
-    elif "404" in str(e):
-        st.info("🔍 Modello non trovato. Verifica che il nome 'gemini-2.0-flash' sia corretto per la tua zona.")
+# Add backend to path
+sys.path.append(str(Path(__file__).parent / 'backend'))
+
+from backend.rag_with_validation import generate_jcoql_with_validation
+
+# Page config
+st.set_page_config(
+    page_title="JCoQL+ NL Interface",
+    page_icon="🔍",
+    layout="wide"
+)
+
+# Title
+st.title("🔍 JCoQL+ Natural Language Interface")
+st.markdown("**Trasforma linguaggio naturale in query JCoQL 4.0 validate**")
+st.markdown("---")
+
+# Sidebar - Info
+with st.sidebar:
+    st.header("📊 Sistema")
+    st.markdown("""
+    **Stack:**
+    - 🤖 Gemini 2.5 Flash
+    - 🗄️ ChromaDB (39 esempi)
+    - ✅ ANTLR Parser (JCoQL 4.0)
+    - 🔄 Auto-validation + Retry
+    
+    **Features:**
+    - Retrieval esempi simili
+    - Generazione query
+    - Validazione sintassi
+    - Retry automatico
+    """)
+    
+    st.markdown("---")
+    
+    # Stats
+    if 'total_queries' not in st.session_state:
+        st.session_state.total_queries = 0
+        st.session_state.valid_queries = 0
+    
+    st.metric("Query Totali", st.session_state.total_queries)
+    st.metric("Query Valide", st.session_state.valid_queries)
+    
+    if st.session_state.total_queries > 0:
+        accuracy = (st.session_state.valid_queries / st.session_state.total_queries) * 100
+        st.metric("Accuracy", f"{accuracy:.1f}%")
+
+# Main area
+col1, col2 = st.columns([1, 1])
+
+with col1:
+    st.subheader("📝 Input")
+    
+    # Example queries
+    examples = [
+        "Hotel a Milano con rating superiore a 4",
+        "Prodotti con prezzo tra 100 e 200 euro",
+        "Utenti senza email registrata",
+        "Ristoranti a Roma o Firenze",
+        "Appartamenti con superficie tra 50 e 100 mq",
+        "Ordini con totale maggiore di 500"
+    ]
+    
+    selected_example = st.selectbox(
+        "Esempi rapidi:",
+        [""] + examples,
+        index=0
+    )
+    
+    # Text input
+    nl_query = st.text_area(
+        "Inserisci la tua richiesta in linguaggio naturale:",
+        value=selected_example if selected_example else "",
+        height=100,
+        placeholder="Es: Trova tutti gli hotel a Milano con rating maggiore di 4"
+    )
+    
+    # Generate button
+    generate_btn = st.button("🚀 Genera Query JCoQL", type="primary", use_container_width=True)
+
+with col2:
+    st.subheader("⚙️ Output")
+    
+    if generate_btn and nl_query:
+        with st.spinner("🔄 Generazione in corso..."):
+            result = generate_jcoql_with_validation(nl_query)
+        
+        st.session_state.total_queries += 1
+        
+        if 'error' in result:
+            st.error(f"❌ Errore: {result['error']}")
+        else:
+            # Validation status
+            if result['is_valid']:
+                st.success(f"✅ Query Valida (tentativo {result['attempts']})")
+                st.session_state.valid_queries += 1
+            else:
+                st.error(f"❌ Query Invalida dopo {result['attempts']} tentativi")
+            
+            # Generated query
+            st.code(result['jcoql_query'], language='sql')
+            
+            # Validation errors
+            if not result['is_valid'] and result.get('validation_errors'):
+                with st.expander("⚠️ Errori di Validazione"):
+                    for err in result['validation_errors']:
+                        st.write(f"- {err['message']}")
+            
+            # Retrieved examples
+            if result.get('retrieved_examples'):
+                with st.expander("📚 Esempi Recuperati da ChromaDB"):
+                    for i, ex in enumerate(result['retrieved_examples'], 1):
+                        st.text_area(
+                            f"Esempio {i}",
+                            value=ex,
+                            height=150,
+                            key=f"example_{i}"
+                        )
+    
+    elif generate_btn:
+        st.warning("⚠️ Inserisci una query!")
+
+# Footer
+st.markdown("---")
+st.markdown("""
+<div style='text-align: center; color: #666;'>
+    <small>JCoQL+ NL Interface | Tesi Magistrale Università Bergamo | 
+    RAG + LLM + ANTLR Parser | Gemini 2.5 Flash</small>
+</div>
+""", unsafe_allow_html=True)

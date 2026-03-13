@@ -1,0 +1,203 @@
+{
+  "total": 20,
+  "valid": 13,
+  "invalid": 0,
+  "errors": 7,
+  "total_attempts": 13,
+  "by_level": {
+    "Base": {
+      "total": 5,
+      "valid": 5
+    },
+    "Intermedio": {
+      "total": 7,
+      "valid": 7
+    },
+    "Avanzato": {
+      "total": 8,
+      "valid": 1
+    }
+  },
+  "details": [
+    {
+      "id": 1,
+      "level": "Base",
+      "nl": "Negozi a Bergamo",
+      "status": "valid",
+      "jcoql": "GET COLLECTION stores; FILTER CASE WHERE .city = 'Bergamo' KEEP OTHERS;",
+      "attempts": 1,
+      "valid": true
+    },
+    {
+      "id": 2,
+      "level": "Base",
+      "nl": "Prodotti con prezzo maggiore di 50",
+      "status": "valid",
+      "jcoql": "GET COLLECTION Prodotti; FILTER CASE WHERE .price > 50 KEEP OTHERS;",
+      "attempts": 1,
+      "valid": true
+    },
+    {
+      "id": 3,
+      "level": "Base",
+      "nl": "Hotel con rating 5",
+      "status": "valid",
+      "jcoql": "GET COLLECTION Hotels; FILTER CASE WHERE .rating = 5 KEEP OTHERS;",
+      "attempts": 1,
+      "valid": true
+    },
+    {
+      "id": 4,
+      "level": "Base",
+      "nl": "Utenti con email",
+      "status": "valid",
+      "jcoql": "GET COLLECTION users; FILTER CASE WHERE NOT .email = '' KEEP OTHERS;",
+      "attempts": 1,
+      "valid": true
+    },
+    {
+      "id": 5,
+      "level": "Base",
+      "nl": "Documenti senza note",
+      "status": "valid",
+      "jcoql": "GET COLLECTION myCollection; FILTER CASE WHERE NOT .notes KEEP OTHERS;",
+      "attempts": 1,
+      "valid": true
+    },
+    {
+      "id": 6,
+      "level": "Intermedio",
+      "nl": "Hotel a Milano con rating superiore a 4 e prezzo inferiore a 200",
+      "status": "valid",
+      "jcoql": "GET COLLECTION hotels; FILTER CASE WHERE .city = 'Milano' AND .rating > 4 AND .price < 200 KEEP OTHERS;",
+      "attempts": 1,
+      "valid": true
+    },
+    {
+      "id": 7,
+      "level": "Intermedio",
+      "nl": "Ristoranti a Roma o Firenze",
+      "status": "valid",
+      "jcoql": "GET COLLECTION Restaurants; FILTER CASE WHERE (.city = 'Roma' OR .city = 'Firenze') KEEP OTHERS;",
+      "attempts": 1,
+      "valid": true
+    },
+    {
+      "id": 8,
+      "level": "Intermedio",
+      "nl": "Prodotti con prezzo tra 100 e 500 euro",
+      "status": "valid",
+      "jcoql": "GET COLLECTION products; FILTER CASE WHERE .price IN_RANGE [ 100 , 500 ] KEEP OTHERS;",
+      "attempts": 1,
+      "valid": true
+    },
+    {
+      "id": 9,
+      "level": "Intermedio",
+      "nl": "Appartamenti con superficie tra 50 e 100 metri quadri",
+      "status": "valid",
+      "jcoql": "GET COLLECTION apartments; FILTER CASE WHERE .area IN_RANGE [ 50 , 100 ] KEEP OTHERS;",
+      "attempts": 1,
+      "valid": true
+    },
+    {
+      "id": 10,
+      "level": "Intermedio",
+      "nl": "Ordini dove il campo note è null",
+      "status": "valid",
+      "jcoql": "GET COLLECTION ordini; FILTER CASE WHERE .note IS NULL KEEP OTHERS;",
+      "attempts": 1,
+      "valid": true
+    },
+    {
+      "id": 11,
+      "level": "Intermedio",
+      "nl": "Clienti dove descrizione non è null",
+      "status": "valid",
+      "jcoql": "GET COLLECTION Clienti; FILTER CASE WHERE NOT (.descrizione = NULL) KEEP OTHERS;",
+      "attempts": 1,
+      "valid": true
+    },
+    {
+      "id": 12,
+      "level": "Intermedio",
+      "nl": "Prodotti senza email e senza telefono",
+      "status": "valid",
+      "jcoql": "GET COLLECTION products; FILTER CASE WHERE NOT .email AND NOT .phone KEEP OTHERS;",
+      "attempts": 1,
+      "valid": true
+    },
+    {
+      "id": 13,
+      "level": "Avanzato",
+      "nl": "Hotel a Milano o Roma con rating maggiore di 4 e prezzo minore di 300",
+      "status": "valid",
+      "jcoql": "GET COLLECTION hotels; FILTER CASE WHERE (.city = 'Milano' OR .city = 'Roma') AND .rating > 4 AND .price < 300 KEEP OTHERS;",
+      "attempts": 1,
+      "valid": true
+    },
+    {
+      "id": 14,
+      "level": "Avanzato",
+      "nl": "Prodotti elettronici con prezzo tra 200 e 1000 e non discontinued",
+      "status": "error",
+      "jcoql": "",
+      "attempts": 1,
+      "valid": false
+    },
+    {
+      "id": 15,
+      "level": "Avanzato",
+      "nl": "Clienti premium o gold che sono attivi",
+      "status": "error",
+      "jcoql": "",
+      "attempts": 1,
+      "valid": false
+    },
+    {
+      "id": 16,
+      "level": "Avanzato",
+      "nl": "Temperature tra 18.5 e 22.5 gradi",
+      "status": "error",
+      "jcoql": "",
+      "attempts": 1,
+      "valid": false
+    },
+    {
+      "id": 17,
+      "level": "Avanzato",
+      "nl": "Vendite per categoria con totale maggiore di zero",
+      "status": "error",
+      "jcoql": "",
+      "attempts": 1,
+      "valid": false
+    },
+    {
+      "id": 18,
+      "level": "Avanzato",
+      "nl": "Salva risultati come nuova collezione chiamata best_hotels",
+      "status": "error",
+      "jcoql": "",
+      "attempts": 1,
+      "valid": false
+    },
+    {
+      "id": 19,
+      "level": "Avanzato",
+      "nl": "Unisci le collezioni clienti_europa e clienti_usa",
+      "status": "error",
+      "jcoql": "",
+      "attempts": 1,
+      "valid": false
+    },
+    {
+      "id": 20,
+      "level": "Avanzato",
+      "nl": "Clienti comuni tra online e negozio",
+      "status": "error",
+      "jcoql": "",
+      "attempts": 1,
+      "valid": false
+    }
+  ]
+}

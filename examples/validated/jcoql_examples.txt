@@ -9,56 +9,64 @@ ESEMPIO 1: GET COLLECTION e FILTER Base
 Descrizione: Trova tutti i negozi a Bergamo.
 Query:
 GET COLLECTION stores;
-FILTER CASE WHERE .city = 'Bergamo';
+FILTER CASE WHERE .city = 'Bergamo'
+KEEP OTHERS;
 
 ESEMPIO 2: Comparazione Numerica
 ----------------------------------------------
 Descrizione: Prodotti con prezzo superiore a 100.
 Query:
 GET COLLECTION products;
-FILTER CASE WHERE .price > 100;
+FILTER CASE WHERE .price > 100
+KEEP OTHERS;
 
 ESEMPIO 3: Logica AND
 ----------------------------------------------
 Descrizione: Hotel a Milano, rating > 4, prezzo < 200.
 Query:
 GET COLLECTION hotels;
-FILTER CASE WHERE .city = 'Milano' AND .rating > 4 AND .price < 200;
+FILTER CASE WHERE .city = 'Milano' AND .rating > 4 AND .price < 200
+KEEP OTHERS;
 
 ESEMPIO 4: Logica OR
 ----------------------------------------------
 Descrizione: Ristoranti a Roma o Firenze.
 Query:
 GET COLLECTION restaurants;
-FILTER CASE WHERE .city = 'Roma' OR .city = 'Firenze';
+FILTER CASE WHERE .city = 'Roma' OR .city = 'Firenze'
+KEEP OTHERS;
 
 ESEMPIO 5: Range Numerico (INRANGE)
 ----------------------------------------------
 Descrizione: Superficie tra 50 e 100 mq (estremi inclusi).
 Query:
 GET COLLECTION apartments;
-FILTER CASE WHERE .superficie INRANGE [ 50 , 100 ];
+FILTER CASE WHERE .superficie IN_RANGE [ 50 , 100 ]
+KEEP OTHERS;
 
 ESEMPIO 6: Verifica Assenza Campo (WITHOUT)
 ----------------------------------------------
 Descrizione: Utenti senza email registrata.
 Query:
 GET COLLECTION users;
-FILTER CASE WHERE WITHOUT .email;
+FILTER CASE WHERE WITHOUT .email
+KEEP OTHERS;
 
 ESEMPIO 7: Verifica Presenza Campo (WITH)
 ----------------------------------------------
 Descrizione: Documenti che hanno una foto.
 Query:
 GET COLLECTION items;
-FILTER CASE WHERE WITH .photo;
+FILTER CASE WHERE WITH .photo
+KEEP OTHERS;
 
 ESEMPIO 8: Null Check (FIELD ... IS NULL)
 ----------------------------------------------
 Descrizione: Trova dove il campo 'note' è esplicitamente null.
 Query:
 GET COLLECTION reports;
-FILTER CASE WHERE FIELD .note IS NULL;
+FILTER CASE WHERE FIELD .note IS NULL
+KEEP OTHERS;
 
 ESEMPIO 9: CASE e GENERATE (Logica Condizionale)
 ----------------------------------------------
@@ -67,7 +75,7 @@ Query:
 GET COLLECTION products;
 FILTER CASE 
   WHERE .price < 50 GENERATE ADD FIELDS { .fascia : 'economico' }
-  WHERE .price INRANGE [ 50 , 150 ] GENERATE ADD FIELDS { .fascia : 'medio' }
+  WHERE .price IN_RANGE [ 50 , 150 ] GENERATE ADD FIELDS { .fascia : 'medio' }
   WHERE .price > 150 GENERATE ADD FIELDS { .fascia : 'costoso' };
 
 ESEMPIO 10: GENERATE BUILD (Trasformazione Totale)
@@ -76,7 +84,8 @@ Descrizione: Mantieni solo ID e calcola il prezzo scontato.
 Query:
 GET COLLECTION products;
 FILTER CASE WHERE .price > 0 
-  GENERATE BUILD { .id , .discounted_price : .price * 0.9 };
+  GENERATE BUILD { .product_id, .name, .total : ( .price * .quantity ) }
+KEEP OTHERS;
 
 ESEMPIO 11: REMOVE FIELDS
 ----------------------------------------------
@@ -84,30 +93,35 @@ Descrizione: Rimuovi dati sensibili.
 Query:
 GET COLLECTION staff;
 FILTER CASE WHERE WITH .password 
-  GENERATE REMOVE FIELDS { .password , .token };
+  GENERATE REMOVE FIELDS { .password, .token }
+KEEP OTHERS;
 
 ESEMPIO 12: EXPAND UNPACK (Unnesting)
 ----------------------------------------------
 Descrizione: Trasforma ogni elemento dell'array 'reviews' in un documento.
 Query:
 GET COLLECTION restaurants;
-EXPAND UNPACK .rating > 0 ARRAY .reviews TO .single_review;
+EXPAND 
+  UNPACK .rating > 4 ARRAY .reviews TO single_review
+KEEP OTHERS;
 
 ESEMPIO 13: SAVE AS
 ----------------------------------------------
 Descrizione: Salva i risultati in una nuova collezione.
 Query:
 GET COLLECTION stores;
-FILTER CASE WHERE .city = 'Bergamo';
+FILTER CASE WHERE .city = 'Bergamo'
+KEEP OTHERS;
 SAVE AS bergamo_stores;
 
 ESEMPIO 14: Condizioni Complesse con Parentesi
 ----------------------------------------------
 Descrizione: Query complessa con precedenza operatori.
 Query:
-GET COLLECTION restaurants;
-FILTER CASE WHERE (.city = 'Milano' OR .city = 'Roma') 
-  AND .rating > 4 AND NOT .closed;
+GET COLLECTION customers;
+FILTER CASE 
+    WHERE ( .city = 'Milano' OR .city = 'Roma' ) AND ( .premium = true )
+KEEP OTHERS;
 
 ==============================================
 FINE ESEMPI VALIDATI
