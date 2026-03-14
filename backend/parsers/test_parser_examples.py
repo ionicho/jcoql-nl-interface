@@ -11,7 +11,8 @@ from validator import validate_jcoql_query
 example_files = [
     '../../examples/validated/jcoql_examples.txt',
     '../../examples/validated/jcoql_examples_EXTENDED.txt',
-    '../../examples/validated/jcoql_examples_INRANGE.txt'
+    '../../examples/validated/jcoql_examples_INRANGE.txt',
+    '../../examples/validated/jcoql_examples_EDGE_CASES.txt'
 ]
 
 def parse_examples_file(filepath):
