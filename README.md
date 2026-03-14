@@ -1,4 +1,4 @@
-# 🔍 JCoQL+ Natural Language Interface
+# JCoQL+ Natural Language Interface
 
 **Interfaccia Natural Language → JCoQL+ con RAG e Validazione ANTLR**
 
