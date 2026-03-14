@@ -1,9 +1,9 @@
 {
   "total": 20,
-  "valid": 13,
+  "valid": 20,
   "invalid": 0,
-  "errors": 7,
-  "total_attempts": 13,
+  "errors": 0,
+  "total_attempts": 21,
   "by_level": {
     "Base": {
       "total": 5,
@@ -15,7 +15,7 @@
     },
     "Avanzato": {
       "total": 8,
-      "valid": 1
+      "valid": 8
     }
   },
   "details": [
@@ -24,7 +24,7 @@
       "level": "Base",
       "nl": "Negozi a Bergamo",
       "status": "valid",
-      "jcoql": "GET COLLECTION stores; FILTER CASE WHERE .city = 'Bergamo' KEEP OTHERS;",
+      "jcoql": "GET COLLECTION negozi; FILTER CASE WHERE .city = 'Bergamo' KEEP OTHERS;",
       "attempts": 1,
       "valid": true
     },
@@ -42,7 +42,7 @@
       "level": "Base",
       "nl": "Hotel con rating 5",
       "status": "valid",
-      "jcoql": "GET COLLECTION Hotels; FILTER CASE WHERE .rating = 5 KEEP OTHERS;",
+      "jcoql": "GET COLLECTION Hotel; FILTER CASE WHERE .rating = 5 KEEP OTHERS;",
       "attempts": 1,
       "valid": true
     },
@@ -51,7 +51,7 @@
       "level": "Base",
       "nl": "Utenti con email",
       "status": "valid",
-      "jcoql": "GET COLLECTION users; FILTER CASE WHERE NOT .email = '' KEEP OTHERS;",
+      "jcoql": "GET COLLECTION users; FILTER CASE WHERE .email > '' KEEP OTHERS;",
       "attempts": 1,
       "valid": true
     },
@@ -60,7 +60,7 @@
       "level": "Base",
       "nl": "Documenti senza note",
       "status": "valid",
-      "jcoql": "GET COLLECTION myCollection; FILTER CASE WHERE NOT .notes KEEP OTHERS;",
+      "jcoql": "GET COLLECTION my_collection; FILTER CASE WHERE NOT .notes KEEP OTHERS;",
       "attempts": 1,
       "valid": true
     },
@@ -69,7 +69,7 @@
       "level": "Intermedio",
       "nl": "Hotel a Milano con rating superiore a 4 e prezzo inferiore a 200",
       "status": "valid",
-      "jcoql": "GET COLLECTION hotels; FILTER CASE WHERE .city = 'Milano' AND .rating > 4 AND .price < 200 KEEP OTHERS;",
+      "jcoql": "GET COLLECTION Hotels; FILTER CASE WHERE .city = 'Milano' AND .rating > 4 AND .price < 200 KEEP OTHERS;",
       "attempts": 1,
       "valid": true
     },
@@ -78,7 +78,7 @@
       "level": "Intermedio",
       "nl": "Ristoranti a Roma o Firenze",
       "status": "valid",
-      "jcoql": "GET COLLECTION Restaurants; FILTER CASE WHERE (.city = 'Roma' OR .city = 'Firenze') KEEP OTHERS;",
+      "jcoql": "GET COLLECTION restaurants; FILTER CASE WHERE .city = 'Roma' OR .city = 'Firenze' KEEP OTHERS;",
       "attempts": 1,
       "valid": true
     },
@@ -96,7 +96,7 @@
       "level": "Intermedio",
       "nl": "Appartamenti con superficie tra 50 e 100 metri quadri",
       "status": "valid",
-      "jcoql": "GET COLLECTION apartments; FILTER CASE WHERE .area IN_RANGE [ 50 , 100 ] KEEP OTHERS;",
+      "jcoql": "GET COLLECTION apartments; FILTER CASE WHERE .surface IN_RANGE [ 50 , 100 ] KEEP OTHERS;",
       "attempts": 1,
       "valid": true
     },
@@ -105,7 +105,7 @@
       "level": "Intermedio",
       "nl": "Ordini dove il campo note è null",
       "status": "valid",
-      "jcoql": "GET COLLECTION ordini; FILTER CASE WHERE .note IS NULL KEEP OTHERS;",
+      "jcoql": "GET COLLECTION ordini; FILTER CASE WHERE .note = NULL KEEP OTHERS;",
       "attempts": 1,
       "valid": true
     },
@@ -114,7 +114,7 @@
       "level": "Intermedio",
       "nl": "Clienti dove descrizione non è null",
       "status": "valid",
-      "jcoql": "GET COLLECTION Clienti; FILTER CASE WHERE NOT (.descrizione = NULL) KEEP OTHERS;",
+      "jcoql": "GET COLLECTION clienti; FILTER CASE WHERE NOT .description = NULL KEEP OTHERS;",
       "attempts": 1,
       "valid": true
     },
@@ -123,7 +123,7 @@
       "level": "Intermedio",
       "nl": "Prodotti senza email e senza telefono",
       "status": "valid",
-      "jcoql": "GET COLLECTION products; FILTER CASE WHERE NOT .email AND NOT .phone KEEP OTHERS;",
+      "jcoql": "GET COLLECTION products; FILTER CASE WHERE (NOT .email = .email) AND (NOT .phone = .phone) KEEP OTHERS;",
       "attempts": 1,
       "valid": true
     },
@@ -140,64 +140,64 @@
       "id": 14,
       "level": "Avanzato",
       "nl": "Prodotti elettronici con prezzo tra 200 e 1000 e non discontinued",
-      "status": "error",
-      "jcoql": "",
+      "status": "valid",
+      "jcoql": "GET COLLECTION elettronici; FILTER CASE WHERE .price IN_RANGE [ 200 , 1000 ] AND NOT .discontinued KEEP OTHERS;",
       "attempts": 1,
-      "valid": false
+      "valid": true
     },
     {
       "id": 15,
       "level": "Avanzato",
       "nl": "Clienti premium o gold che sono attivi",
-      "status": "error",
-      "jcoql": "",
+      "status": "valid",
+      "jcoql": "GET COLLECTION clienti; FILTER CASE WHERE (.type = 'premium' OR .type = 'gold') AND .status = 'attivo' KEEP OTHERS;",
       "attempts": 1,
-      "valid": false
+      "valid": true
     },
     {
       "id": 16,
       "level": "Avanzato",
       "nl": "Temperature tra 18.5 e 22.5 gradi",
-      "status": "error",
-      "jcoql": "",
+      "status": "valid",
+      "jcoql": "GET COLLECTION temperatures_data;\nFILTER CASE WHERE .temperature IN_RANGE [ 18.5 , 22.5 ] KEEP OTHERS;",
       "attempts": 1,
-      "valid": false
+      "valid": true
     },
     {
       "id": 17,
       "level": "Avanzato",
       "nl": "Vendite per categoria con totale maggiore di zero",
-      "status": "error",
-      "jcoql": "",
+      "status": "valid",
+      "jcoql": "GET COLLECTION Sales; FILTER CASE WHERE .total > 0 KEEP OTHERS;",
       "attempts": 1,
-      "valid": false
+      "valid": true
     },
     {
       "id": 18,
       "level": "Avanzato",
       "nl": "Salva risultati come nuova collezione chiamata best_hotels",
-      "status": "error",
-      "jcoql": "",
+      "status": "valid",
+      "jcoql": "GET COLLECTION hotels; FILTER CASE WHERE .rating >= 4.5 KEEP OTHERS; SAVE AS best_hotels;",
       "attempts": 1,
-      "valid": false
+      "valid": true
     },
     {
       "id": 19,
       "level": "Avanzato",
       "nl": "Unisci le collezioni clienti_europa e clienti_usa",
-      "status": "error",
-      "jcoql": "",
-      "attempts": 1,
-      "valid": false
+      "status": "valid",
+      "jcoql": "GET COLLECTION clienti_europa;",
+      "attempts": 2,
+      "valid": true
     },
     {
       "id": 20,
       "level": "Avanzato",
       "nl": "Clienti comuni tra online e negozio",
-      "status": "error",
-      "jcoql": "",
+      "status": "valid",
+      "jcoql": "GET COLLECTION customers; FILTER CASE WHERE .isOnline = true AND .isStore = true KEEP OTHERS;",
       "attempts": 1,
-      "valid": false
+      "valid": true
     }
   ]
 }
