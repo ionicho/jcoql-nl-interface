@@ -15,7 +15,7 @@ collection = client.get_collection(name="jcoql_examples")
 
 # Inizializzazione con Gemma (Modello Open di Google)
 llm = ChatGoogleGenerativeAI(
-    model="gemini-1.5-flash",
+    model="gemini-2.5-flash",
     google_api_key=API_KEY,
     temperature=0
 )
