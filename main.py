@@ -22,7 +22,19 @@ from backend.parsers.parser_factory import ParserFactory, ParserType
 # Carica env
 load_dotenv()
 
-# --- CONFIGURAZIONE ---
+# Carica regole sintattiche ufficiali JCoQL 4.0
+with open('backend/jcoql_syntax_official.txt', 'r', encoding='utf-8') as f:
+    JCOQL_SYNTAX_FULL = f.read()
+
+with open('backend/jcoql_syntax_basic_official.txt', 'r', encoding='utf-8') as f:
+    JCOQL_SYNTAX_BASIC = f.read()
+
+# --- CONFIGURAZIONE LLM ---
+# NOTA VRAM: Modelli locali occupano memoria GPU
+# - Llama 3.1 8B: ~4.7GB VRAM
+# - Gemma 2 9B: ~5.4GB VRAM
+# RTX 4060 (8GB): può caricare 1 modello locale alla volta
+# Ollama NON scarica automaticamente - serve riavvio manuale
 ACTIVE_LLM = os.getenv("ACTIVE_LLM", "gemini")
 ACTIVE_PARSER = os.getenv("ACTIVE_PARSER", "antlr4_custom")
 
@@ -84,21 +96,71 @@ async def generate_query(request: GenerateRequest):
         attempts += 1
         
         prompt = f"""
-Sei un esperto di JCoQL+. Traduci la richiesta in linguaggio naturale in una query JCoQL+ valida.
-Rispondi SOLO con il codice della query, terminato da punto e virgola (;). Niente markdown.
+Sei un esperto di JCoQL 4.0. Genera query SINTATTICAMENTE CORRETTE secondo le specifiche ufficiali.
 
-CONTESTO (Esempi):
+=== SINTASSI UFFICIALE JCOQL 4.0 ===
+{JCOQL_SYNTAX_BASIC}
+
+=== REGOLE CRITICHE ===
+- Ogni statement termina con punto e virgola (;)
+- Campi iniziano con punto: .field_name
+- Stringhe tra apici singoli: 'text'
+- FILTER CASE WHERE deve avere KEEP OTHERS o DROP OTHERS
+- IN_RANGE usa [ ] per range inclusi
+- WITHOUT per campi mancanti
+- SIZE(campo) per lunghezza array
+- Non usare: JOIN ON, GROUP BY, ORDER BY, LIMIT, PROJECT, DISTINCT, COUNT (non supportati)
+
+=== ESEMPI DAL DATABASE ===
 {context_str}
 
-{f"ATTENZIONE! ERRORI DA CORREGGERE: {all_errors[-1]}" if attempts > 1 else ""}
+{f"ATTENZIONE! ERRORI PRECEDENTI DA CORREGGERE: {all_errors[-1]}" if attempts > 1 else ""}
 
-RICHIESTA: {request.nl_query}
+=== RICHIESTA UTENTE ===
+{request.nl_query}
+
+GENERA SOLO LA QUERY JCOQL 4.0, NIENTE ALTRO.
 """
         
         try:
             # LLM Generation
             if ACTIVE_LLM == "llama":
                 current_query = generate_with_llama(prompt)
+                
+                # PULIZIA LLAMA (rimuove spiegazioni)
+                # Se contiene markdown code block, estrae solo quello
+                if "```" in current_query:
+                    import re
+                    match = re.search(r'```(?:sql|jcoql)?\s*\n?(.*?)\n?```', current_query, re.DOTALL)
+                    if match:
+                        current_query = match.group(1).strip()
+                    else:
+                        # Fallback: rimuovi linee con ```
+                        lines = current_query.split('\n')
+                        current_query = '\n'.join([l for l in lines if '```' not in l])
+                
+                # Mantieni solo righe JCoQL valide (stesso filtro Gemma)
+                jcoql_keywords = [
+                    'GET', 'FILTER', 'WHERE', 'KEEP', 'DROP', 'WITHOUT', 
+                    'IN_RANGE', 'INTERSECT', 'EXPAND', 'LOOKUP', 'MERGE',
+                    'GROUP', 'SAVE', 'ALL', 'CREATE', 'TRAJECTORY', 'USE',
+                    'SUBTRACT'
+                ]
+                
+                lines = current_query.split('\n')
+                clean_lines = []
+                
+                for line in lines:
+                    line = line.strip()
+                    if line and (
+                        any(line.upper().startswith(kw) for kw in jcoql_keywords) or
+                        line.startswith('.') or
+                        line.endswith(';')
+                    ):
+                        clean_lines.append(line)
+                
+                if clean_lines:
+                    current_query = '\n'.join(clean_lines).strip()
             elif ACTIVE_LLM == "gemma":
                 current_query = generate_with_gemma(prompt)
                 

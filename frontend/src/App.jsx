@@ -94,20 +94,31 @@ function JCoQLInterface() {
             <h1 className="text-2xl font-bold">JCoQL+ Interface</h1>
             
             <div className="flex items-center space-x-4">
-              {/* LLM Selector con tooltip */}
+              {/* LLM Selector con badge VRAM */}
                 <div className="flex items-center space-x-2">
-                  <label className="text-sm text-gray-600">LLM:</label>
-                  <select 
-                    value={selectedLlm} 
-                    onChange={handleLlmChange}
-                    className="px-3 py-1 bg-white border border-gray-300 rounded text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"
-                    title={`Attuale: ${selectedLlm === 'gemini' ? 'Cloud (Google API)' : 'Locale (Ollama)'}`}
-                  >
-                    <option value="gemini">☁️ Gemini (Cloud)</option>
-                    <option value="llama">🏠 Llama (Locale)</option>
-                    <option value="gemma">🏠 Gemma (Locale)</option>
-                  </select>
-                </div>
+                    <label className="text-sm text-gray-600">LLM:</label>
+                    <select 
+                      value={selectedLlm} 
+                      onChange={handleLlmChange}
+                      className="px-3 py-1 bg-white border border-gray-300 rounded text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                      title={`Attuale: ${selectedLlm === 'gemini' ? 'Cloud (Google API)' : 'Locale (Ollama)'}`}
+                    >
+                      <option value="gemini">☁️ Gemini (Cloud)</option>
+                      <option value="llama">🏠 Llama (Locale - 4.7GB)</option>
+                      <option value="gemma">🏠 Gemma (Locale - 5.4GB) ⚠️</option>
+                    </select>
+                  </div>
+
+                  {/* Warning se Gemma selezionato */}
+                  {selectedLlm === 'gemma' && (
+                    <div className="mt-2 p-3 bg-yellow-50 border border-yellow-200 rounded-lg">
+                      <p className="text-xs text-yellow-800">
+                        <strong>⚠️ Nota VRAM:</strong> Gemma richiede 5.4GB. 
+                        Se hai appena usato Llama, riavvia Ollama per liberare memoria: 
+                        <code className="ml-1 px-1 bg-yellow-100 rounded">ollama stop</code>
+                      </p>
+                    </div>
+                  )}
 
               {/* Parser Selector */}
               <div className="flex items-center space-x-2">
