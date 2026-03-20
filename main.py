@@ -13,32 +13,36 @@ from dotenv import load_dotenv
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 sys.path.append(os.path.join(BASE_DIR, "backend", "parsers"))
 
-# Importa LLM locali
+# Importa LLM
 from backend.llm_local import generate_with_llama, generate_with_gemma
 
-# Importa validatore
-from backend.parsers.validator import validate_jcoql_query
+# Importa Parser Factory
+from backend.parsers.parser_factory import ParserFactory, ParserType
 
 # Carica env
 load_dotenv()
 
-# --- LLM CONFIGURATION ---
-ACTIVE_LLM = os.getenv("ACTIVE_LLM", "gemini")  # gemini | llama | gemma
+# --- CONFIGURAZIONE ---
+ACTIVE_LLM = os.getenv("ACTIVE_LLM", "gemini")
+ACTIVE_PARSER = os.getenv("ACTIVE_PARSER", "antlr4_custom")
 
-# --- GEMINI ---
+# Crea parser
+parser = ParserFactory.create_parser(ParserType(ACTIVE_PARSER))
+
+# Gemini
 genai.configure(api_key=os.getenv("GEMINI_API_KEY"))
 model = genai.GenerativeModel("gemini-3.1-flash-lite-preview")
 
-# --- CHROMADB ---
+# ChromaDB
 chroma_client = chromadb.PersistentClient(path="./chroma_data")
 try:
     collection = chroma_client.get_collection(name="jcoql_examples")
 except Exception as e:
-    print(f"ATTENZIONE: ChromaDB error: {e}")
+    print(f"ChromaDB error: {e}")
     collection = None
 
-# --- FASTAPI ---
-app = FastAPI(title="JCoQL+ API")
+# FastAPI
+app = FastAPI(title="JCoQL+ Multi-Parser API")
 
 app.add_middleware(
     CORSMiddleware,
@@ -92,36 +96,64 @@ RICHIESTA: {request.nl_query}
 """
         
         try:
-            # GENERAZIONE LLM
+            # LLM Generation
             if ACTIVE_LLM == "llama":
                 current_query = generate_with_llama(prompt)
-                
             elif ACTIVE_LLM == "gemma":
                 current_query = generate_with_gemma(prompt)
                 
-                # Pulisce output Gemma
+                # PULIZIA ULTRA-AGGRESSIVA GEMMA
+                # Step 1: Rimuovi markdown
                 if "```" in current_query:
-                    lines = current_query.split('\n')
-                    current_query = '\n'.join([l for l in lines if not l.startswith('```')])
+                    import re
+                    # Estrae solo contenuto tra ```
+                    match = re.search(r'```(?:jcoql)?\s*\n?(.*?)\n?```', current_query, re.DOTALL)
+                    if match:
+                        current_query = match.group(1)
+                    else:
+                        # Rimuovi solo le linee con ```
+                        lines = current_query.split('\n')
+                        current_query = '\n'.join([l for l in lines if '```' not in l])
                 
-                current_query = current_query.replace("Sure, here is the JCoQL query", "")
-                current_query = current_query.replace(":", "").strip()
+                # Step 2: Mantieni solo righe che iniziano con keyword JCoQL
+                jcoql_keywords = [
+                    'GET', 'FILTER', 'WHERE', 'KEEP', 'DROP', 'WITHOUT', 
+                    'IN_RANGE', 'UNION', 'INTERSECT', 'EXPAND', 'LOOKUP',
+                    'MERGE', 'GROUP', 'SAVE', 'ALL', 'CREATE', 'TRAJECTORY',
+                    'USE', 'SUBTRACT', 'JOIN'
+                ]
                 
+                lines = current_query.split('\n')
+                clean_lines = []
+                
+                for line in lines:
+                    line = line.strip()
+                    # Mantieni se inizia con keyword JCoQL o è continuazione (es: "  WHERE")
+                    if line and (
+                        any(line.upper().startswith(kw) for kw in jcoql_keywords) or
+                        line.startswith('.') or  # Campo (es: .email)
+                        line.endswith(';')       # Fine statement
+                    ):
+                        clean_lines.append(line)
+                
+                current_query = '\n'.join(clean_lines).strip()
+                
+                # Step 3: Se ancora vuoto, fallback al testo originale
+                if not current_query:
+                    current_query = generate_with_gemma(prompt)
             else:  # gemini
                 response = model.generate_content(prompt)
                 current_query = response.text.strip()
             
-            # Pulisce markdown (tutti i modelli)
+            # Pulisce markdown
             if current_query.startswith("```"):
                 current_query = current_query.replace("```jcoql", "").replace("```", "").strip()
             
-            # VALIDAZIONE
-            validation_result = validate_jcoql_query(current_query)
-            is_valid = validation_result.get('is_valid', False)
+            # VALIDAZIONE con Parser Factory
+            is_valid, errors = parser.validate(current_query)
             
             if not is_valid:
-                errors_list = validation_result.get('errors', [{'message': 'Errore sconosciuto'}])
-                error_messages = [err.get('message', str(err)) for err in errors_list]
+                error_messages = [err.message for err in errors]
                 all_errors.append(f"Tentativo {attempts}: {', '.join(error_messages)}")
                 validation_errors_for_frontend = [{"message": msg} for msg in error_messages]
                 
@@ -135,12 +167,12 @@ RICHIESTA: {request.nl_query}
         "attempts": attempts,
         "validation_errors": validation_errors_for_frontend,
         "retrieved_examples": retrieved_docs,
-        "llm_used": ACTIVE_LLM
+        "llm_used": ACTIVE_LLM,
+        "parser_used": parser.parser_name
     }
 
 @app.get("/api/llms")
 async def list_llms():
-    """Lista LLM disponibili"""
     return {
         "available": ["gemini", "llama", "gemma"],
         "current": ACTIVE_LLM
@@ -148,11 +180,31 @@ async def list_llms():
 
 @app.post("/api/set_llm")
 async def set_llm(llm_type: str):
-    """Cambia LLM runtime"""
     global ACTIVE_LLM
-    
     if llm_type not in ["gemini", "llama", "gemma"]:
         raise HTTPException(status_code=400, detail="LLM non valido")
-    
     ACTIVE_LLM = llm_type
     return {"success": True, "llm": ACTIVE_LLM}
+
+@app.get("/api/parsers")
+async def list_parsers():
+    return {
+        "available": ParserFactory.get_available_parsers(),
+        "current": ACTIVE_PARSER,
+        "current_name": parser.parser_name,
+        "current_version": parser.parser_version
+    }
+
+@app.post("/api/set_parser")
+async def set_parser(parser_type: str):
+    global parser, ACTIVE_PARSER
+    try:
+        ACTIVE_PARSER = parser_type
+        parser = ParserFactory.create_parser(ParserType(parser_type))
+        return {
+            "success": True,
+            "parser": parser.parser_name,
+            "version": parser.parser_version
+        }
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))

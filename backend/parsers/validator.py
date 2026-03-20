@@ -6,8 +6,8 @@ Validates JCoQL+ query syntax
 import sys
 from antlr4 import *
 from antlr4.error.ErrorListener import ErrorListener
-from JCoQLLexer import JCoQLLexer
-from JCoQLParser import JCoQLParser
+from .JCoQLLexer import JCoQLLexer
+from .JCoQLParser import JCoQLParser
 
 
 class JCoQLErrorListener(ErrorListener):
