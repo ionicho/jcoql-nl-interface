@@ -94,19 +94,20 @@ function JCoQLInterface() {
             <h1 className="text-2xl font-bold">JCoQL+ Interface</h1>
             
             <div className="flex items-center space-x-4">
-              {/* LLM Selector */}
-              <div className="flex items-center space-x-2">
-                <label className="text-sm text-gray-600">LLM:</label>
-                <select 
-                  value={selectedLlm} 
-                  onChange={handleLlmChange}
-                  className="px-3 py-1 bg-white border border-gray-300 rounded text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"
-                >
-                  <option value="gemini">Gemini</option>
-                  <option value="llama">Llama</option>
-                  <option value="gemma">Gemma</option>
-                </select>
-              </div>
+              {/* LLM Selector con tooltip */}
+                <div className="flex items-center space-x-2">
+                  <label className="text-sm text-gray-600">LLM:</label>
+                  <select 
+                    value={selectedLlm} 
+                    onChange={handleLlmChange}
+                    className="px-3 py-1 bg-white border border-gray-300 rounded text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                    title={`Attuale: ${selectedLlm === 'gemini' ? 'Cloud (Google API)' : 'Locale (Ollama)'}`}
+                  >
+                    <option value="gemini">☁️ Gemini (Cloud)</option>
+                    <option value="llama">🏠 Llama (Locale)</option>
+                    <option value="gemma">🏠 Gemma (Locale)</option>
+                  </select>
+                </div>
 
               {/* Parser Selector */}
               <div className="flex items-center space-x-2">
@@ -267,7 +268,8 @@ function JCoQLInterface() {
               {result && result.llm_used && result.parser_used ? (
                 <>
                   <span className="font-medium text-indigo-600">
-                    LLM: {result.llm_used.toUpperCase()}
+                    LLM: {result.llm_used.toUpperCase()} 
+                    {result.llm_used === 'gemini' ? ' ☁️ Cloud' : ' 🏠 Locale'}
                   </span>
                   {' | '}
                   <span className="font-medium text-green-600">
@@ -275,7 +277,7 @@ function JCoQLInterface() {
                   </span>
                 </>
               ) : (
-                "RAG + Multi-LLM + Multi-Parser"
+                "RAG + Multi-LLM (Cloud/Locale) + Multi-Parser"
               )}
             </p>
           </div>
