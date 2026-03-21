@@ -45,7 +45,7 @@ def generate_jcoql_with_validation(nl_query, max_retries=2):
         return {'error': 'GEMINI_API_KEY not found'}
     
     genai.configure(api_key=api_key)
-    model = genai.GenerativeModel('gemini-2.5-flash')
+    model = genai.GenerativeModel('gemini-3.1-flash-lite-preview')
     
     # Retrieve examples
     collection = get_chroma_collection()

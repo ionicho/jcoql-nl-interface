@@ -9,8 +9,7 @@ import chromadb
 from chromadb.config import Settings
 
 def parse_examples_file(filepath):
-    """Parse examples file and extract structured data"""
-    examples = []
+    """Parse esempi da file .txt (supporta entrambi i formati)"""
     
     if not os.path.exists(filepath):
         return []
@@ -18,36 +17,70 @@ def parse_examples_file(filepath):
     with open(filepath, 'r', encoding='utf-8') as f:
         content = f.read()
     
-    # Split by ESEMPIO
-    parts = re.split(r'ESEMPIO \d+:', content)
+    examples = []
     
-    for part in parts[1:]:  # Skip header
-        lines = part.strip().split('\n')
+    # FORMATO 1: "ESEMPIO N:"
+    if 'ESEMPIO' in content:
+        parts = re.split(r'ESEMPIO \d+:', content)
         
-        if not lines:
-            continue
+        for part in parts[1:]:  # Skip header
+            lines = part.strip().split('\n')
+            
+            if not lines:
+                continue
+            
+            # Extract title
+            title_line = [l for l in lines if l.strip() and not l.startswith('-')]
+            if not title_line:
+                continue
+            title = title_line[0].strip()
+            
+            # Extract description
+            desc_match = re.search(r'Descrizione:\s*(.+)', part)
+            description = desc_match.group(1).strip() if desc_match else ""
+            
+            # Extract query
+            query_match = re.search(r'Query:\s*\n(.+?)(?=\n\n|$)', part, re.DOTALL)
+            query = query_match.group(1).strip() if query_match else ""
+            
+            if description and query:
+                examples.append({
+                    'title': title,
+                    'description': description,
+                    'query': query,
+                    'source': os.path.basename(filepath)
+                })
+    
+    # FORMATO 2: "Titolo: / Descrizione: / Query:"
+    else:
+        current_example = {}
         
-        # Extract title
-        title_line = [l for l in lines if l.strip() and not l.startswith('-')]
-        if not title_line:
-            continue
-        title = title_line[0].strip()
+        for line in content.split('\n'):
+            line = line.strip()
+            
+            # Skip commenti, separatori, righe vuote
+            if line.startswith('#') or line.startswith('=') or not line:
+                continue
+            
+            if line.startswith('Titolo:'):
+                # Salva esempio precedente se esiste
+                if current_example.get('query'):
+                    examples.append(current_example)
+                # Nuovo esempio
+                current_example = {
+                    'title': line.replace('Titolo:', '').strip(),
+                    'source': os.path.basename(filepath)
+                }
+            
+            elif line.startswith('Descrizione:'):
+                current_example['description'] = line.replace('Descrizione:', '').strip()
+            
+            elif line.startswith('Query:'):
+                current_example['query'] = line.replace('Query:', '').strip()
         
-        # Extract description
-        desc_match = re.search(r'Descrizione:\s*(.+)', part)
-        description = desc_match.group(1).strip() if desc_match else ""
-        
-        # Extract query
-        query_match = re.search(r'Query:\s*\n(.+?)(?=\n\n|$)', part, re.DOTALL)
-        query = query_match.group(1).strip() if query_match else ""
-        
-        if description and query:
-            examples.append({
-                'title': title,
-                'description': description,
-                'query': query,
-                'source': os.path.basename(filepath)
-            })
+        # Aggiungi ultimo esempio
+        if current_example.get('query'):
+            examples.append(current_example)
     
     return examples
 
@@ -68,21 +101,28 @@ def load_examples_to_chromadb():
         )
     )
     
-    # Get or create collection (usa il modello locale per default)
-    collection = client.get_or_create_collection(
+    # RESET collection per ricaricare tutto
+    try:
+        client.delete_collection("jcoql_examples")
+        print("🗑️  Collection esistente eliminata")
+    except:
+        pass
+    
+    # Create collection
+    collection = client.create_collection(
         name="jcoql_examples",
         metadata={"description": "JCoQL+ query examples for RAG"}
     )
     
     print(f"✅ ChromaDB ready (embeddings LOCALI)")
-    print(f"📊 Current documents: {collection.count()}")
     print()
     
     example_files = [
-    'examples/validated/jcoql_examples.txt',
-    'examples/validated/jcoql_examples_EXTENDED.txt',
-    'examples/validated/jcoql_examples_INRANGE.txt',
-    'examples/validated/jcoql_examples_EDGE_CASES.txt'    
+        'examples/validated/jcoql_examples.txt',
+        'examples/validated/jcoql_examples_EXTENDED.txt',
+        'examples/validated/jcoql_examples_INRANGE.txt',
+        'examples/validated/jcoql_examples_EDGE_CASES.txt',
+        'examples/validated/jcoql_examples_REAL_SYNTAX.txt'    
     ]
     
     all_examples = []
@@ -91,7 +131,7 @@ def load_examples_to_chromadb():
             print(f"📖 Reading {filepath}...")
             examples = parse_examples_file(filepath)
             all_examples.extend(examples)
-            print(f"   Found {len(examples)} examples")
+            print(f"   ✅ {len(examples)} esempi estratti")
         else:
             print(f"⚠️  File not found: {filepath}")
     
@@ -99,7 +139,7 @@ def load_examples_to_chromadb():
     print(f"📚 Total examples loaded: {len(all_examples)}")
     print()
     
-    # Add to ChromaDB (genera embeddings LOCALI automaticamente!)
+    # Add to ChromaDB
     print("💾 Adding examples to ChromaDB...")
     print("   (Genera embeddings localmente, nessuna API call)")
     print()
@@ -109,7 +149,6 @@ def load_examples_to_chromadb():
         doc_text = f"Titolo: {example['title']}\nDescrizione: {example['description']}\nQuery: {example['query']}"
         
         try:
-            # Add to collection - ChromaDB genera embeddings automaticamente!
             collection.add(
                 documents=[doc_text],
                 metadatas=[{
@@ -121,7 +160,8 @@ def load_examples_to_chromadb():
                 ids=[f"example_{i}"]
             )
             
-            print(f"   ✅ {i}/{len(all_examples)}: {example['title'][:50]}...")
+            if i % 10 == 0 or i == len(all_examples):
+                print(f"   ✅ {i}/{len(all_examples)} caricati...")
             
         except Exception as e:
             print(f"   ❌ Error on example {i}: {e}")
