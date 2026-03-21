@@ -1,93 +1,75 @@
 #!/usr/bin/env python3
 """
 ANTLR3 Official Parser Wrapper
-Parser ufficiale dei professori (Java)
+Parser ufficiale dei professori (JCoProjectTeam/JcoQL)
 """
-import subprocess
-import json
 from typing import Tuple, List
-from pathlib import Path
 from .parser_interface import ParserInterface, ValidationError
+from .java_parser_wrapper import validate_with_java_parser
 
 class ANTLR3OfficialParser(ParserInterface):
-    """Parser ANTLR3 ufficiale (Java)"""
+    """
+    Parser ANTLR3 ufficiale (prof JCoProjectTeam)
     
-    def __init__(self, jar_path: str = None):
-        """
-        Args:
-            jar_path: Path al JAR del parser ufficiale
-        """
-        self.jar_path = jar_path or self._find_jar()
-        if not self.jar_path:
-            raise FileNotFoundError("Parser JAR non trovato!")
+    Usa JAR compilato dal repository ufficiale:
+    https://github.com/JcoProjectTeam/JcoQL
     
-    def _find_jar(self) -> str:
-        """Cerca il JAR del parser"""
-        # TODO: Implementa ricerca automatica
-        # Per ora placeholder
-        return "backend/parsers/jcoql-parser-official.jar"
+    Wrapper Python → Java subprocess
+    """
+    
+    def __init__(self):
+        """Inizializza parser"""
+        self.mode = "java"
+        print("✅ ANTLR3 Official Parser attivo (Java subprocess)")
     
     def validate(self, query: str) -> Tuple[bool, List[ValidationError]]:
         """
-        Valida chiamando parser Java via subprocess
+        Valida query usando parser Java ufficiale
         
-        Strategia:
-        1. Scrive query in file temporaneo
-        2. Chiama Java parser
-        3. Legge risultato JSON
+        Args:
+            query: Query JCoQL da validare
+            
+        Returns:
+            (is_valid, errors)
         """
-        try:
-            # Crea file temporaneo con query
-            import tempfile
-            with tempfile.NamedTemporaryFile(mode='w', suffix='.jcoql', delete=False) as f:
-                f.write(query)
-                temp_file = f.name
+        
+        result = validate_with_java_parser(query)
+        
+        errors = []
+        
+        # Converti errori in ValidationError
+        for err_msg in result.get('errors', []):
+            # Parse formato: "1.\tSyntax Error 1 at [1, 1]: ..."
+            # Estrai line e column (heuristic)
+            line = 1
+            column = 0
             
-            # Chiama parser Java
-            result = subprocess.run(
-                ['java', '-jar', self.jar_path, 'validate', temp_file],
-                capture_output=True,
-                text=True,
-                timeout=10
-            )
+            # Prova estrarre da "at [line, col]"
+            import re
+            match = re.search(r'at \[(\d+), (\d+)\]', err_msg)
+            if match:
+                line = int(match.group(1))
+                column = int(match.group(2))
             
-            # Parse output JSON
-            if result.returncode == 0:
-                output = json.loads(result.stdout)
-                errors = []
-                
-                if not output.get('valid', False):
-                    for err in output.get('errors', []):
-                        errors.append(ValidationError(
-                            line=err.get('line', 0),
-                            column=err.get('column', 0),
-                            message=err.get('message', '')
-                        ))
-                
-                return output.get('valid', False), errors
-            else:
-                # Errore nell'esecuzione
-                return False, [ValidationError(0, 0, f"Parser error: {result.stderr}")]
-                
-        except subprocess.TimeoutExpired:
-            return False, [ValidationError(0, 0, "Parser timeout")]
-        except Exception as e:
-            return False, [ValidationError(0, 0, f"Exception: {str(e)}")]
-        finally:
-            # Cleanup
-            import os
-            if 'temp_file' in locals():
-                os.unlink(temp_file)
+            errors.append(ValidationError(
+                line=line,
+                column=column,
+                message=err_msg
+            ))
+        
+        return result['is_valid'], errors
     
-    def get_parse_tree(self, query: str) -> str:
-        """Parse tree (non implementato per ora)"""
-        return "Parse tree not available for ANTLR3 parser"
+    def get_parse_tree(self, query: str):
+        """
+        ANTLR3 non espone parse tree facilmente via subprocess
+        Return None (non implementato)
+        """
+        return None
     
     @property
     def parser_name(self) -> str:
-        return "ANTLR3 Official Parser (Java)"
+        return "ANTLR3 Official Parser (Prof JCoProjectTeam)"
     
     @property
     def parser_version(self) -> str:
-        return "3.x (JCoProjectTeam)"
-    
+        return "4.0.12b (ANTLR 3.4)"
