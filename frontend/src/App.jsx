@@ -3,6 +3,7 @@ import axios from 'axios'
 import { useState, useEffect } from 'react'
 import { BrowserRouter, Route, Routes, Link } from 'react-router-dom'
 import Dashboard from './Dashboard'
+import QueryExecutor from './QueryExecutor';
 
 const queryClient = new QueryClient()
 const API_BASE_URL = 'http://localhost:8000'
@@ -305,6 +306,7 @@ export default function App() {
         <Routes>
           <Route path="/" element={<JCoQLInterface />} />
           <Route path="/dashboard" element={<Dashboard />} />
+          <Route path="/executor" element={<QueryExecutor />} />
         </Routes>
       </BrowserRouter>
     </QueryClientProvider>

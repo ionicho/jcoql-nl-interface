@@ -122,7 +122,8 @@ def load_examples_to_chromadb():
         'examples/validated/jcoql_examples_EXTENDED.txt',
         'examples/validated/jcoql_examples_INRANGE.txt',
         'examples/validated/jcoql_examples_EDGE_CASES.txt',
-        'examples/validated/jcoql_examples_REAL_SYNTAX.txt'    
+        'examples/validated/jcoql_examples_REAL_SYNTAX.txt',
+        'examples/validated/jcoql_examples_SCHEMA_ALIGNED.txt'    
     ]
     
     all_examples = []

@@ -3,6 +3,8 @@ import os
 import sys
 import chromadb
 from fastapi import FastAPI, HTTPException
+from fastapi import FastAPI, Request
+from fastapi.responses import JSONResponse
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 from typing import List
@@ -37,6 +39,54 @@ with open('backend/jcoql_syntax_basic_official.txt', 'r', encoding='utf-8') as f
 # Ollama NON scarica automaticamente - serve riavvio manuale
 ACTIVE_LLM = os.getenv("ACTIVE_LLM", "gemini")
 ACTIVE_PARSER = os.getenv("ACTIVE_PARSER", "antlr4_custom")
+
+# Carica schema MongoDB
+MONGODB_SCHEMA = """
+SCHEMA MONGODB REALE (usa ESATTAMENTE questi campi):
+
+COLLECTION: hotels
+- location.city (STRING): 'Milano', 'Roma', 'Firenze', etc.
+- location.country (STRING): 'Italy'
+- rating (FLOAT): 3.0 - 5.0
+- price_per_night (INT): 80 - 300
+- stars (INT): 3 - 5
+- parking (BOOLEAN)
+- wifi (BOOLEAN)
+- breakfast_included (BOOLEAN)
+
+COLLECTION: products
+- category (STRING): 'electronics', 'clothing', 'books', 'food', 'sports'
+- price (FLOAT)
+- stock (INT)
+- brand (STRING)
+- discount (INT): 0 - 30
+- rating (FLOAT)
+- organic (BOOLEAN)
+
+COLLECTION: users
+- age (INT)
+- city (STRING)
+- country (STRING)
+- premium (BOOLEAN)
+- active (BOOLEAN)
+- email_verified (BOOLEAN)
+
+COLLECTION: orders
+- total (FLOAT)
+- status (STRING): 'pending', 'confirmed', 'shipped', 'delivered', 'cancelled'
+- priority (STRING): 'low', 'normal', 'high', 'urgent'
+
+COLLECTION: restaurants
+- city (STRING)
+- cuisine (STRING): 'Italian', 'Japanese', 'Chinese', 'French', 'Mexican'
+- rating (FLOAT)
+- price_range (STRING): '$', '$$', '$$$', '$$$$'
+- status (STRING): 'open', 'closed'
+- outdoor_seating (BOOLEAN)
+- gluten_free_menu (BOOLEAN)
+
+IMPORTANTE: Usa ESATTAMENTE i nomi campi come scritto sopra (es: location.city NON city!)
+"""
 
 # Crea parser
 parser = ParserFactory.create_parser(ParserType(ACTIVE_PARSER))
@@ -94,9 +144,29 @@ async def generate_query(request: GenerateRequest):
     # REPAIR LOOP
     while attempts < request.max_retries and not is_valid:
         attempts += 1
+
         
-        prompt = f"""
-Sei un esperto di JCoQL 4.0. Genera query SINTATTICAMENTE CORRETTE secondo le specifiche ufficiali.
+        
+        esempi_formattati = context_str
+        
+        prompt = f"""Sei un esperto traduttore Natural Language → JCoQL+.
+
+{MONGODB_SCHEMA}
+
+REGOLE SINTATTICHE CRITICHE:
+{JCOQL_SYNTAX_BASIC}
+
+ESEMPI SIMILI (da RAG):
+{esempi_formattati}
+
+USER QUERY:
+"{request.nl_query}"
+
+{f"ATTENZIONE! ERRORI PRECEDENTI: {all_errors[-1]}" if attempts > 1 else ""}
+
+Genera SOLO la query JCoQL basata sullo SCHEMA REALE sopra.
+Usa ESATTAMENTE i nomi campi dello schema (es: .location.city per città hotel).
+NESSUN testo aggiuntivo, solo query JCoQL.
 
 === SINTASSI UFFICIALE JCOQL 4.0 ===
 {JCOQL_SYNTAX_BASIC}
@@ -110,6 +180,8 @@ Sei un esperto di JCoQL 4.0. Genera query SINTATTICAMENTE CORRETTE secondo le sp
 - WITHOUT per campi mancanti
 - SIZE(campo) per lunghezza array
 - Non usare: JOIN ON, GROUP BY, ORDER BY, LIMIT, PROJECT, DISTINCT, COUNT (non supportati)
+
+
 
 === ESEMPI DAL DATABASE ===
 {context_str}
@@ -270,3 +342,82 @@ async def set_parser(parser_type: str):
         }
     except ValueError as e:
         raise HTTPException(status_code=400, detail=str(e))
+    
+# ========================================
+# ESECUZIONE QUERY JCOQL SU MONGODB
+# ========================================
+from backend.jcoql_executor import JCoQLExecutor
+
+# Inizializza executor (connessione MongoDB)
+executor = JCoQLExecutor()
+
+@app.post("/api/execute")
+async def execute_query(request: Request):
+    """
+    Esegue query JCoQL su MongoDB
+    
+    Body:
+    {
+        "jcoql_query": "GET COLLECTION hotels; FILTER CASE WHERE ..."
+    }
+    
+    Returns:
+    {
+        "success": true,
+        "results": [...],
+        "count": 5,
+        "mongo_query": {...}
+    }
+    """
+    try:
+        data = await request.json()
+        jcoql_query = data.get('jcoql_query', '')
+        
+        if not jcoql_query:
+            return JSONResponse(
+                status_code=400,
+                content={'error': 'jcoql_query required'}
+            )
+        
+        # Esegui query
+        result = executor.execute(jcoql_query)
+        
+        return JSONResponse(content=result)
+        
+    except Exception as e:
+        return JSONResponse(
+            status_code=500,
+            content={
+                'success': False,
+                'error': str(e)
+            }
+        )
+
+@app.get("/api/collections")
+async def list_collections():
+    """
+    Lista collection disponibili in MongoDB
+    
+    Returns:
+    {
+        "collections": ["hotels", "products", "users", "orders", "restaurants"],
+        "database": "jcoql_test"
+    }
+    """
+    try:
+        collections = executor.db.list_collection_names()
+        return JSONResponse(content={
+            'collections': collections,
+            'database': executor.db.name
+        })
+    except Exception as e:
+        return JSONResponse(
+            status_code=500,
+            content={'error': str(e)}
+        )
+
+# Cleanup connessione MongoDB alla chiusura
+@app.on_event("shutdown")
+def shutdown_event():
+    """Chiudi connessione MongoDB"""
+    executor.close()

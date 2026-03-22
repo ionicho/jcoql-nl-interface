@@ -1,0 +1,167 @@
+[
+  {
+    "_id": "rest_001",
+    "name": "Restaurant Il Giardino 1",
+    "city": "Napoli",
+    "cuisine": "French",
+    "rating": 4.3,
+    "price_range": "$$$",
+    "status": "open",
+    "outdoor_seating": false,
+    "gluten_free_menu": false
+  },
+  {
+    "_id": "rest_002",
+    "name": "Restaurant Bella Napoli 2",
+    "city": "Bologna",
+    "cuisine": "Japanese",
+    "rating": 4.0,
+    "price_range": "$$$$",
+    "status": "closed",
+    "outdoor_seating": false,
+    "gluten_free_menu": true
+  },
+  {
+    "_id": "rest_003",
+    "name": "Restaurant Il Giardino 3",
+    "city": "Torino",
+    "cuisine": "Chinese",
+    "rating": 3.6,
+    "price_range": "$$",
+    "status": "open",
+    "outdoor_seating": false,
+    "gluten_free_menu": false
+  },
+  {
+    "_id": "rest_004",
+    "name": "Restaurant La Dolce Vita 4",
+    "city": "Venezia",
+    "cuisine": "Japanese",
+    "rating": 4.0,
+    "price_range": "$$$$",
+    "status": "open",
+    "outdoor_seating": false,
+    "gluten_free_menu": true
+  },
+  {
+    "_id": "rest_005",
+    "name": "Restaurant Antica Trattoria 5",
+    "city": "Napoli",
+    "cuisine": "Japanese",
+    "rating": 4.9,
+    "price_range": "$$",
+    "status": "closed",
+    "outdoor_seating": true,
+    "gluten_free_menu": false
+  },
+  {
+    "_id": "rest_006",
+    "name": "Restaurant La Dolce Vita 6",
+    "city": "Bologna",
+    "cuisine": "Chinese",
+    "rating": 4.6,
+    "price_range": "$",
+    "status": "open",
+    "outdoor_seating": true,
+    "gluten_free_menu": false
+  },
+  {
+    "_id": "rest_007",
+    "name": "Restaurant Il Giardino 7",
+    "city": "Napoli",
+    "cuisine": "Chinese",
+    "rating": 3.6,
+    "price_range": "$$$$",
+    "status": "open",
+    "outdoor_seating": true,
+    "gluten_free_menu": false
+  },
+  {
+    "_id": "rest_008",
+    "name": "Restaurant La Dolce Vita 8",
+    "city": "Roma",
+    "cuisine": "Mexican",
+    "rating": 4.2,
+    "price_range": "$$$$",
+    "status": "open",
+    "outdoor_seating": false,
+    "gluten_free_menu": true
+  },
+  {
+    "_id": "rest_009",
+    "name": "Restaurant Antica Trattoria 9",
+    "city": "Venezia",
+    "cuisine": "Japanese",
+    "rating": 3.5,
+    "price_range": "$$$",
+    "status": "open",
+    "outdoor_seating": false,
+    "gluten_free_menu": true
+  },
+  {
+    "_id": "rest_010",
+    "name": "Restaurant Antica Trattoria 10",
+    "city": "Napoli",
+    "cuisine": "French",
+    "rating": 4.7,
+    "price_range": "$",
+    "status": "closed",
+    "outdoor_seating": true,
+    "gluten_free_menu": false
+  },
+  {
+    "_id": "rest_011",
+    "name": "Restaurant Bella Napoli 11",
+    "city": "Napoli",
+    "cuisine": "Japanese",
+    "rating": 3.6,
+    "price_range": "$$$$",
+    "status": "open",
+    "outdoor_seating": false,
+    "gluten_free_menu": true
+  },
+  {
+    "_id": "rest_012",
+    "name": "Restaurant La Dolce Vita 12",
+    "city": "Torino",
+    "cuisine": "Chinese",
+    "rating": 3.7,
+    "price_range": "$",
+    "status": "open",
+    "outdoor_seating": true,
+    "gluten_free_menu": false
+  },
+  {
+    "_id": "rest_013",
+    "name": "Restaurant La Dolce Vita 13",
+    "city": "Torino",
+    "cuisine": "Chinese",
+    "rating": 4.2,
+    "price_range": "$",
+    "status": "closed",
+    "outdoor_seating": false,
+    "gluten_free_menu": false
+  },
+  {
+    "_id": "rest_014",
+    "name": "Restaurant Antica Trattoria 14",
+    "city": "Torino",
+    "cuisine": "French",
+    "rating": 3.8,
+    "price_range": "$",
+    "status": "open",
+    "outdoor_seating": false,
+    "gluten_free_menu": false
+  },
+  {
+    "_id": "rest_015",
+    "name": "Restaurant Il Giardino 15",
+    "city": "Firenze",
+    "cuisine": "French",
+    "rating": 4.3,
+    "price_range": "$$$$",
+    "status": "open",
+    "outdoor_seating": false,
+    "gluten_free_menu": false
+  }
+]

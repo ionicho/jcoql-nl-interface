@@ -1,0 +1,534 @@
+[
+  {
+    "_id": "hotel_001",
+    "name": "Hotel Luxury Milano",
+    "location": {
+      "city": "Milano",
+      "country": "Italy",
+      "address": "Via Roma 1",
+      "coordinates": {
+        "lat": 43.20371,
+        "lng": 9.974417
+      }
+    },
+    "rating": 4.5,
+    "price_per_night": 250,
+    "stars": 5,
+    "amenities": [
+      "spa",
+      "wifi",
+      "restaurant",
+      "parking"
+    ],
+    "rooms": 129,
+    "available": true,
+    "parking": true,
+    "wifi": true,
+    "breakfast_included": true
+  },
+  {
+    "_id": "hotel_002",
+    "name": "Hotel Royal Bologna",
+    "location": {
+      "city": "Bologna",
+      "country": "Italy",
+      "address": "Via Roma 2",
+      "coordinates": {
+        "lat": 41.894324,
+        "lng": 10.972748
+      }
+    },
+    "rating": 3.8,
+    "price_per_night": 250,
+    "stars": 3,
+    "amenities": [
+      "parking",
+      "wifi",
+      "pool",
+      "gym",
+      "restaurant"
+    ],
+    "rooms": 195,
+    "available": false,
+    "parking": true,
+    "wifi": true,
+    "breakfast_included": false
+  },
+  {
+    "_id": "hotel_003",
+    "name": "Hotel Palace Firenze",
+    "location": {
+      "city": "Firenze",
+      "country": "Italy",
+      "address": "Via Roma 3",
+      "coordinates": {
+        "lat": 43.848811,
+        "lng": 9.570306
+      }
+    },
+    "rating": 4.7,
+    "price_per_night": 250,
+    "stars": 4,
+    "amenities": [
+      "parking",
+      "wifi"
+    ],
+    "rooms": 161,
+    "available": false,
+    "parking": true,
+    "wifi": true,
+    "breakfast_included": true
+  },
+  {
+    "_id": "hotel_004",
+    "name": "Hotel Imperial Firenze",
+    "location": {
+      "city": "Firenze",
+      "country": "Italy",
+      "address": "Via Roma 4",
+      "coordinates": {
+        "lat": 42.567779,
+        "lng": 9.963414
+      }
+    },
+    "rating": 4.1,
+    "price_per_night": 120,
+    "stars": 3,
+    "amenities": [
+      "gym",
+      "spa",
+      "pool"
+    ],
+    "rooms": 106,
+    "available": true,
+    "parking": false,
+    "wifi": true,
+    "breakfast_included": true
+  },
+  {
+    "_id": "hotel_005",
+    "name": "Hotel Grand Bologna",
+    "location": {
+      "city": "Bologna",
+      "country": "Italy",
+      "address": "Via Roma 5",
+      "coordinates": {
+        "lat": 43.860033,
+        "lng": 9.54813
+      }
+    },
+    "rating": 4.4,
+    "price_per_night": 100,
+    "stars": 4,
+    "amenities": [
+      "wifi",
+      "pool",
+      "gym",
+      "restaurant"
+    ],
+    "rooms": 162,
+    "available": true,
+    "parking": false,
+    "wifi": true,
+    "breakfast_included": true
+  },
+  {
+    "_id": "hotel_006",
+    "name": "Hotel Luxury Napoli",
+    "location": {
+      "city": "Napoli",
+      "country": "Italy",
+      "address": "Via Roma 6",
+      "coordinates": {
+        "lat": 44.882874,
+        "lng": 11.353723
+      }
+    },
+    "rating": 4.1,
+    "price_per_night": 300,
+    "stars": 4,
+    "amenities": [
+      "restaurant",
+      "spa",
+      "parking",
+      "wifi"
+    ],
+    "rooms": 60,
+    "available": false,
+    "parking": false,
+    "wifi": true,
+    "breakfast_included": true
+  },
+  {
+    "_id": "hotel_007",
+    "name": "Hotel Royal Milano",
+    "location": {
+      "city": "Milano",
+      "country": "Italy",
+      "address": "Via Roma 7",
+      "coordinates": {
+        "lat": 42.26918,
+        "lng": 13.357512
+      }
+    },
+    "rating": 3.9,
+    "price_per_night": 200,
+    "stars": 4,
+    "amenities": [
+      "spa",
+      "pool",
+      "wifi",
+      "gym",
+      "parking"
+    ],
+    "rooms": 132,
+    "available": true,
+    "parking": true,
+    "wifi": false,
+    "breakfast_included": true
+  },
+  {
+    "_id": "hotel_008",
+    "name": "Hotel Palace Roma",
+    "location": {
+      "city": "Roma",
+      "country": "Italy",
+      "address": "Via Roma 8",
+      "coordinates": {
+        "lat": 41.757446,
+        "lng": 9.082854
+      }
+    },
+    "rating": 3.7,
+    "price_per_night": 150,
+    "stars": 4,
+    "amenities": [
+      "restaurant",
+      "parking",
+      "wifi"
+    ],
+    "rooms": 97,
+    "available": true,
+    "parking": true,
+    "wifi": true,
+    "breakfast_included": false
+  },
+  {
+    "_id": "hotel_009",
+    "name": "Hotel Imperial Napoli",
+    "location": {
+      "city": "Napoli",
+      "country": "Italy",
+      "address": "Via Roma 9",
+      "coordinates": {
+        "lat": 43.3951,
+        "lng": 12.816208
+      }
+    },
+    "rating": 4.1,
+    "price_per_night": 300,
+    "stars": 4,
+    "amenities": [
+      "restaurant",
+      "parking"
+    ],
+    "rooms": 163,
+    "available": true,
+    "parking": true,
+    "wifi": true,
+    "breakfast_included": false
+  },
+  {
+    "_id": "hotel_010",
+    "name": "Hotel Grand Venezia",
+    "location": {
+      "city": "Venezia",
+      "country": "Italy",
+      "address": "Via Roma 10",
+      "coordinates": {
+        "lat": 44.222813,
+        "lng": 10.7152
+      }
+    },
+    "rating": 3.2,
+    "price_per_night": 120,
+    "stars": 4,
+    "amenities": [
+      "restaurant",
+      "gym",
+      "spa",
+      "wifi"
+    ],
+    "rooms": 180,
+    "available": true,
+    "parking": false,
+    "wifi": true,
+    "breakfast_included": true
+  },
+  {
+    "_id": "hotel_011",
+    "name": "Hotel Luxury Napoli",
+    "location": {
+      "city": "Napoli",
+      "country": "Italy",
+      "address": "Via Roma 11",
+      "coordinates": {
+        "lat": 41.363985,
+        "lng": 11.200805
+      }
+    },
+    "rating": 4.5,
+    "price_per_night": 100,
+    "stars": 4,
+    "amenities": [
+      "gym",
+      "restaurant"
+    ],
+    "rooms": 171,
+    "available": true,
+    "parking": true,
+    "wifi": true,
+    "breakfast_included": false
+  },
+  {
+    "_id": "hotel_012",
+    "name": "Hotel Royal Roma",
+    "location": {
+      "city": "Roma",
+      "country": "Italy",
+      "address": "Via Roma 12",
+      "coordinates": {
+        "lat": 41.618023,
+        "lng": 9.816488
+      }
+    },
+    "rating": 3.7,
+    "price_per_night": 300,
+    "stars": 4,
+    "amenities": [
+      "spa",
+      "restaurant",
+      "wifi",
+      "gym",
+      "pool"
+    ],
+    "rooms": 190,
+    "available": true,
+    "parking": false,
+    "wifi": false,
+    "breakfast_included": false
+  },
+  {
+    "_id": "hotel_013",
+    "name": "Hotel Palace Bologna",
+    "location": {
+      "city": "Bologna",
+      "country": "Italy",
+      "address": "Via Roma 13",
+      "coordinates": {
+        "lat": 43.85346,
+        "lng": 13.851604
+      }
+    },
+    "rating": 4.9,
+    "price_per_night": 120,
+    "stars": 3,
+    "amenities": [
+      "restaurant",
+      "wifi",
+      "spa",
+      "pool"
+    ],
+    "rooms": 84,
+    "available": true,
+    "parking": true,
+    "wifi": true,
+    "breakfast_included": false
+  },
+  {
+    "_id": "hotel_014",
+    "name": "Hotel Imperial Torino",
+    "location": {
+      "city": "Torino",
+      "country": "Italy",
+      "address": "Via Roma 14",
+      "coordinates": {
+        "lat": 41.608477,
+        "lng": 11.837272
+      }
+    },
+    "rating": 3.7,
+    "price_per_night": 150,
+    "stars": 5,
+    "amenities": [
+      "wifi",
+      "restaurant",
+      "spa"
+    ],
+    "rooms": 163,
+    "available": true,
+    "parking": false,
+    "wifi": true,
+    "breakfast_included": false
+  },
+  {
+    "_id": "hotel_015",
+    "name": "Hotel Grand Milano",
+    "location": {
+      "city": "Milano",
+      "country": "Italy",
+      "address": "Via Roma 15",
+      "coordinates": {
+        "lat": 41.128159,
+        "lng": 10.454848
+      }
+    },
+    "rating": 4.7,
+    "price_per_night": 100,
+    "stars": 3,
+    "amenities": [
+      "parking",
+      "spa",
+      "wifi",
+      "gym"
+    ],
+    "rooms": 127,
+    "available": false,
+    "parking": true,
+    "wifi": true,
+    "breakfast_included": true
+  },
+  {
+    "_id": "hotel_016",
+    "name": "Hotel Luxury Firenze",
+    "location": {
+      "city": "Firenze",
+      "country": "Italy",
+      "address": "Via Roma 16",
+      "coordinates": {
+        "lat": 44.20513,
+        "lng": 13.566398
+      }
+    },
+    "rating": 4.9,
+    "price_per_night": 250,
+    "stars": 4,
+    "amenities": [
+      "wifi",
+      "pool",
+      "spa",
+      "gym"
+    ],
+    "rooms": 92,
+    "available": true,
+    "parking": true,
+    "wifi": false,
+    "breakfast_included": true
+  },
+  {
+    "_id": "hotel_017",
+    "name": "Hotel Royal Venezia",
+    "location": {
+      "city": "Venezia",
+      "country": "Italy",
+      "address": "Via Roma 17",
+      "coordinates": {
+        "lat": 43.679573,
+        "lng": 13.38869
+      }
+    },
+    "rating": 3.6,
+    "price_per_night": 120,
+    "stars": 4,
+    "amenities": [
+      "gym",
+      "wifi"
+    ],
+    "rooms": 84,
+    "available": true,
+    "parking": false,
+    "wifi": true,
+    "breakfast_included": true
+  },
+  {
+    "_id": "hotel_018",
+    "name": "Hotel Palace Venezia",
+    "location": {
+      "city": "Venezia",
+      "country": "Italy",
+      "address": "Via Roma 18",
+      "coordinates": {
+        "lat": 44.549152,
+        "lng": 12.051695
+      }
+    },
+    "rating": 4.3,
+    "price_per_night": 150,
+    "stars": 4,
+    "amenities": [
+      "wifi",
+      "restaurant",
+      "parking",
+      "pool",
+      "gym"
+    ],
+    "rooms": 52,
+    "available": true,
+    "parking": false,
+    "wifi": true,
+    "breakfast_included": false
+  },
+  {
+    "_id": "hotel_019",
+    "name": "Hotel Imperial Torino",
+    "location": {
+      "city": "Torino",
+      "country": "Italy",
+      "address": "Via Roma 19",
+      "coordinates": {
+        "lat": 43.715129,
+        "lng": 10.598378
+      }
+    },
+    "rating": 3.4,
+    "price_per_night": 150,
+    "stars": 3,
+    "amenities": [
+      "parking",
+      "pool",
+      "spa"
+    ],
+    "rooms": 128,
+    "available": true,
+    "parking": true,
+    "wifi": true,
+    "breakfast_included": true
+  },
+  {
+    "_id": "hotel_020",
+    "name": "Hotel Grand Firenze",
+    "location": {
+      "city": "Firenze",
+      "country": "Italy",
+      "address": "Via Roma 20",
+      "coordinates": {
+        "lat": 41.943303,
+        "lng": 11.104103
+      }
+    },
+    "rating": 5.0,
+    "price_per_night": 300,
+    "stars": 5,
+    "amenities": [
+      "gym",
+      "restaurant",
+      "parking",
+      "pool"
+    ],
+    "rooms": 124,
+    "available": true,
+    "parking": true,
+    "wifi": false,
+    "breakfast_included": true
+  }
+]
