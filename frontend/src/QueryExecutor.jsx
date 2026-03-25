@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import axios from 'axios';
+import { Link } from 'react-router-dom'; // Aggiunto per la navigazione SPA
 
 export default function QueryExecutor() {
   const [nlQuery, setNlQuery] = useState('');
@@ -77,9 +78,15 @@ export default function QueryExecutor() {
     <div className="max-w-6xl mx-auto p-6 space-y-6">
       {/* Header */}
       <div className="bg-gradient-to-r from-blue-600 to-purple-600 text-white p-6 rounded-lg shadow-lg">
-        <h1 className="text-3xl font-bold">🔍 Query Executor</h1>
+        <h1 className="text-3xl font-bold">🔍 Query Executor </h1>
         <p className="mt-2 opacity-90">
-          Genera ed esegui query JCoQL su MongoDB
+          Genera ed esegui query JCoQL su MongoDB 
+          <Link
+              to="/"
+              className="px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded-lg text-sm transition-colors"
+            >
+              &larr; Torna all&apos;Interfaccia
+            </Link>
         </p>
       </div>
 

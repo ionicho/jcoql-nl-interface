@@ -119,7 +119,7 @@ export default function Dashboard() {
               </div>
             </div>
             
-            {/* LINK CORRETTO QUI */}
+            {/* LINK per tornare all'interfaccia */}
             <Link
               to="/"
               className="px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded-lg text-sm transition-colors"

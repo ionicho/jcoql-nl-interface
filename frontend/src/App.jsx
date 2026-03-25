@@ -4,6 +4,7 @@ import { useState, useEffect } from 'react'
 import { BrowserRouter, Route, Routes, Link } from 'react-router-dom'
 import Dashboard from './Dashboard'
 import QueryExecutor from './QueryExecutor';
+import UploadData from './UploadData';
 
 const queryClient = new QueryClient()
 const API_BASE_URL = 'http://localhost:8000'
@@ -129,12 +130,13 @@ function JCoQLInterface() {
                   onChange={handleParserChange}
                   className="px-3 py-1 bg-white border border-gray-300 rounded text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"
                 >
-                  {availableParsers.includes('antlr4_custom') && (
-                    <option value="antlr4_custom">ANTLR4 Custom</option>
-                  )}
                   {availableParsers.includes('antlr3_official') && (
                     <option value="antlr3_official">ANTLR3 Official</option>
                   )}
+                  {availableParsers.includes('antlr4_custom') && (
+                    <option value="antlr4_custom">ANTLR4 Custom</option>
+                  )}
+                  
                 </select>
               </div>
 
@@ -144,6 +146,9 @@ function JCoQLInterface() {
                 className="px-4 py-2 bg-gray-100 hover:bg-gray-200 text-gray-700 rounded-lg text-sm transition-colors"
               >
                 📊 Dashboard
+              </Link>
+              <Link to="/executor" className="...">
+                🔍 Query Executor
               </Link>
             </div>
           </div>
@@ -307,6 +312,7 @@ export default function App() {
           <Route path="/" element={<JCoQLInterface />} />
           <Route path="/dashboard" element={<Dashboard />} />
           <Route path="/executor" element={<QueryExecutor />} />
+          <Route path="/upload" element={<UploadData />} />
         </Routes>
       </BrowserRouter>
     </QueryClientProvider>

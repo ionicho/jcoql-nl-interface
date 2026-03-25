@@ -416,6 +416,136 @@ async def list_collections():
             content={'error': str(e)}
         )
 
+from fastapi import UploadFile, File
+import json
+
+@app.post("/api/upload-collection")
+async def upload_collection(
+    file: UploadFile = File(...),
+    collection_name: str = None
+):
+    """
+    Carica file JSON e crea collection MongoDB
+    
+    Args:
+        file: File JSON con array di documenti
+        collection_name: Nome collection (opzionale, usa nome file)
+    
+    Returns:
+        {
+            "success": true,
+            "collection": "my_data",
+            "documents_count": 50,
+            "message": "Collection creata con successo"
+        }
+    """
+    try:
+        # Leggi file
+        content = await file.read()
+        
+        # Parse JSON
+        try:
+            data = json.loads(content)
+        except json.JSONDecodeError as e:
+            return JSONResponse(
+                status_code=400,
+                content={
+                    'success': False,
+                    'error': f'File JSON non valido: {str(e)}'
+                }
+            )
+        
+        # Assicurati che sia array
+        if not isinstance(data, list):
+            return JSONResponse(
+                status_code=400,
+                content={
+                    'success': False,
+                    'error': 'Il file deve contenere un array JSON di documenti'
+                }
+            )
+        
+        if len(data) == 0:
+            return JSONResponse(
+                status_code=400,
+                content={
+                    'success': False,
+                    'error': 'Array vuoto, nessun documento da caricare'
+                }
+            )
+        
+        # Usa nome file se collection_name non specificato
+        if not collection_name:
+            collection_name = file.filename.replace('.json', '').lower()
+            # Rimuovi caratteri non validi
+            collection_name = ''.join(c for c in collection_name if c.isalnum() or c == '_')
+        
+        # Inserisci in MongoDB
+        collection = executor.db[collection_name]
+        result = collection.insert_many(data)
+        
+        return JSONResponse(content={
+            'success': True,
+            'collection': collection_name,
+            'documents_count': len(result.inserted_ids),
+            'message': f'Collection "{collection_name}" creata con {len(result.inserted_ids)} documenti'
+        })
+        
+    except Exception as e:
+        return JSONResponse(
+            status_code=500,
+            content={
+                'success': False,
+                'error': str(e)
+            }
+        )
+
+@app.delete("/api/collections/{collection_name}")
+async def delete_collection(collection_name: str):
+    """
+    Elimina una collection MongoDB
+    
+    Args:
+        collection_name: Nome collection da eliminare
+        
+    Returns:
+        {"success": true, "message": "..."}
+    """
+    try:
+        executor.db.drop_collection(collection_name)
+        return JSONResponse(content={
+            'success': True,
+            'message': f'Collection "{collection_name}" eliminata'
+        })
+    except Exception as e:
+        return JSONResponse(
+            status_code=500,
+            content={
+                'success': False,
+                'error': str(e)
+            }
+        )
+
+@app.get("/api/collections/{collection_name}/count")
+async def get_collection_count(collection_name: str):
+    """
+    Conta documenti in una collection
+    
+    Returns:
+        {"collection": "hotels", "count": 20}
+    """
+    try:
+        count = executor.db[collection_name].count_documents({})
+        return JSONResponse(content={
+            'collection': collection_name,
+            'count': count
+        })
+    except Exception as e:
+        return JSONResponse(
+            status_code=500,
+            content={'error': str(e)}
+        )
+
 # Cleanup connessione MongoDB alla chiusura
 @app.on_event("shutdown")
 def shutdown_event():
