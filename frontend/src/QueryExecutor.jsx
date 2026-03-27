@@ -1,8 +1,9 @@
 import { useState } from 'react';
 import axios from 'axios';
-import { Link } from 'react-router-dom'; // Aggiunto per la navigazione SPA
+import { Link } from 'react-router-dom';
 
 export default function QueryExecutor() {
+  const [mode, setMode] = useState('nl'); // 'nl' o 'direct'
   const [nlQuery, setNlQuery] = useState('');
   const [jcoqlQuery, setJcoqlQuery] = useState('');
   const [isGenerating, setIsGenerating] = useState(false);
@@ -64,74 +65,159 @@ export default function QueryExecutor() {
     }
   };
 
-  const handleGenerateAndExecute = async () => {
-    await handleGenerate();
-    // Esegui automaticamente dopo generazione
-    setTimeout(() => {
-      if (jcoqlQuery) {
-        handleExecute();
+  const handleExecuteDirect = async () => {
+    if (!jcoqlQuery.trim()) {
+      setError('Inserisci una query JCoQL');
+      return;
+    }
+
+    setIsExecuting(true);
+    setError('');
+
+    try {
+      const response = await axios.post('http://localhost:8000/api/execute', {
+        jcoql_query: jcoqlQuery
+      });
+
+      if (response.data.success) {
+        setResults(response.data);
+      } else {
+        setError('Errore esecuzione: ' + response.data.error);
       }
-    }, 500);
+    } catch (err) {
+      setError('Errore esecuzione: ' + err.message);
+    } finally {
+      setIsExecuting(false);
+    }
   };
 
   return (
     <div className="max-w-6xl mx-auto p-6 space-y-6">
       {/* Header */}
       <div className="bg-gradient-to-r from-blue-600 to-purple-600 text-white p-6 rounded-lg shadow-lg">
-        <h1 className="text-3xl font-bold">🔍 Query Executor </h1>
-        <p className="mt-2 opacity-90">
-          Genera ed esegui query JCoQL su MongoDB 
-          <Link
+        <div className="flex justify-between items-center">
+          <div>
+            <h1 className="text-3xl font-bold">🔍 Query Executor</h1>
+            <p className="mt-2 opacity-90">
+              Genera ed esegui query JCoQL su MongoDB
+            </p>
+          </div>
+          <div className="flex gap-2">
+            <Link
               to="/"
-              className="px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded-lg text-sm transition-colors"
+              className="px-4 py-2 bg-white/20 hover:bg-white/30 text-white rounded-lg transition"
             >
-              &larr; Torna all&apos;Interfaccia
+              ← Interfaccia
             </Link>
-        </p>
+            <Link
+              to="/upload"
+              className="px-4 py-2 bg-white text-blue-600 hover:bg-gray-100 rounded-lg font-medium transition"
+            >
+              📤 Upload Dati
+            </Link>
+          </div>
+        </div>
       </div>
 
-      {/* Input Query NL */}
-      <div className="bg-white rounded-lg shadow-md p-6">
-        <label className="block text-sm font-medium text-gray-700 mb-2">
-          Query in Linguaggio Naturale
-        </label>
+      {/* Mode Selector */}
+      <div className="bg-white rounded-lg shadow-md p-4">
         <div className="flex gap-2">
-          <input
-            type="text"
-            value={nlQuery}
-            onChange={(e) => setNlQuery(e.target.value)}
-            onKeyPress={(e) => e.key === 'Enter' && handleGenerate()}
-            placeholder="Es: Hotel a Milano con rating superiore a 4"
-            className="flex-1 px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-          />
           <button
-            onClick={handleGenerate}
-            disabled={isGenerating}
-            className="px-6 py-3 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed font-medium transition"
+            onClick={() => setMode('nl')}
+            className={`flex-1 px-4 py-3 rounded-lg font-medium transition ${
+              mode === 'nl'
+                ? 'bg-blue-600 text-white'
+                : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+            }`}
           >
-            {isGenerating ? '⏳ Generazione...' : '🤖 Genera'}
+            🗣️ Linguaggio Naturale
+          </button>
+          <button
+            onClick={() => setMode('direct')}
+            className={`flex-1 px-4 py-3 rounded-lg font-medium transition ${
+              mode === 'direct'
+                ? 'bg-blue-600 text-white'
+                : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+            }`}
+          >
+            ⚡ Query JCoQL Diretta
           </button>
         </div>
       </div>
 
-      {/* Query JCoQL Generata */}
-      {jcoqlQuery && (
-        <div className="bg-white rounded-lg shadow-md p-6">
-          <div className="flex justify-between items-center mb-3">
-            <label className="block text-sm font-medium text-gray-700">
-              Query JCoQL Generata
+      {/* Mode: Natural Language */}
+      {mode === 'nl' && (
+        <>
+          <div className="bg-white rounded-lg shadow-md p-6">
+            <label className="block text-sm font-medium text-gray-700 mb-2">
+              Query in Linguaggio Naturale
             </label>
+            <div className="flex gap-2">
+              <input
+                type="text"
+                value={nlQuery}
+                onChange={(e) => setNlQuery(e.target.value)}
+                onKeyPress={(e) => e.key === 'Enter' && handleGenerate()}
+                placeholder="Es: Hotel a Milano con rating superiore a 4"
+                className="flex-1 px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+              />
+              <button
+                onClick={handleGenerate}
+                disabled={isGenerating}
+                className="px-6 py-3 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed font-medium transition"
+              >
+                {isGenerating ? '⏳ Generazione...' : '🤖 Genera'}
+              </button>
+            </div>
+          </div>
+
+          {jcoqlQuery && (
+            <div className="bg-white rounded-lg shadow-md p-6">
+              <div className="flex justify-between items-center mb-3">
+                <label className="block text-sm font-medium text-gray-700">
+                  Query JCoQL Generata
+                </label>
+                <button
+                  onClick={handleExecute}
+                  disabled={isExecuting}
+                  className="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 disabled:opacity-50 font-medium transition"
+                >
+                  {isExecuting ? '⏳ Esecuzione...' : '▶️ Esegui su MongoDB'}
+                </button>
+              </div>
+              <pre className="bg-gray-50 p-4 rounded-lg overflow-x-auto text-sm border border-gray-200">
+                {jcoqlQuery}
+              </pre>
+            </div>
+          )}
+        </>
+      )}
+
+      {/* Mode: Direct JCoQL */}
+      {mode === 'direct' && (
+        <div className="bg-white rounded-lg shadow-md p-6">
+          <label className="block text-sm font-medium text-gray-700 mb-2">
+            Query JCoQL Diretta
+          </label>
+          <textarea
+            value={jcoqlQuery}
+            onChange={(e) => setJcoqlQuery(e.target.value)}
+            placeholder="Es: GET COLLECTION hotels; FILTER CASE WHERE .location.city = 'Milano' KEEP OTHERS;"
+            rows={6}
+            className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent font-mono text-sm"
+          />
+          <div className="mt-3 flex justify-end">
             <button
-              onClick={handleExecute}
+              onClick={handleExecuteDirect}
               disabled={isExecuting}
-              className="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 disabled:opacity-50 font-medium transition"
+              className="px-6 py-3 bg-green-600 text-white rounded-lg hover:bg-green-700 disabled:opacity-50 font-medium transition"
             >
               {isExecuting ? '⏳ Esecuzione...' : '▶️ Esegui su MongoDB'}
             </button>
           </div>
-          <pre className="bg-gray-50 p-4 rounded-lg overflow-x-auto text-sm border border-gray-200">
-            {jcoqlQuery}
-          </pre>
+          <p className="mt-2 text-xs text-gray-500">
+            💡 Tip: Puoi copiare query generate dall&apos;interfaccia principale
+          </p>
         </div>
       )}
 
@@ -150,7 +236,7 @@ export default function QueryExecutor() {
               📊 Risultati ({results.count} documenti)
             </h2>
             <span className="text-sm text-gray-500">
-              Database: {results.mongo_query ? 'jcoql_test' : ''}
+              Database: jcoql_test
             </span>
           </div>
 
@@ -181,7 +267,6 @@ export default function QueryExecutor() {
             </div>
           )}
 
-          {/* MongoDB Query Info */}
           {results.mongo_query && (
             <details className="mt-4 text-sm">
               <summary className="cursor-pointer text-gray-600 hover:text-gray-800 font-medium">
