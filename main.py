@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 import os
 import sys
+from pathlib import Path
 import chromadb
 from fastapi import FastAPI, HTTPException
 from fastapi import FastAPI, Request
@@ -10,6 +11,7 @@ from pydantic import BaseModel
 from typing import List
 import google.generativeai as genai
 from dotenv import load_dotenv
+
 
 # --- PATH ---
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
@@ -346,10 +348,22 @@ async def set_parser(parser_type: str):
 # ========================================
 # ESECUZIONE QUERY JCOQL SU MONGODB
 # ========================================
-from backend.jcoql_executor import JCoQLExecutor
+# DOPO (con Factory):
+import sys
+from pathlib import Path
+executors_path = Path(__file__).parent / "backend" / "executors"
+if str(executors_path) not in sys.path:
+    sys.path.insert(0, str(executors_path))
 
-# Inizializza executor (connessione MongoDB)
-executor = JCoQLExecutor()
+from executor_factory import ExecutorFactory, ExecutorType
+
+# Crea executor tramite Factory Pattern
+ACTIVE_EXECUTOR = os.getenv("ACTIVE_EXECUTOR", "python_translator")
+executor = ExecutorFactory.create_executor(
+    ExecutorType(ACTIVE_EXECUTOR),
+    mongo_uri="mongodb://localhost:27017",
+    database="jcoql_test"
+)
 
 @app.post("/api/execute")
 async def execute_query(request: Request):
