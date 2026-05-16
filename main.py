@@ -120,6 +120,23 @@ class GenerateRequest(BaseModel):
     nl_query: str
     max_retries: int = 3
 
+@app.on_event("startup")
+async def startup_event():
+    """Eseguito all'avvio del backend"""
+    print("🚀 Starting JCoQL NL Interface...")
+    
+    # Refresh schema da MongoDB
+    try:
+        from backend.database.schema_discovery import MongoSchemaDiscoverer
+        discoverer = MongoSchemaDiscoverer()
+        schema = discoverer.discover_schema(sample_size=50)
+        discoverer.save_schema(schema)
+        discoverer.close()
+        print("✅ MongoDB schema refreshed!")
+    except Exception as e:
+        print(f"⚠️ Schema refresh failed: {e}")
+        print("   Using cached schema...")
+
 @app.post("/api/generate")
 async def generate_query(request: GenerateRequest):
     context_str = ""

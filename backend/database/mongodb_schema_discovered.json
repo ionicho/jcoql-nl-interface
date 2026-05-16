@@ -1,0 +1,723 @@
+{
+  "restaurants": {
+    "total_documents": 15,
+    "sampled_documents": 15,
+    "fields": {
+      "name": {
+        "types": [
+          "string"
+        ],
+        "frequency": 1.0,
+        "examples": [
+          "Restaurant Il Giardino 1",
+          "Restaurant Bella Napoli 2",
+          "Restaurant Il Giardino 3"
+        ]
+      },
+      "city": {
+        "types": [
+          "string"
+        ],
+        "frequency": 1.0,
+        "examples": [
+          "Napoli",
+          "Bologna",
+          "Torino"
+        ]
+      },
+      "cuisine": {
+        "types": [
+          "string"
+        ],
+        "frequency": 1.0,
+        "examples": [
+          "French",
+          "Japanese",
+          "Chinese"
+        ]
+      },
+      "rating": {
+        "types": [
+          "integer",
+          "number"
+        ],
+        "frequency": 1.0,
+        "examples": [
+          4.3,
+          4,
+          3.6
+        ]
+      },
+      "price_range": {
+        "types": [
+          "string"
+        ],
+        "frequency": 1.0,
+        "examples": [
+          "$$$",
+          "$$$$",
+          "$$"
+        ]
+      },
+      "status": {
+        "types": [
+          "string"
+        ],
+        "frequency": 1.0,
+        "examples": [
+          "open",
+          "closed",
+          "open"
+        ]
+      },
+      "outdoor_seating": {
+        "types": [
+          "boolean"
+        ],
+        "frequency": 1.0,
+        "examples": [
+          false,
+          false,
+          false
+        ]
+      },
+      "gluten_free_menu": {
+        "types": [
+          "boolean"
+        ],
+        "frequency": 1.0,
+        "examples": [
+          false,
+          true,
+          false
+        ]
+      }
+    }
+  },
+  "hotels": {
+    "total_documents": 21,
+    "sampled_documents": 21,
+    "fields": {
+      "name": {
+        "types": [
+          "string"
+        ],
+        "frequency": 1.0,
+        "examples": [
+          "Hotel Luxury Milano",
+          "Hotel Royal Bologna",
+          "Hotel Palace Firenze"
+        ]
+      },
+      "location": {
+        "types": [
+          "object"
+        ],
+        "frequency": 0.9523809523809523,
+        "examples": []
+      },
+      "location.city": {
+        "types": [
+          "string"
+        ],
+        "frequency": 0.9523809523809523,
+        "examples": [
+          "Milano",
+          "Bologna",
+          "Firenze"
+        ]
+      },
+      "location.country": {
+        "types": [
+          "string"
+        ],
+        "frequency": 0.9523809523809523,
+        "examples": [
+          "Italy",
+          "Italy",
+          "Italy"
+        ]
+      },
+      "location.address": {
+        "types": [
+          "string"
+        ],
+        "frequency": 0.9523809523809523,
+        "examples": [
+          "Via Roma 1",
+          "Via Roma 2",
+          "Via Roma 3"
+        ]
+      },
+      "location.coordinates": {
+        "types": [
+          "object"
+        ],
+        "frequency": 0.9523809523809523,
+        "examples": []
+      },
+      "location.coordinates.lat": {
+        "types": [
+          "number"
+        ],
+        "frequency": 0.9523809523809523,
+        "examples": [
+          43.20371,
+          41.894324,
+          43.848811
+        ]
+      },
+      "location.coordinates.lng": {
+        "types": [
+          "number"
+        ],
+        "frequency": 0.9523809523809523,
+        "examples": [
+          9.974417,
+          10.972748,
+          9.570306
+        ]
+      },
+      "rating": {
+        "types": [
+          "integer",
+          "number"
+        ],
+        "frequency": 1.0,
+        "examples": [
+          4.5,
+          3.8,
+          4.7
+        ]
+      },
+      "price_per_night": {
+        "types": [
+          "integer"
+        ],
+        "frequency": 0.9523809523809523,
+        "examples": [
+          250,
+          250,
+          250
+        ]
+      },
+      "stars": {
+        "types": [
+          "integer"
+        ],
+        "frequency": 0.9523809523809523,
+        "examples": [
+          5,
+          3,
+          4
+        ]
+      },
+      "amenities": {
+        "types": [
+          "array"
+        ],
+        "frequency": 0.9523809523809523,
+        "examples": []
+      },
+      "rooms": {
+        "types": [
+          "integer"
+        ],
+        "frequency": 0.9523809523809523,
+        "examples": [
+          129,
+          195,
+          161
+        ]
+      },
+      "available": {
+        "types": [
+          "boolean"
+        ],
+        "frequency": 0.9523809523809523,
+        "examples": [
+          true,
+          false,
+          false
+        ]
+      },
+      "parking": {
+        "types": [
+          "boolean"
+        ],
+        "frequency": 0.9523809523809523,
+        "examples": [
+          true,
+          true,
+          true
+        ]
+      },
+      "wifi": {
+        "types": [
+          "boolean"
+        ],
+        "frequency": 0.9523809523809523,
+        "examples": [
+          true,
+          true,
+          true
+        ]
+      },
+      "breakfast_included": {
+        "types": [
+          "boolean"
+        ],
+        "frequency": 0.9523809523809523,
+        "examples": [
+          true,
+          false,
+          true
+        ]
+      },
+      "city": {
+        "types": [
+          "string"
+        ],
+        "frequency": 0.047619047619047616,
+        "examples": [
+          "Milano"
+        ]
+      }
+    }
+  },
+  "products": {
+    "total_documents": 30,
+    "sampled_documents": 30,
+    "fields": {
+      "name": {
+        "types": [
+          "string"
+        ],
+        "frequency": 1.0,
+        "examples": [
+          "Product Food 1",
+          "Product Electronics 2",
+          "Product Electronics 3"
+        ]
+      },
+      "category": {
+        "types": [
+          "string"
+        ],
+        "frequency": 1.0,
+        "examples": [
+          "food",
+          "electronics",
+          "electronics"
+        ]
+      },
+      "price": {
+        "types": [
+          "number"
+        ],
+        "frequency": 1.0,
+        "examples": [
+          1642.44,
+          43.47,
+          730.82
+        ]
+      },
+      "stock": {
+        "types": [
+          "integer"
+        ],
+        "frequency": 1.0,
+        "examples": [
+          95,
+          48,
+          94
+        ]
+      },
+      "brand": {
+        "types": [
+          "null",
+          "string"
+        ],
+        "frequency": 1.0,
+        "examples": [
+          null,
+          "HP",
+          "HP"
+        ]
+      },
+      "discount": {
+        "types": [
+          "integer"
+        ],
+        "frequency": 1.0,
+        "examples": [
+          15,
+          30,
+          0
+        ]
+      },
+      "rating": {
+        "types": [
+          "integer",
+          "number"
+        ],
+        "frequency": 1.0,
+        "examples": [
+          4.3,
+          3.7,
+          3.4
+        ]
+      },
+      "organic": {
+        "types": [
+          "boolean"
+        ],
+        "frequency": 1.0,
+        "examples": [
+          false,
+          false,
+          false
+        ]
+      },
+      "description": {
+        "types": [
+          "string"
+        ],
+        "frequency": 1.0,
+        "examples": [
+          "High quality food product",
+          "High quality electronics product",
+          "High quality electronics product"
+        ]
+      },
+      "reviews": {
+        "types": [
+          "array"
+        ],
+        "frequency": 1.0,
+        "examples": []
+      },
+      "reviews.user": {
+        "types": [
+          "string"
+        ],
+        "frequency": 0.6666666666666666,
+        "examples": [
+          "user_000",
+          "user_000",
+          "user_000"
+        ]
+      },
+      "reviews.rating": {
+        "types": [
+          "integer"
+        ],
+        "frequency": 0.6666666666666666,
+        "examples": [
+          5,
+          5,
+          4
+        ]
+      },
+      "reviews.comment": {
+        "types": [
+          "string"
+        ],
+        "frequency": 0.6666666666666666,
+        "examples": [
+          "Great product",
+          "Great product",
+          "Great product"
+        ]
+      }
+    }
+  },
+  "orders": {
+    "total_documents": 20,
+    "sampled_documents": 20,
+    "fields": {
+      "user_id": {
+        "types": [
+          "string"
+        ],
+        "frequency": 1.0,
+        "examples": [
+          "user_021",
+          "user_017",
+          "user_006"
+        ]
+      },
+      "total": {
+        "types": [
+          "number"
+        ],
+        "frequency": 1.0,
+        "examples": [
+          930.44,
+          627.85,
+          619.51
+        ]
+      },
+      "status": {
+        "types": [
+          "string"
+        ],
+        "frequency": 1.0,
+        "examples": [
+          "confirmed",
+          "delivered",
+          "shipped"
+        ]
+      },
+      "items": {
+        "types": [
+          "array"
+        ],
+        "frequency": 1.0,
+        "examples": []
+      },
+      "items.product_id": {
+        "types": [
+          "string"
+        ],
+        "frequency": 1.0,
+        "examples": [
+          "prod_000",
+          "prod_000",
+          "prod_000"
+        ]
+      },
+      "items.quantity": {
+        "types": [
+          "integer"
+        ],
+        "frequency": 1.0,
+        "examples": [
+          1,
+          2,
+          1
+        ]
+      },
+      "shipping_address": {
+        "types": [
+          "string"
+        ],
+        "frequency": 1.0,
+        "examples": [
+          "Via Venezia 26",
+          "Via Roma 89",
+          "Via Venezia 60"
+        ]
+      },
+      "order_date": {
+        "types": [
+          "string"
+        ],
+        "frequency": 1.0,
+        "examples": [
+          "2026-01-12",
+          "2026-01-23",
+          "2026-02-08"
+        ]
+      },
+      "tracking_number": {
+        "types": [
+          "null",
+          "string"
+        ],
+        "frequency": 1.0,
+        "examples": [
+          null,
+          "IT46188741",
+          "IT58392821"
+        ]
+      },
+      "priority": {
+        "types": [
+          "string"
+        ],
+        "frequency": 1.0,
+        "examples": [
+          "high",
+          "urgent",
+          "low"
+        ]
+      }
+    }
+  },
+  "test_products": {
+    "total_documents": 3,
+    "sampled_documents": 3,
+    "fields": {
+      "nome": {
+        "types": [
+          "string"
+        ],
+        "frequency": 1.0,
+        "examples": [
+          "Laptop Gaming",
+          "Mouse Wireless",
+          "Monitor 4K"
+        ]
+      },
+      "prezzo": {
+        "types": [
+          "number"
+        ],
+        "frequency": 1.0,
+        "examples": [
+          1299.99,
+          29.99,
+          499.99
+        ]
+      },
+      "categoria": {
+        "types": [
+          "string"
+        ],
+        "frequency": 1.0,
+        "examples": [
+          "elettronica",
+          "accessori",
+          "elettronica"
+        ]
+      },
+      "disponibile": {
+        "types": [
+          "boolean"
+        ],
+        "frequency": 1.0,
+        "examples": [
+          true,
+          true,
+          false
+        ]
+      }
+    }
+  },
+  "users": {
+    "total_documents": 25,
+    "sampled_documents": 25,
+    "fields": {
+      "name": {
+        "types": [
+          "string"
+        ],
+        "frequency": 1.0,
+        "examples": [
+          "User 1",
+          "User 2",
+          "User 3"
+        ]
+      },
+      "email": {
+        "types": [
+          "null",
+          "string"
+        ],
+        "frequency": 1.0,
+        "examples": [
+          "user1@email.com",
+          "user2@email.com",
+          "user3@email.com"
+        ]
+      },
+      "age": {
+        "types": [
+          "integer"
+        ],
+        "frequency": 1.0,
+        "examples": [
+          38,
+          54,
+          58
+        ]
+      },
+      "city": {
+        "types": [
+          "string"
+        ],
+        "frequency": 1.0,
+        "examples": [
+          "Torino",
+          "Torino",
+          "Firenze"
+        ]
+      },
+      "country": {
+        "types": [
+          "string"
+        ],
+        "frequency": 1.0,
+        "examples": [
+          "Italy",
+          "Italy",
+          "Italy"
+        ]
+      },
+      "premium": {
+        "types": [
+          "boolean"
+        ],
+        "frequency": 1.0,
+        "examples": [
+          false,
+          true,
+          false
+        ]
+      },
+      "active": {
+        "types": [
+          "boolean"
+        ],
+        "frequency": 1.0,
+        "examples": [
+          true,
+          true,
+          true
+        ]
+      },
+      "email_verified": {
+        "types": [
+          "boolean"
+        ],
+        "frequency": 1.0,
+        "examples": [
+          true,
+          false,
+          false
+        ]
+      },
+      "phone": {
+        "types": [
+          "null",
+          "string"
+        ],
+        "frequency": 1.0,
+        "examples": [
+          "+39 359 2972365",
+          "+39 319 3901859",
+          "+39 363 6951980"
+        ]
+      },
+      "registration_date": {
+        "types": [
+          "string"
+        ],
+        "frequency": 1.0,
+        "examples": [
+          "2025-10-14",
+          "2025-05-23",
+          "2026-02-14"
+        ]
+      },
+      "orders": {
+        "types": [
+          "array"
+        ],
+        "frequency": 1.0,
+        "examples": []
+      }
+    }
+  }
+}
