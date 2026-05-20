@@ -1,2 +1,0 @@
-GET COLLECTION hotels;
-FILTER CASE WHERE .location.city = 'Milano' AND .rating > 4.0 KEEP OTHERS;
