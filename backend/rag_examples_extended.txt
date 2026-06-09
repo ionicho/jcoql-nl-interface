@@ -1,0 +1,64 @@
+=== ESEMPIO: Prezzo Scontato ===
+NL: "Prodotti food con prezzo scontato inferiore a 30 euro"
+SBAGLIATO: FILTER CASE WHERE .price * (1 - .discount / 100) < 30
+GIUSTO: FILTER CASE WHERE .category = 'food' AND .discount > 20
+SPIEGAZIONE: Non usare calcoli in linea. Filtrare su campi reali (.discount) non su risultati (prezzo netto).
+
+=== ESEMPIO: Prezzo Scontato Alternativa ===
+NL: "Prodotti con buono sconto"
+QUERY: GET COLLECTION products; FILTER CASE WHERE .discount > 15 KEEP OTHERS;
+
+=== ESEMPIO: Raggruppamento Corretto ===
+NL: "Conta prodotti per categoria"
+SBAGLIATO: GROUP PARTITION true BY .category
+GIUSTO: GROUP PARTITION TRUE BY .category INTO category_groups
+SPIEGAZIONE: TRUE deve essere maiuscolo. Usa alias chiaro per il risultato.
+
+=== ESEMPIO: Raggruppamento Ordini ===
+NL: "Raggruppa ordini per stato"
+QUERY: GET COLLECTION orders; GROUP PARTITION TRUE BY .status INTO orders_by_status;
+
+=== ESEMPIO: Array Fields - Amenità ===
+NL: "Hotel con piscina nelle amenità"
+DATASET: hotels.amenities è un ARRAY: ["wifi", "parking", "pool", "restaurant"]
+SBAGLIATO: FILTER CASE WHERE .swimming_pool = true
+GIUSTO: Non supportato in JCoQL base. Alternativa: filtra per hotel quality
+QUERY: GET COLLECTION hotels; FILTER CASE WHERE .stars >= 4 KEEP OTHERS;
+
+=== ESEMPIO: Array Fields - Tags ===
+NL: "Prodotti bestseller"
+DATASET: products.tags è un ARRAY: ["new", "bestseller", "discount"]
+SBAGLIATO: FILTER CASE WHERE .tag = 'bestseller'
+GIUSTO: Non è supportato il controllo array diretti in JCoQL
+QUERY: GET COLLECTION products; FILTER CASE WHERE .rating >= 4.5 KEEP OTHERS;
+NOTA: Per array, usa un campo correlato (rating, discount, etc.)
+
+=== ESEMPIO: Negazione ===
+NL: "Prodotti NON food"
+QUERY: GET COLLECTION products; FILTER CASE WHERE .category != 'food' KEEP OTHERS;
+
+=== ESEMPIO: Negazione Booleano ===
+NL: "Hotel senza parking"
+QUERY: GET COLLECTION hotels; FILTER CASE WHERE .parking = false KEEP OTHERS;
+
+=== ESEMPIO: Input Valuta ===
+NL: "Prodotti over £1000"
+QUERY: GET COLLECTION products; FILTER CASE WHERE .price > 1000 KEEP OTHERS;
+NOTA: Ignora i simboli £, $, €. Estrai solo il numero.
+
+=== ESEMPIO: GROUP PARTITION - SINTASSI CORRETTA ===
+NL: "Raggruppa prodotti per categoria"
+SBAGLIATO: GROUP PARTITION TRUE BY .category INTO category_groups
+GIUSTO: GROUP PARTITION TRUE BY .category INTO .category_groups
+SPIEGAZIONE: Il nome dopo INTO DEVE iniziare con punto (.). È un campo.
+QUERY: GET COLLECTION products; GROUP PARTITION TRUE BY .category INTO .category_groups;
+
+=== ESEMPIO: GROUP PARTITION ORDINI ===
+NL: "Raggruppa ordini per stato"
+QUERY: GET COLLECTION orders; GROUP PARTITION TRUE BY .status INTO .orders_by_status;
+NOTA: INTO .orders_by_status - il punto è OBBLIGATORIO!
+
+=== ESEMPIO: GROUP PARTITION CONTEGGIO ===
+NL: "Conta hotel per città"
+QUERY: GET COLLECTION hotels; GROUP PARTITION TRUE BY .location.city INTO .hotel_city_groups;
+NOTA: INTO .hotel_city_groups - SEMPRE con punto!

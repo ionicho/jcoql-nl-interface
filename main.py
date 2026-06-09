@@ -33,6 +33,9 @@ with open('backend/jcoql_syntax_official.txt', 'r', encoding='utf-8') as f:
 with open('backend/jcoql_syntax_basic_official.txt', 'r', encoding='utf-8') as f:
     JCOQL_SYNTAX_BASIC = f.read()
 
+with open('backend/rag_examples_extended.txt', 'r', encoding='utf-8') as f:
+    EXTENDED_EXAMPLES = f.read()
+
 # --- CONFIGURAZIONE LLM ---
 # NOTA VRAM: Modelli locali occupano memoria GPU
 # - Llama 3.1 8B: ~4.7GB VRAM
@@ -47,45 +50,51 @@ MONGODB_SCHEMA = """
 SCHEMA MONGODB REALE (usa ESATTAMENTE questi campi):
 
 COLLECTION: hotels
-- location.city (STRING): 'Milano', 'Roma', 'Firenze', etc.
+- name (STRING): 'Hotel Duomo'
+- location.city (STRING): 'Milano', 'Roma'
 - location.country (STRING): 'Italy'
 - rating (FLOAT): 3.0 - 5.0
-- price_per_night (INT): 80 - 300
 - stars (INT): 3 - 5
-- parking (BOOLEAN)
-- wifi (BOOLEAN)
-- breakfast_included (BOOLEAN)
+- amenities (ARRAY): ['wifi', 'parking', 'pool', 'restaurant']  ⚠️ ARRAY - NON usare .swimming_pool!
+- parking (BOOLEAN): true/false
+- wifi (BOOLEAN): true/false
+- breakfast_included (BOOLEAN): true/false
 
 COLLECTION: products
-- category (STRING): 'electronics', 'clothing', 'books', 'food', 'sports'
-- price (FLOAT)
-- stock (INT)
-- brand (STRING)
+- name (STRING): 'Laptop Dell'
+- category (STRING): 'electronics', 'clothing', 'food', 'books'
+- price (FLOAT): 5 - 5000
 - discount (INT): 0 - 30
-- rating (FLOAT)
-- organic (BOOLEAN)
+- stock (INT): 0 - 1000
+- brand (STRING): 'Sony', 'Apple'
+- rating (FLOAT): 0 - 5
+- tags (ARRAY): ['new', 'bestseller', 'discount', 'organic']  ⚠️ ARRAY - NON usare .tag singolo!
 
 COLLECTION: users
-- age (INT)
-- city (STRING)
-- country (STRING)
-- premium (BOOLEAN)
-- active (BOOLEAN)
-- email_verified (BOOLEAN)
+- email_verified (BOOLEAN): true/false
+- age (INT): 18 - 80
+- city (STRING): 'Milano', 'Roma'
+- country (STRING): 'Italy'
+- premium (BOOLEAN): true/false
+- active (BOOLEAN): true/false
 
 COLLECTION: orders
-- total (FLOAT)
 - status (STRING): 'pending', 'confirmed', 'shipped', 'delivered', 'cancelled'
+- total (FLOAT): 0 - 10000
 - priority (STRING): 'low', 'normal', 'high', 'urgent'
 
 COLLECTION: restaurants
-- city (STRING)
-- cuisine (STRING): 'Italian', 'Japanese', 'Chinese', 'French', 'Mexican'
-- rating (FLOAT)
-- price_range (STRING): '$', '$$', '$$$', '$$$$'
+- city (STRING): 'Milano', 'Roma'
+- cuisine (STRING): 'Italian', 'Japanese', 'Chinese'
+- rating (FLOAT): 0 - 5
 - status (STRING): 'open', 'closed'
-- outdoor_seating (BOOLEAN)
-- gluten_free_menu (BOOLEAN)
+- price_range (STRING): '$', '$$', '$$$', '$$$$'
+- outdoor_seating (BOOLEAN): true/false
+
+⚠️ ARRAY HANDLING:
+- Hotels.amenities = ARRAY di stringhe. NON inventare campi tipo .swimming_pool!
+- Products.tags = ARRAY di stringhe. NON usare .tag singolo!
+- Filtra su campi reali (rating, stars, discount) NOT su elementi array.
 
 IMPORTANTE: Usa ESATTAMENTE i nomi campi come scritto sopra (es: location.city NON city!)
 """
@@ -139,6 +148,18 @@ async def startup_event():
 
 @app.post("/api/generate")
 async def generate_query(request: GenerateRequest):
+    # ✅ NUOVO: Validazione input
+    if not request.nl_query or request.nl_query.strip() == "":
+        return {
+            "jcoql_query": "",
+            "is_valid": False,
+            "attempts": 0,
+            "validation_errors": [{"message": "❌ Query NL vuota! Inserisci una query valida."}],
+            "retrieved_examples": [],
+            "llm_used": ACTIVE_LLM,
+            "parser_used": parser.parser_name
+        }
+    
     context_str = ""
     retrieved_docs = []
     
@@ -170,9 +191,37 @@ async def generate_query(request: GenerateRequest):
         
         prompt = f"""Sei un esperto traduttore Natural Language → JCoQL+.
 
+        
 {MONGODB_SCHEMA}
 
-REGOLE SINTATTICHE CRITICHE:
+
+{EXTENDED_EXAMPLES}
+
+
+🚨 VIETATO ASSOLUTO - NON GENERARE MAI:
+- ❌ Moltiplicazioni: .price * 1.1, .total * (1 - .discount/100)
+- ❌ Divisioni: .price / 2
+- ❌ Addizioni: .price + 10
+- ❌ Sottrazioni: .total - 50
+- ❌ GENERATE, BUILD, COMPUTE, ADD FIELDS, REPORT
+- ❌ Campi calcolati: .discounted_price, .total_aumentato
+
+✅ OBBLIGATORIO - GENERA SEMPRE:
+- Filtra su campi REALI del database
+- NON fare calcoli
+- Se utente chiede "prezzo * 1.1" → filtra su campo reale (.total, .price, .discount)
+- Se utente chiede "totale + 10%" → filtra su campo reale (.total)
+
+ESEMPI DI ERRORI CHE NON DEVI FARE:
+❌ FILTER CASE WHERE .price * (1 - .discount/100) < 50
+❌ FILTER CASE WHERE .total * 1.1 > 100
+❌ GENERATE BUILD {{ .calc: .price * 2 }}
+
+ESEMPI CORRETTI CHE DEVI FARE:
+✅ FILTER CASE WHERE .discount > 20 KEEP OTHERS;
+✅ FILTER CASE WHERE .total > 100 KEEP OTHERS;
+✅ FILTER CASE WHERE .price < 50 KEEP OTHERS;
+
 {JCOQL_SYNTAX_BASIC}
 
 ESEMPI SIMILI (da RAG):

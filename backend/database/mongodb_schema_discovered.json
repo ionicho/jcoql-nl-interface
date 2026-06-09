@@ -1,4 +1,39 @@
 {
+  "hotels": {
+    "total_documents": 4,
+    "sampled_documents": 4,
+    "fields": {
+      "name": {
+        "types": [
+          "string"
+        ],
+        "frequency": 1.0,
+        "examples": [
+          "Hotel Duomo",
+          "Hotel Navigli",
+          "Hotel Ritz"
+        ]
+      },
+      "location": {
+        "types": [
+          "object"
+        ],
+        "frequency": 1.0,
+        "examples": []
+      },
+      "location.city": {
+        "types": [
+          "string"
+        ],
+        "frequency": 1.0,
+        "examples": [
+          "Milano",
+          "Milano",
+          "Milano"
+        ]
+      }
+    }
+  },
   "restaurants": {
     "total_documents": 15,
     "sampled_documents": 15,
@@ -38,8 +73,8 @@
       },
       "rating": {
         "types": [
-          "integer",
-          "number"
+          "number",
+          "integer"
         ],
         "frequency": 1.0,
         "examples": [
@@ -94,197 +129,6 @@
       }
     }
   },
-  "hotels": {
-    "total_documents": 21,
-    "sampled_documents": 21,
-    "fields": {
-      "name": {
-        "types": [
-          "string"
-        ],
-        "frequency": 1.0,
-        "examples": [
-          "Hotel Luxury Milano",
-          "Hotel Royal Bologna",
-          "Hotel Palace Firenze"
-        ]
-      },
-      "location": {
-        "types": [
-          "object"
-        ],
-        "frequency": 0.9523809523809523,
-        "examples": []
-      },
-      "location.city": {
-        "types": [
-          "string"
-        ],
-        "frequency": 0.9523809523809523,
-        "examples": [
-          "Milano",
-          "Bologna",
-          "Firenze"
-        ]
-      },
-      "location.country": {
-        "types": [
-          "string"
-        ],
-        "frequency": 0.9523809523809523,
-        "examples": [
-          "Italy",
-          "Italy",
-          "Italy"
-        ]
-      },
-      "location.address": {
-        "types": [
-          "string"
-        ],
-        "frequency": 0.9523809523809523,
-        "examples": [
-          "Via Roma 1",
-          "Via Roma 2",
-          "Via Roma 3"
-        ]
-      },
-      "location.coordinates": {
-        "types": [
-          "object"
-        ],
-        "frequency": 0.9523809523809523,
-        "examples": []
-      },
-      "location.coordinates.lat": {
-        "types": [
-          "number"
-        ],
-        "frequency": 0.9523809523809523,
-        "examples": [
-          43.20371,
-          41.894324,
-          43.848811
-        ]
-      },
-      "location.coordinates.lng": {
-        "types": [
-          "number"
-        ],
-        "frequency": 0.9523809523809523,
-        "examples": [
-          9.974417,
-          10.972748,
-          9.570306
-        ]
-      },
-      "rating": {
-        "types": [
-          "integer",
-          "number"
-        ],
-        "frequency": 1.0,
-        "examples": [
-          4.5,
-          3.8,
-          4.7
-        ]
-      },
-      "price_per_night": {
-        "types": [
-          "integer"
-        ],
-        "frequency": 0.9523809523809523,
-        "examples": [
-          250,
-          250,
-          250
-        ]
-      },
-      "stars": {
-        "types": [
-          "integer"
-        ],
-        "frequency": 0.9523809523809523,
-        "examples": [
-          5,
-          3,
-          4
-        ]
-      },
-      "amenities": {
-        "types": [
-          "array"
-        ],
-        "frequency": 0.9523809523809523,
-        "examples": []
-      },
-      "rooms": {
-        "types": [
-          "integer"
-        ],
-        "frequency": 0.9523809523809523,
-        "examples": [
-          129,
-          195,
-          161
-        ]
-      },
-      "available": {
-        "types": [
-          "boolean"
-        ],
-        "frequency": 0.9523809523809523,
-        "examples": [
-          true,
-          false,
-          false
-        ]
-      },
-      "parking": {
-        "types": [
-          "boolean"
-        ],
-        "frequency": 0.9523809523809523,
-        "examples": [
-          true,
-          true,
-          true
-        ]
-      },
-      "wifi": {
-        "types": [
-          "boolean"
-        ],
-        "frequency": 0.9523809523809523,
-        "examples": [
-          true,
-          true,
-          true
-        ]
-      },
-      "breakfast_included": {
-        "types": [
-          "boolean"
-        ],
-        "frequency": 0.9523809523809523,
-        "examples": [
-          true,
-          false,
-          true
-        ]
-      },
-      "city": {
-        "types": [
-          "string"
-        ],
-        "frequency": 0.047619047619047616,
-        "examples": [
-          "Milano"
-        ]
-      }
-    }
-  },
   "products": {
     "total_documents": 30,
     "sampled_documents": 30,
@@ -335,8 +179,8 @@
       },
       "brand": {
         "types": [
-          "null",
-          "string"
+          "string",
+          "null"
         ],
         "frequency": 1.0,
         "examples": [
@@ -358,8 +202,8 @@
       },
       "rating": {
         "types": [
-          "integer",
-          "number"
+          "number",
+          "integer"
         ],
         "frequency": 1.0,
         "examples": [
@@ -522,8 +366,8 @@
       },
       "tracking_number": {
         "types": [
-          "null",
-          "string"
+          "string",
+          "null"
         ],
         "frequency": 1.0,
         "examples": [
@@ -612,8 +456,8 @@
       },
       "email": {
         "types": [
-          "null",
-          "string"
+          "string",
+          "null"
         ],
         "frequency": 1.0,
         "examples": [
@@ -690,8 +534,8 @@
       },
       "phone": {
         "types": [
-          "null",
-          "string"
+          "string",
+          "null"
         ],
         "frequency": 1.0,
         "examples": [

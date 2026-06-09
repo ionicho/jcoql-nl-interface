@@ -1,0 +1,41 @@
+ESEMPIO 1: Range Numerico Base
+Descrizione: Filtra prodotti con prezzo compreso tra 100 e 200 euro (estremi inclusi)
+Query:
+GET COLLECTION products;
+FILTER CASE WHERE .price IN_RANGE [ 100 , 200 ];
+
+ESEMPIO 2: Range con Estremi Esclusi
+Descrizione: Trova appartamenti con superficie tra 50 e 100 mq escludendo gli estremi
+Query:
+GET COLLECTION apartments;
+FILTER CASE WHERE .superficie IN_RANGE ( 50 , 100 ) ;
+
+ESEMPIO 3: Range Decimale
+Descrizione: Seleziona articoli con rating tra 3.5 e 4.5 stelle
+Query:
+GET COLLECTION reviews;
+FILTER CASE WHERE .rating IN_RANGE [ 3.5 , 4.5 ];
+
+ESEMPIO 4: Range con Filtro Aggiuntivo
+Descrizione: Hotel a Milano con prezzo tra 80 e 150 euro per notte
+Query:
+GET COLLECTION hotels;
+FILTER CASE WHERE .city = 'Milano' AND .pricePerNight IN_RANGE [ 80 , 150 ];
+
+ESEMPIO 5: Range Multiplo (OR)
+Descrizione: Prodotti con prezzo tra 20-50 euro oppure tra 100-200 euro
+Query:
+GET COLLECTION products;
+FILTER CASE WHERE .price IN_RANGE [ 20 , 50 ] OR .price IN_RANGE [ 100 , 200 ];
+
+ESEMPIO 6: Range con Età
+Descrizione: Utenti con età compresa tra 18 e 65 anni
+Query:
+GET COLLECTION users;
+FILTER CASE WHERE .age IN_RANGE [ 18 , 65 ];
+
+ESEMPIO 7: Range Temperatura
+Descrizione: Misurazioni con temperatura tra -10 e 40 gradi
+Query:
+GET COLLECTION measurements;
+FILTER CASE WHERE .temperature IN_RANGE [ -10 , 40 ];

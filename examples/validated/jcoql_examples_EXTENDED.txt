@@ -1,0 +1,159 @@
+==============================================
+JCOQL+ EXAMPLES EXTENDED - PARTE 2
+Esempi 15-35 - Feature Intermedie
+==============================================
+
+ESEMPIO 15: ADD FIELDS con Calcolo
+----------------------------------------------
+Descrizione: Aggiungi campo IVA calcolato (22%)
+Query:
+GET COLLECTION invoices;
+FILTER CASE WHERE .total > 0 
+  GENERATE ADD FIELDS { .iva : ( .total * 0.22 ) };
+
+ESEMPIO 16: ADD FIELDS Multipli
+----------------------------------------------
+Descrizione: Aggiungi categoria e sconto combinati
+Query:
+GET COLLECTION products;
+FILTER CASE WHERE .price > 100 
+  GENERATE ADD FIELDS { 
+    .categoria : 'premium',
+    .prezzo_scontato : ( .price * 0.9 )
+};
+
+ESEMPIO 17: REMOVE FIELDS Privacy
+----------------------------------------------
+Descrizione: Rimuovi dati sensibili prima di export
+Query:
+GET COLLECTION users;
+FILTER CASE WHERE WITH .email 
+  GENERATE REMOVE FIELDS { .password, .credit_card };
+
+ESEMPIO 18: BUILD Proiezione
+----------------------------------------------
+Descrizione: Mantieni solo campi necessari
+Query:
+GET COLLECTION orders;
+FILTER CASE WHERE .status = 'completed' 
+  GENERATE BUILD { .order_id, .customer_name, .total };
+
+ESEMPIO 19: INRANGE Decimali
+----------------------------------------------
+Descrizione: Temperatura tra 18.5 e 22.5 gradi
+Query:
+GET COLLECTION sensors;
+FILTER CASE WHERE .temperature IN_RANGE [ 18.5 , 22.5 ];
+
+ESEMPIO 20: Condizioni Nidificate
+----------------------------------------------
+Descrizione: Query con parentesi multiple
+Query:
+GET COLLECTION customers;
+FILTER CASE WHERE (.city = 'Milano' OR .city = 'Roma') 
+  AND (.tier = 'Premium' OR .tier = 'Gold') 
+  AND .active = true;
+
+ESEMPIO 21: EXPAND UNPACK
+----------------------------------------------
+Descrizione: Espandi array ordini
+Query:
+GET COLLECTION customers;
+EXPAND UNPACK .total > 100 ARRAY .orders TO order;
+
+ESEMPIO 22: MERGE COLLECTIONS
+----------------------------------------------
+Descrizione: Unisci più collezioni
+Query:
+MERGE COLLECTIONS customers_eu, customers_us;
+
+ESEMPIO 23: GROUP BY COUNT
+----------------------------------------------
+Descrizione: Conta per categoria
+Query:
+GET COLLECTION sales;
+GROUP
+  PARTITION FIELD .category IS NOT NULL
+  BY .category
+  INTO .grouped
+  GENERATE BUILD { .category };
+
+ESEMPIO 24: GROUP BY Aggregazioni
+----------------------------------------------
+Descrizione: Somma e media vendite
+Query:
+GET COLLECTION sales;
+GROUP
+  PARTITION .amount > 0
+  BY .category
+  INTO .grouped
+  GENERATE BUILD { .category };
+
+ESEMPIO 25: SAVE AS
+----------------------------------------------
+Descrizione: Salva risultati
+Query:
+GET COLLECTION daily_sales;
+FILTER CASE WHERE .date = '2026-03-04';
+SAVE AS sales_march;
+
+ESEMPIO 26: INTERSECT
+----------------------------------------------
+Descrizione: Clienti comuni
+Query:
+INTERSECT COLLECTIONS online_customers, store_customers;
+
+ESEMPIO 27: SUBTRACT
+----------------------------------------------
+Descrizione: Differenza collezioni
+Query:
+SUBTRACT COLLECTIONS all_customers, online_customers;
+
+ESEMPIO 28: CASES Multiple
+----------------------------------------------
+Descrizione: Categorizza in fasce
+Query:
+GET COLLECTION products;
+FILTER CASES
+  WHERE .price < 20 GENERATE ADD FIELDS { .tier : 'budget' }
+  WHERE .price >= 100 GENERATE ADD FIELDS { .tier : 'luxury' };
+
+ESEMPIO 29: IS NOT NULL
+----------------------------------------------
+Descrizione: Campo non null
+Query:
+GET COLLECTION products;
+FILTER CASE WHERE FIELD .description IS NOT NULL;
+
+ESEMPIO 30: BUILD con Calcoli
+----------------------------------------------
+Descrizione: Estrai dati calcolati
+Query:
+GET COLLECTION orders;
+FILTER CASE WHERE .status = 'completed' 
+  GENERATE BUILD { 
+    .id,
+    .total_iva : ( .total * 1.22 )
+};
+
+ESEMPIO 31: WITHOUT Multiple
+----------------------------------------------
+Descrizione: Verifica assenza campi
+Query:
+GET COLLECTION users;
+FILTER CASE WHERE WITHOUT .email AND WITHOUT .phone;
+
+ESEMPIO 32: Condizioni Complesse
+----------------------------------------------
+Descrizione: Logica avanzata
+Query:
+GET COLLECTION products;
+FILTER CASE 
+    WHERE ( .category = 'electronics' OR .category = 'tech' )
+    AND ( .price IN_RANGE [ 50 , 500 ] )
+    AND ( .discontinued = false )
+KEEP OTHERS;
+
+==============================================
+FINE ESEMPI ESTESI
+==============================================
