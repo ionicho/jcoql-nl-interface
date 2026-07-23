@@ -3,8 +3,8 @@ import axios from 'axios'
 import { useState, useEffect } from 'react'
 import { BrowserRouter, Route, Routes, Link } from 'react-router-dom'
 import Dashboard from './Dashboard'
-import QueryExecutor from './QueryExecutor';
-import UploadData from './UploadData';
+import QueryExecutor from './QueryExecutor'
+import UploadData from './UploadData'
 
 const queryClient = new QueryClient()
 const API_BASE_URL = 'http://localhost:8000'
@@ -13,21 +13,6 @@ function JCoQLInterface() {
   const [nlQuery, setNlQuery] = useState('')
   const [result, setResult] = useState(null)
   const [selectedLlm, setSelectedLlm] = useState('gemini')
-  const [selectedParser, setSelectedParser] = useState('antlr4_custom')
-  const [availableParsers, setAvailableParsers] = useState([])
-
-  // Fetch parsers on mount
-  useEffect(() => {
-    axios.get(`${API_BASE_URL}/api/parsers`)
-      .then(res => {
-        setAvailableParsers(res.data.available || [])
-        setSelectedParser(res.data.current || 'antlr4_custom')
-      })
-      .catch(err => {
-        console.error('Error fetching parsers:', err)
-        setAvailableParsers(['antlr4_custom'])
-      })
-  }, [])
 
   // Handler cambio LLM
   const handleLlmChange = async (e) => {
@@ -46,28 +31,12 @@ function JCoQLInterface() {
     }
   }
 
-  // Handler cambio parser
-  const handleParserChange = async (e) => {
-    const newParser = e.target.value
-    try {
-      const response = await axios.post(`${API_BASE_URL}/api/set_parser`, null, {
-        params: { parser_type: newParser }
-      })
-      if (response.data.success) {
-        setSelectedParser(newParser)
-        console.log(`Parser changed to: ${response.data.parser}`)
-      }
-    } catch (error) {
-      console.error('Error changing parser:', error)
-      alert('Errore nel cambio parser')
-    }
-  }
-
   const generateMutation = useMutation({
     mutationFn: async (query) => {
       const response = await axios.post(`${API_BASE_URL}/api/generate`, {
         nl_query: query,
-        max_retries: 2
+        max_retries: 2,
+        parser_type: 'antlr3_official' // Fissato su ANTLR3 Official
       })
       return response.data
     },
@@ -88,6 +57,35 @@ function JCoQLInterface() {
     }
   }
 
+  // Database Selector
+  const [selectedDatabase, setSelectedDatabase] = useState("jcoql_test")
+  const [databases, setDatabases] = useState([])
+
+  useEffect(() => {
+    // Carica lista database
+    fetch("http://127.0.0.1:8000/api/databases")
+      .then(res => res.json())
+      .then(data => setDatabases(data.databases || []))
+      .catch(err => console.error("Errore caricamento database:", err))
+  }, [])
+
+  const switchDatabase = async (dbName) => {
+    try {
+      const response = await fetch(
+        `http://127.0.0.1:8000/api/databases/select?database_name=${dbName}`,
+        { method: "POST" }
+      )
+      const data = await response.json()
+      
+      if (data.success) {
+        setSelectedDatabase(dbName)
+        console.log(`✅ Database cambiato: ${dbName}`)
+      }
+    } catch (err) {
+      console.error("Errore cambio database:", err)
+    }
+  }
+
   return (
     <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100">
       <header className="bg-white shadow-sm border-b">
@@ -96,44 +94,63 @@ function JCoQLInterface() {
             <h1 className="text-2xl font-bold">JCoQL+ Interface</h1>
             
             <div className="flex items-center space-x-4">
-              {/* LLM Selector con badge VRAM */}
-                <div className="flex items-center space-x-2">
-                    <label className="text-sm text-gray-600">LLM:</label>
-                    <select 
-                      value={selectedLlm} 
-                      onChange={handleLlmChange}
-                      className="px-3 py-1 bg-white border border-gray-300 rounded text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"
-                      title={`Attuale: ${selectedLlm === 'gemini' ? 'Cloud (Google API)' : 'Locale (Ollama)'}`}
-                    >
-                      <option value="gemini">☁️ Gemini (Cloud)</option>
-                      <option value="llama">🏠 Llama (Locale - 4.7GB)</option>
-                      <option value="gemma">🏠 Gemma (Locale - 5.4GB) ⚠️</option>
-                    </select>
-                  </div>
+              {/* Database Selector */}
+              <div className="database-selector flex items-center space-x-2">
+                <label className="text-sm text-gray-600">Database:</label>
+                <select 
+                  value={selectedDatabase} 
+                  onChange={(e) => switchDatabase(e.target.value)}
+                  className="px-3 py-1 bg-white border border-gray-300 rounded text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                >
+                  {databases.map(db => (
+                    <option key={db.name} value={db.name}>
+                      {db.name} ({db.collections} collezioni) {db.current ? " ✓" : ""}
+                    </option>
+                  ))}
+                </select>
+              </div>
 
-                  {/* Warning se Gemma selezionato */}
-                  {selectedLlm === 'gemma' && (
-                    <div className="mt-2 p-3 bg-yellow-50 border border-yellow-200 rounded-lg">
-                      <p className="text-xs text-yellow-800">
-                        <strong>⚠️ Nota VRAM:</strong> Gemma richiede 5.4GB. 
-                        Se hai appena usato Llama, riavvia Ollama per liberare memoria: 
-                        <code className="ml-1 px-1 bg-yellow-100 rounded">ollama stop</code>
-                      </p>
-                    </div>
-                  )}
+              {/* LLM Selector */}
+              <div className="flex items-center space-x-2">
+                <label className="text-sm text-gray-600">LLM:</label>
+                <select 
+                  value={selectedLlm} 
+                  onChange={handleLlmChange}
+                  className="px-3 py-1 bg-white border border-gray-300 rounded text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                  title={`Attuale: ${selectedLlm === 'gemini' ? 'Cloud (Google API)' : 'Locale (Ollama)'}`}
+                >
+                  <option value="gemini">☁️ Gemini (Cloud)</option>
+                  <option value="llama">🏠 Llama (Locale - 4.7GB)</option>
+                  <option value="gemma">🏠 Gemma (Locale - 5.4GB) ⚠️</option>
+                </select>
+              </div>
 
-              {/* Dashboard Link */}
+              {/* Navigation Links */}
               <Link
                 to="/dashboard"
                 className="px-4 py-2 bg-gray-100 hover:bg-gray-200 text-gray-700 rounded-lg text-sm transition-colors"
               >
                 📊 Dashboard
               </Link>
-              <Link to="/executor" className="...">
+              <Link 
+                to="/executor" 
+                className="px-4 py-2 bg-gray-100 hover:bg-gray-200 text-gray-700 rounded-lg text-sm transition-colors"
+              >
                 🔍 Query Executor
               </Link>
             </div>
           </div>
+
+          {/* Warning VRAM Gemma */}
+          {selectedLlm === 'gemma' && (
+            <div className="mt-3 p-3 bg-yellow-50 border border-yellow-200 rounded-lg">
+              <p className="text-xs text-yellow-800">
+                <strong>⚠️ Nota VRAM:</strong> Gemma richiede 5.4GB. 
+                Se hai appena usato Llama, riavvia Ollama per liberare memoria: 
+                <code className="ml-1 px-1 bg-yellow-100 rounded">ollama stop</code>
+              </p>
+            </div>
+          )}
         </div>
       </header>
 
@@ -264,7 +281,7 @@ function JCoQLInterface() {
           <div className="text-center text-sm text-gray-500">
             <p>JCoQL+ NL Interface | Tesi Magistrale Università Bergamo</p>
             <p className="mt-1">
-              {result && result.llm_used && result.parser_used ? (
+              {result && result.llm_used ? (
                 <>
                   <span className="font-medium text-indigo-600">
                     LLM: {result.llm_used.toUpperCase()} 
@@ -272,11 +289,11 @@ function JCoQLInterface() {
                   </span>
                   {' | '}
                   <span className="font-medium text-green-600">
-                    Parser: {result.parser_used}
+                    Parser: ANTLR3 Official
                   </span>
                 </>
               ) : (
-                "RAG + Multi-LLM (Cloud/Locale) + Multi-Parser"
+                "RAG + Multi-LLM (Cloud/Locale) + ANTLR3 Official Parser"
               )}
             </p>
           </div>

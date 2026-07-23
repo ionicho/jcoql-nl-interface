@@ -12,6 +12,8 @@ from typing import List
 import google.generativeai as genai
 from dotenv import load_dotenv
 
+from backend.database.database_registry import db_registry
+
 
 # --- PATH ---
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
@@ -43,7 +45,7 @@ with open('backend/rag_examples_extended.txt', 'r', encoding='utf-8') as f:
 # RTX 4060 (8GB): può caricare 1 modello locale alla volta
 # Ollama NON scarica automaticamente - serve riavvio manuale
 ACTIVE_LLM = os.getenv("ACTIVE_LLM", "gemini")
-ACTIVE_PARSER = os.getenv("ACTIVE_PARSER", "antlr4_custom")
+ACTIVE_PARSER = os.getenv("ACTIVE_PARSER", "antlr3_official")
 
 # Carica schema MongoDB
 MONGODB_SCHEMA = """
@@ -115,13 +117,15 @@ except Exception as e:
     collection = None
 
 # FastAPI
+# FastAPI - SENZA reload per debug
 app = FastAPI(title="JCoQL+ Multi-Parser API")
 
+# ✅ CORS MIDDLEWARE - PRIMA DI TUTTO
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"],
     allow_credentials=True,
-    allow_methods=["*"],
+    allow_methods=["GET", "POST", "PUT", "DELETE", "OPTIONS"],
     allow_headers=["*"],
 )
 
@@ -131,30 +135,49 @@ class GenerateRequest(BaseModel):
 
 @app.on_event("startup")
 async def startup_event():
-    """Eseguito all'avvio del backend"""
-    print("🚀 Starting JCoQL NL Interface...")
+    global executor, GLOBAL_SCHEMA
     
-    # Refresh schema da MongoDB
+    # Inizializza Database Registry
     try:
-        from backend.database.schema_discovery import MongoSchemaDiscoverer
-        discoverer = MongoSchemaDiscoverer()
-        schema = discoverer.discover_schema(sample_size=50)
-        discoverer.save_schema(schema)
-        discoverer.close()
-        print("✅ MongoDB schema refreshed!")
+        db_registry.add_database(
+            db_name="jcoql_test",
+            mongo_uri="mongodb://localhost:27017",
+            database_name="jcoql_test"
+        )
+        print("✅ Database Registry inizializzato")
+        GLOBAL_SCHEMA = db_registry.get_current_schema()
+        print(f"✅ Schema caricato: {len(GLOBAL_SCHEMA)} collezioni")
     except Exception as e:
-        print(f"⚠️ Schema refresh failed: {e}")
-        print("   Using cached schema...")
+        print(f"❌ Errore Database Registry: {e}")
+    
+    # Inizializza Executor
+    try:
+        from executor_factory import ExecutorFactory, ExecutorType
+        executor = ExecutorFactory.create_executor(
+            ExecutorType.PYTHON_TRANSLATOR,
+            mongo_uri="mongodb://localhost:27017",
+            database="jcoql_test"
+        )
+        print("✅ Executor 'PYTHON_TRANSLATOR' inizializzato con successo.")
+    except Exception as e:
+        print(f"❌ Errore critico inizializzazione executor: {e}")
+        executor = None
 
 @app.post("/api/generate")
 async def generate_query(request: GenerateRequest):
+    print(f"\n🔍 ===== RICHIESTA RICEVUTA =====")
+    print(f"🔍 Type request: {type(request)}")
+    print(f"🔍 Request dict: {request.dict()}")
+    print(f"🔍 nl_query: {request.nl_query}")
+    print(f"🔍 ==============================\n")
+    
     # ✅ NUOVO: Validazione input
     if not request.nl_query or request.nl_query.strip() == "":
         return {
             "jcoql_query": "",
             "is_valid": False,
             "attempts": 0,
-            "validation_errors": [{"message": "❌ Query NL vuota! Inserisci una query valida."}],
+            "validation_errors": [{"message": "❌ Query NL vuota!"}],
             "retrieved_examples": [],
             "llm_used": ACTIVE_LLM,
             "parser_used": parser.parser_name
@@ -181,24 +204,55 @@ async def generate_query(request: GenerateRequest):
     all_errors = []
     validation_errors_for_frontend = []
 
+    current_schema = db_registry.get_current_schema()
+
+    if current_schema:
+        schema_prompt_str = f"SCHEMA MONGODB REALE (Database: {db_registry.get_current_database_name()}):\n\n"
+        for coll_name, coll_data in current_schema.items():
+            schema_prompt_str += f"COLLECTION: {coll_name}\n"
+            if isinstance(coll_data, dict):
+                for field_name, field_info in coll_data.items():
+                    field_type = field_info.get('type', 'unknown') if isinstance(field_info, dict) else type(field_info).__name__
+                    schema_prompt_str += f"- {field_name} ({field_type})\n"
+            schema_prompt_str += "\n"
+        schema_prompt_str += "IMPORTANTE: Usa ESATTAMENTE i nomi dei campi e delle collezioni scritti sopra!"
+    else:
+        schema_prompt_str = MONGODB_SCHEMA  # Fallback
+
     # REPAIR LOOP
     while attempts < request.max_retries and not is_valid:
         attempts += 1
 
-        
-        
         esempi_formattati = context_str
         
         prompt = f"""Sei un esperto traduttore Natural Language → JCoQL+.
 
-        
 {MONGODB_SCHEMA}
-
 
 {EXTENDED_EXAMPLES}
 
+🚨 VIETATO ASSOLUTO - NON GENERARE MAI QUESTI COMANDI:
+- ❌ GENERATE BUILD
+- ❌ GENERATE PROJECTION
+- ❌ ADD FIELDS
+- ❌ COMPUTE
+- ❌ REPORT
+- ❌ TRANSFORM
+- ❌ PROJECT
+- ❌ SELECT
+- ❌ AGGREGATE
 
+Non esistono in JCoQL! Sono comandi SQL/MongoDB/Spark, NON JCoQL!
+
+Se l'utente chiede:
+- "Calcola prezzo scontato" → Usa FILTER su campi reali (.discount, .price)
+- "Genera report" → Usa FILTER + KEEP OTHERS (ritorna i campi)
+- "Mostra solo nome e prezzo" → Usa FILTER CASE WHERE + KEEP OTHERS
+- "Raggruppa per categoria" → Usa GROUP PARTITION TRUE BY .category
+
+❌ NON INVENTARE COMANDI INESISTENTI!
 🚨 VIETATO ASSOLUTO - NON GENERARE MAI:
+
 - ❌ Moltiplicazioni: .price * 1.1, .total * (1 - .discount/100)
 - ❌ Divisioni: .price / 2
 - ❌ Addizioni: .price + 10
@@ -249,8 +303,6 @@ NESSUN testo aggiuntivo, solo query JCoQL.
 - SIZE(campo) per lunghezza array
 - Non usare: JOIN ON, GROUP BY, ORDER BY, LIMIT, PROJECT, DISTINCT, COUNT (non supportati)
 
-
-
 === ESEMPI DAL DATABASE ===
 {context_str}
 
@@ -267,19 +319,15 @@ GENERA SOLO LA QUERY JCOQL 4.0, NIENTE ALTRO.
             if ACTIVE_LLM == "llama":
                 current_query = generate_with_llama(prompt)
                 
-                # PULIZIA LLAMA (rimuove spiegazioni)
-                # Se contiene markdown code block, estrae solo quello
                 if "```" in current_query:
                     import re
                     match = re.search(r'```(?:sql|jcoql)?\s*\n?(.*?)\n?```', current_query, re.DOTALL)
                     if match:
                         current_query = match.group(1).strip()
                     else:
-                        # Fallback: rimuovi linee con ```
                         lines = current_query.split('\n')
                         current_query = '\n'.join([l for l in lines if '```' not in l])
                 
-                # Mantieni solo righe JCoQL valide (stesso filtro Gemma)
                 jcoql_keywords = [
                     'GET', 'FILTER', 'WHERE', 'KEEP', 'DROP', 'WITHOUT', 
                     'IN_RANGE', 'INTERSECT', 'EXPAND', 'LOOKUP', 'MERGE',
@@ -304,20 +352,15 @@ GENERA SOLO LA QUERY JCOQL 4.0, NIENTE ALTRO.
             elif ACTIVE_LLM == "gemma":
                 current_query = generate_with_gemma(prompt)
                 
-                # PULIZIA ULTRA-AGGRESSIVA GEMMA
-                # Step 1: Rimuovi markdown
                 if "```" in current_query:
                     import re
-                    # Estrae solo contenuto tra ```
                     match = re.search(r'```(?:jcoql)?\s*\n?(.*?)\n?```', current_query, re.DOTALL)
                     if match:
                         current_query = match.group(1)
                     else:
-                        # Rimuovi solo le linee con ```
                         lines = current_query.split('\n')
                         current_query = '\n'.join([l for l in lines if '```' not in l])
                 
-                # Step 2: Mantieni solo righe che iniziano con keyword JCoQL
                 jcoql_keywords = [
                     'GET', 'FILTER', 'WHERE', 'KEEP', 'DROP', 'WITHOUT', 
                     'IN_RANGE', 'UNION', 'INTERSECT', 'EXPAND', 'LOOKUP',
@@ -330,28 +373,24 @@ GENERA SOLO LA QUERY JCOQL 4.0, NIENTE ALTRO.
                 
                 for line in lines:
                     line = line.strip()
-                    # Mantieni se inizia con keyword JCoQL o è continuazione (es: "  WHERE")
                     if line and (
                         any(line.upper().startswith(kw) for kw in jcoql_keywords) or
-                        line.startswith('.') or  # Campo (es: .email)
-                        line.endswith(';')       # Fine statement
+                        line.startswith('.') or
+                        line.endswith(';')
                     ):
                         clean_lines.append(line)
                 
                 current_query = '\n'.join(clean_lines).strip()
                 
-                # Step 3: Se ancora vuoto, fallback al testo originale
                 if not current_query:
                     current_query = generate_with_gemma(prompt)
             else:  # gemini
                 response = model.generate_content(prompt)
                 current_query = response.text.strip()
             
-            # Pulisce markdown
             if current_query.startswith("```"):
                 current_query = current_query.replace("```jcoql", "").replace("```", "").strip()
             
-            # VALIDAZIONE con Parser Factory
             is_valid, errors = parser.validate(current_query)
             
             if not is_valid:
@@ -397,19 +436,7 @@ async def list_parsers():
         "current_version": parser.parser_version
     }
 
-@app.post("/api/set_parser")
-async def set_parser(parser_type: str):
-    global parser, ACTIVE_PARSER
-    try:
-        ACTIVE_PARSER = parser_type
-        parser = ParserFactory.create_parser(ParserType(parser_type))
-        return {
-            "success": True,
-            "parser": parser.parser_name,
-            "version": parser.parser_version
-        }
-    except ValueError as e:
-        raise HTTPException(status_code=400, detail=str(e))
+
     
 # ========================================
 # ESECUZIONE QUERY JCOQL SU MONGODB
@@ -628,6 +655,83 @@ async def get_collection_count(collection_name: str):
 
 # Cleanup connessione MongoDB alla chiusura
 @app.on_event("shutdown")
-def shutdown_event():
-    """Chiudi connessione MongoDB"""
-    executor.close()
+def shutdown():
+    """Chiudi tutte le connessioni"""
+    try:
+        if executor:
+            executor.close()
+    except Exception as e:
+        print(f"⚠️ Errore chiusura executor: {e}")
+    
+    try:
+        db_registry.close_all()
+    except Exception as e:
+        print(f"⚠️ Errore chiusura registry: {e}")
+
+# ========================================
+# MULTI-DATABASE MANAGEMENT
+# ========================================
+
+@app.get("/api/databases")
+async def list_databases():
+    """Lista tutti i database connessi"""
+    return {
+        "databases": db_registry.list_databases(),
+        "current": db_registry.get_current_database_name()
+    }
+
+@app.post("/api/databases/select")
+async def select_database(database_name: str):
+    """Seleziona il database attualmente in uso"""
+    global GLOBAL_SCHEMA
+    
+    success = db_registry.set_current_database(database_name)
+    
+    if success:
+        GLOBAL_SCHEMA = db_registry.get_current_schema()
+        current_schema = db_registry.get_current_schema()
+        return {
+            "success": True,
+            "current_database": database_name,
+            "collections": len(current_schema),
+            "message": f"Database '{database_name}' selezionato"
+        }
+    else:
+        return {
+            "success": False,
+            "error": f"Database '{database_name}' non trovato"
+        }
+
+@app.post("/api/databases/connect")
+async def connect_database(
+    db_name: str,
+    mongo_uri: str,
+    database_name: str
+):
+    """Aggiungi un nuovo database alla registry"""
+    success = db_registry.add_database(db_name, mongo_uri, database_name)
+    
+    if success:
+        db_info = db_registry.get_database_info(db_name)
+        return {
+            "success": True,
+            "database": db_info,
+            "message": f"Database '{db_name}' connesso con successo"
+        }
+    else:
+        return {
+            "success": False,
+            "error": f"Errore connessione database '{db_name}'"
+        }
+
+@app.get("/api/databases/{db_name}")
+async def get_database_info(db_name: str):
+    """Informazioni dettagliate di un database"""
+    info = db_registry.get_database_info(db_name)
+    
+    if info:
+        return info
+    else:
+        return {
+            "error": f"Database '{db_name}' non trovato"
+        }

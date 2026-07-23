@@ -179,8 +179,8 @@
       },
       "brand": {
         "types": [
-          "string",
-          "null"
+          "null",
+          "string"
         ],
         "frequency": 1.0,
         "examples": [
@@ -366,8 +366,8 @@
       },
       "tracking_number": {
         "types": [
-          "string",
-          "null"
+          "null",
+          "string"
         ],
         "frequency": 1.0,
         "examples": [
@@ -456,8 +456,8 @@
       },
       "email": {
         "types": [
-          "string",
-          "null"
+          "null",
+          "string"
         ],
         "frequency": 1.0,
         "examples": [
@@ -534,8 +534,8 @@
       },
       "phone": {
         "types": [
-          "string",
-          "null"
+          "null",
+          "string"
         ],
         "frequency": 1.0,
         "examples": [
