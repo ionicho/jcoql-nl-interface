@@ -47,59 +47,10 @@ with open('backend/rag_examples_extended.txt', 'r', encoding='utf-8') as f:
 ACTIVE_LLM = os.getenv("ACTIVE_LLM", "gemini")
 ACTIVE_PARSER = os.getenv("ACTIVE_PARSER", "antlr3_official")
 
-# Carica schema MongoDB
-MONGODB_SCHEMA = """
-SCHEMA MONGODB REALE (usa ESATTAMENTE questi campi):
-
-COLLECTION: hotels
-- name (STRING): 'Hotel Duomo'
-- location.city (STRING): 'Milano', 'Roma'
-- location.country (STRING): 'Italy'
-- rating (FLOAT): 3.0 - 5.0
-- stars (INT): 3 - 5
-- amenities (ARRAY): ['wifi', 'parking', 'pool', 'restaurant']  ⚠️ ARRAY - NON usare .swimming_pool!
-- parking (BOOLEAN): true/false
-- wifi (BOOLEAN): true/false
-- breakfast_included (BOOLEAN): true/false
-
-COLLECTION: products
-- name (STRING): 'Laptop Dell'
-- category (STRING): 'electronics', 'clothing', 'food', 'books'
-- price (FLOAT): 5 - 5000
-- discount (INT): 0 - 30
-- stock (INT): 0 - 1000
-- brand (STRING): 'Sony', 'Apple'
-- rating (FLOAT): 0 - 5
-- tags (ARRAY): ['new', 'bestseller', 'discount', 'organic']  ⚠️ ARRAY - NON usare .tag singolo!
-
-COLLECTION: users
-- email_verified (BOOLEAN): true/false
-- age (INT): 18 - 80
-- city (STRING): 'Milano', 'Roma'
-- country (STRING): 'Italy'
-- premium (BOOLEAN): true/false
-- active (BOOLEAN): true/false
-
-COLLECTION: orders
-- status (STRING): 'pending', 'confirmed', 'shipped', 'delivered', 'cancelled'
-- total (FLOAT): 0 - 10000
-- priority (STRING): 'low', 'normal', 'high', 'urgent'
-
-COLLECTION: restaurants
-- city (STRING): 'Milano', 'Roma'
-- cuisine (STRING): 'Italian', 'Japanese', 'Chinese'
-- rating (FLOAT): 0 - 5
-- status (STRING): 'open', 'closed'
-- price_range (STRING): '$', '$$', '$$$', '$$$$'
-- outdoor_seating (BOOLEAN): true/false
-
-⚠️ ARRAY HANDLING:
-- Hotels.amenities = ARRAY di stringhe. NON inventare campi tipo .swimming_pool!
-- Products.tags = ARRAY di stringhe. NON usare .tag singolo!
-- Filtra su campi reali (rating, stars, discount) NOT su elementi array.
-
-IMPORTANTE: Usa ESATTAMENTE i nomi campi come scritto sopra (es: location.city NON city!)
-"""
+# ✅ Schema NON hardcoded - Caricato dinamicamente da database registry
+# Lo schema viene scoperto al startup e aggiornato per ogni database
+MONGODB_SCHEMA_FALLBACK = """SCHEMA DINAMICO - Caricato da MongoDB al startup
+Usa GET /api/databases per vedere schema attuale"""
 
 # Crea parser
 parser = ParserFactory.create_parser(ParserType(ACTIVE_PARSER))
@@ -204,8 +155,9 @@ async def generate_query(request: GenerateRequest):
     all_errors = []
     validation_errors_for_frontend = []
 
+    # ✅ NUOVO: Usa schema dal registry (SEMPRE dinamico)
     current_schema = db_registry.get_current_schema()
-
+    
     if current_schema:
         schema_prompt_str = f"SCHEMA MONGODB REALE (Database: {db_registry.get_current_database_name()}):\n\n"
         for coll_name, coll_data in current_schema.items():
@@ -215,9 +167,11 @@ async def generate_query(request: GenerateRequest):
                     field_type = field_info.get('type', 'unknown') if isinstance(field_info, dict) else type(field_info).__name__
                     schema_prompt_str += f"- {field_name} ({field_type})\n"
             schema_prompt_str += "\n"
-        schema_prompt_str += "IMPORTANTE: Usa ESATTAMENTE i nomi dei campi e delle collezioni scritti sopra!"
     else:
-        schema_prompt_str = MONGODB_SCHEMA  # Fallback
+        # ⚠️ Se schema vuoto = database senza collezioni
+        schema_prompt_str = f"""SCHEMA MONGODB - Database '{db_registry.get_current_database_name()}'
+Nessuna collezione disponibile in questo database.
+Aggiungere dati tramite MongoDB prima di usare le query."""
 
     # REPAIR LOOP
     while attempts < request.max_retries and not is_valid:
@@ -227,54 +181,55 @@ async def generate_query(request: GenerateRequest):
         
         prompt = f"""Sei un esperto traduttore Natural Language → JCoQL+.
 
-{MONGODB_SCHEMA}
+{schema_prompt_str}
 
 {EXTENDED_EXAMPLES}
 
-🚨 VIETATO ASSOLUTO - NON GENERARE MAI QUESTI COMANDI:
-- ❌ GENERATE BUILD
-- ❌ GENERATE PROJECTION
-- ❌ ADD FIELDS
-- ❌ COMPUTE
-- ❌ REPORT
-- ❌ TRANSFORM
-- ❌ PROJECT
-- ❌ SELECT
-- ❌ AGGREGATE
+🚨 REVISIONE UFFICIALE - COMANDI JCOQL REALI vs BLOCCATI:
 
-Non esistono in JCoQL! Sono comandi SQL/MongoDB/Spark, NON JCoQL!
+NOTA IMPORTANTE:
+La grammatica JCoQL ufficiale v4.0 supporta GENERATE BUILD e ADD FIELDS.
+Tuttavia, il parser custom del sistema li BLOCCA per sicurezza.
+Usa quindi SOLO i comandi supportati di seguito dal parser.
+
+COMANDI SUPPORTATI E TESTATI (usa sempre questi):
+✅ FILTER CASE WHERE <condizione> KEEP OTHERS;
+✅ FILTER CASE WHERE <condizione> DROP OTHERS;
+✅ GET COLLECTION <nome>; FILTER CASE WHERE...
+✅ GROUP PARTITION TRUE BY .campo INTO .risultato;
+✅ MERGE, INTERSECT, SUBTRACT fra collezioni
+✅ EXPAND - Espande gli array
+
+COMANDI DELLA GRAMMATICA UFFICIALE (bloccati dal parser):
+⚠️ GENERATE BUILD {{...}} - Valido in JCoQL ma BLOCCATO
+⚠️ GENERATE ADD FIELDS {{...}} - Valido in JCoQL ma BLOCCATO
+→ Alternativa: usa sempre FILTER CASE WHERE + KEEP OTHERS
+
+COMANDI INESISTENTI - ASSOLUTAMENTE VIETATI:
+❌ COMPUTE - Non esiste in JCoQL
+❌ REPORT - Non esiste in JCoQL
+❌ TRANSFORM - Non esiste in JCoQL
+❌ PROJECT - Non esiste in JCoQL
+❌ SELECT - Non esiste in JCoQL
+❌ AGGREGATE (come comando standalone) - Non esiste
+
+Per trasformazioni/proiezioni: usa solo FILTER CASE WHERE!
 
 Se l'utente chiede:
-- "Calcola prezzo scontato" → Usa FILTER su campi reali (.discount, .price)
-- "Genera report" → Usa FILTER + KEEP OTHERS (ritorna i campi)
-- "Mostra solo nome e prezzo" → Usa FILTER CASE WHERE + KEEP OTHERS
-- "Raggruppa per categoria" → Usa GROUP PARTITION TRUE BY .category
+- "Mostra nome e prezzo" → FILTER CASE WHERE .name ISNOTNULL KEEP OTHERS;
+- "Seleziona specifici campi" → Usa FILTER CASE WHERE (con KEEP OTHERS)
+- "Calcola valori" → NON fare calcoli, filtra solo sui campi reali esistenti
+- "Raggruppa" → GROUP PARTITION TRUE BY .campo INTO .risultato;
 
-❌ NON INVENTARE COMANDI INESISTENTI!
-🚨 VIETATO ASSOLUTO - NON GENERARE MAI:
+OPERAZIONI MATEMATICHE - VIETATE:
+❌ Calcoli inline: .price * 1.1, .total / 2, ecc.
+❌ Assegnazione di campi calcolati in query
 
-- ❌ Moltiplicazioni: .price * 1.1, .total * (1 - .discount/100)
-- ❌ Divisioni: .price / 2
-- ❌ Addizioni: .price + 10
-- ❌ Sottrazioni: .total - 50
-- ❌ GENERATE, BUILD, COMPUTE, ADD FIELDS, REPORT
-- ❌ Campi calcolati: .discounted_price, .total_aumentato
-
-✅ OBBLIGATORIO - GENERA SEMPRE:
-- Filtra su campi REALI del database
-- NON fare calcoli
-- Se utente chiede "prezzo * 1.1" → filtra su campo reale (.total, .price, .discount)
-- Se utente chiede "totale + 10%" → filtra su campo reale (.total)
-
-ESEMPI DI ERRORI CHE NON DEVI FARE:
-❌ FILTER CASE WHERE .price * (1 - .discount/100) < 50
-❌ FILTER CASE WHERE .total * 1.1 > 100
-❌ GENERATE BUILD {{ .calc: .price * 2 }}
-
-ESEMPI CORRETTI CHE DEVI FARE:
-✅ FILTER CASE WHERE .discount > 20 KEEP OTHERS;
-✅ FILTER CASE WHERE .total > 100 KEEP OTHERS;
-✅ FILTER CASE WHERE .price < 50 KEEP OTHERS;
+QUERY SEMPRE CORRETTE:
+✅ GET COLLECTION products; FILTER CASE WHERE .price > 100 KEEP OTHERS;
+✅ GET COLLECTION hotels; FILTER CASE WHERE .rating > 4 AND .location.city = 'Milano' KEEP OTHERS;
+✅ GET COLLECTION orders; GROUP PARTITION TRUE BY .status INTO .orders_by_status;
+✅ GET COLLECTION users; FILTER CASE WHERE .age > 18 AND .active = TRUE KEEP OTHERS;
 
 {JCOQL_SYNTAX_BASIC}
 

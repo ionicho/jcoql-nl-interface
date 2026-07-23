@@ -1,1 +1,4 @@
-GET COLLECTION users; FILTER CASE WHERE .name = 'Alice' KEEP OTHERS;
+GET COLLECTION orders; 
+FILTER CASE WHERE .total > 0 
+  GENERATE BUILD { .order_id, .total } 
+KEEP OTHERS;
