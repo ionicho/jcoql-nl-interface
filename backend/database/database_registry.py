@@ -4,6 +4,8 @@ Database Registry - Gestisce connessioni multiple a MongoDB
 from pymongo import MongoClient
 from backend.database.schema_discovery import MongoSchemaDiscoverer
 from typing import Dict, Optional
+from backend.logging_config import get_db_logger
+db_logger = get_db_logger()
 
 class DatabaseRegistry:
     """Registra e gestisce multiple connessioni MongoDB"""
@@ -13,13 +15,14 @@ class DatabaseRegistry:
         self.current_database: Optional[str] = None
     
     def add_database(self, db_name: str, mongo_uri: str, database_name: str):
-        """Aggiungi un database alla registry"""
+        db_logger.info(f"🔗 Tentativo connessione database '{db_name}'...")
+        db_logger.debug(f"   URI: {mongo_uri}")
+        db_logger.debug(f"   Database: {database_name}")
+        
         try:
-            # ✅ NUOVO: Usa la classe MongoSchemaDiscoverer
             discoverer = MongoSchemaDiscoverer(mongo_uri, database_name)
             schema = discoverer.discover_schema(sample_size=100)
             
-            # Salva in registry
             self.databases[db_name] = {
                 "uri": mongo_uri,
                 "database_name": database_name,
@@ -28,19 +31,19 @@ class DatabaseRegistry:
                 "collections": len(schema)
             }
             
-            # Se primo database, impostalo come current
             if self.current_database is None:
                 self.current_database = db_name
             
-            print(f"✅ Database '{db_name}' aggiunto con {len(schema)} collezioni")
+            db_logger.info(f"✅ Database '{db_name}' connesso: {len(schema)} collezioni")
+            for coll in list(schema.keys())[:3]:
+                db_logger.debug(f"   - {coll}")
+            
             return True
             
         except Exception as e:
-            print(f"❌ Errore aggiunta database '{db_name}': {e}")
-            import traceback
-            traceback.print_exc()
+            db_logger.error(f"❌ Errore connessione '{db_name}': {e}", exc_info=True)
             return False
-    
+        
     def set_current_database(self, db_name: str) -> bool:
         """Seleziona il database attualmente in uso"""
         if db_name not in self.databases:

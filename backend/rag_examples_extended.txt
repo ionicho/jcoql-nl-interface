@@ -62,3 +62,19 @@ NOTA: INTO .orders_by_status - il punto è OBBLIGATORIO!
 NL: "Conta hotel per città"
 QUERY: GET COLLECTION hotels; GROUP PARTITION TRUE BY .location.city INTO .hotel_city_groups;
 NOTA: INTO .hotel_city_groups - SEMPRE con punto!
+
+=== ESEMPIO: Ordini con Totale Registrato ===
+NL: "Filtra ordini dove il campo totale è presente"
+QUERY: GET COLLECTION orders; FILTER CASE WHERE FIELD .total ISNOTNULL KEEP OTHERS;
+
+=== ESEMPIO: Prodotti con Nome Valido ===
+NL: "Filtra prodotti dove il nome è presente (non null)"
+QUERY: GET COLLECTION products; FILTER CASE WHERE FIELD .name ISNOTNULL KEEP OTHERS;
+
+=== ESEMPIO: Hotel con Rating Presente ===
+NL: "Cerca hotel dove il rating è stato registrato"
+QUERY: GET COLLECTION hotels; FILTER CASE WHERE FIELD .rating ISNOTNULL KEEP OTHERS;
+
+=== ESEMPIO: Utenti con Email Registrata ===
+NL: "Filtra utenti che hanno un'email valida"
+QUERY: GET COLLECTION users; FILTER CASE WHERE FIELD .email ISNOTNULL KEEP OTHERS;
