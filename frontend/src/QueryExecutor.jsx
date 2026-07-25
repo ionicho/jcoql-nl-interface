@@ -1,17 +1,50 @@
+// ==========================================
+// 1. IMPORTAZIONI
+// ==========================================
 import { useState } from 'react';
 import axios from 'axios';
-import { Link } from 'react-router-dom';
+// RIMOSSO: import { Link } from 'react-router-dom'; -> Non serve più nell'architettura a pagina singola
 
-export default function QueryExecutor() {
-  const [mode, setMode] = useState('nl'); // 'nl' o 'direct'
+import './QueryExecutor.css';
+
+
+// ==========================================
+// 2. DEFINIZIONE COMPONENTE
+// Riceve (opzionalmente) come Props i database selezionati dal componente padre (MainInterface)
+// ==========================================
+export default function QueryExecutor({ selectedDatabases = [], joinConfig = null }) {
+  
+  // --- STATI DEL COMPONENTE ---
+  // mode: Gestisce la vista attuale ('nl' per Linguaggio Naturale, 'direct' per query JCoQL manuale)
+  const [mode, setMode] = useState('nl'); 
+  
+  // nlQuery: Memorizza l'input testuale dell'utente in linguaggio naturale
   const [nlQuery, setNlQuery] = useState('');
+  
+  // jcoqlQuery: Memorizza la query JCoQL (sia quella generata dal backend, sia quella digitata a mano)
   const [jcoqlQuery, setJcoqlQuery] = useState('');
+  
+  // Stati di caricamento per gestire i bottoni disabilitati e gli spinner visivi
   const [isGenerating, setIsGenerating] = useState(false);
   const [isExecuting, setIsExecuting] = useState(false);
+  
+  // results: Salva la risposta del database dopo l'esecuzione della query
   const [results, setResults] = useState(null);
+  
+  // error: Gestisce la visualizzazione di eventuali messaggi di errore a schermo
   const [error, setError] = useState('');
 
+  // ==========================================
+  // 3. HANDLERS (FUNZIONI LOGICHE)
+  // ==========================================
+
+  /**
+   * handleGenerate: 
+   * Invia la stringa in linguaggio naturale (nlQuery) al backend FastAPI.
+   * Il backend interroga l'LLM e restituisce una query JCoQL formattata.
+   */
   const handleGenerate = async () => {
+    // Controllo validità: impedisce richieste vuote
     if (!nlQuery.trim()) {
       setError('Inserisci una query in linguaggio naturale');
       return;
@@ -19,7 +52,7 @@ export default function QueryExecutor() {
 
     setIsGenerating(true);
     setError('');
-    setResults(null);
+    setResults(null); // Pulisce eventuali risultati precedenti
 
     try {
       const response = await axios.post('http://localhost:8000/api/generate', {
@@ -27,18 +60,25 @@ export default function QueryExecutor() {
         max_retries: 3
       });
 
+      // Se la query generata supera i controlli di validazione (es. sintassi ANTLR3)
       if (response.data.is_valid) {
-        setJcoqlQuery(response.data.jcoql_query);
+        setJcoqlQuery(response.data.jcoql_query); // Imposta la query nel box di esecuzione
       } else {
+        // Mostra gli errori di validazione restituiti dal server
         setError('Query generata non valida: ' + response.data.validation_errors.join(', '));
       }
     } catch (err) {
       setError('Errore generazione: ' + err.message);
     } finally {
-      setIsGenerating(false);
+      setIsGenerating(false); // Riabilita il bottone indipendentemente dall'esito
     }
   };
 
+  /**
+   * handleExecute: 
+   * Invia la query JCoQL (jcoqlQuery) appena generata al backend per l'esecuzione su MongoDB.
+   * AGGIORNATO: Ora invia anche i database selezionati per evitare il fallback su jcoql_test
+   */
   const handleExecute = async () => {
     if (!jcoqlQuery.trim()) {
       setError('Nessuna query JCoQL da eseguire');
@@ -50,11 +90,13 @@ export default function QueryExecutor() {
 
     try {
       const response = await axios.post('http://localhost:8000/api/execute', {
-        jcoql_query: jcoqlQuery
+        jcoql_query: jcoqlQuery,
+        databases: selectedDatabases,        // ← AGGIUNTO: invia la lista dei DB selezionati
+        database_name: selectedDatabases[0]  // ← AGGIUNTO: invia il DB principale
       });
 
       if (response.data.success) {
-        setResults(response.data);
+        setResults(response.data); // Salva i documenti restituiti dal DB
       } else {
         setError('Errore esecuzione: ' + response.data.error);
       }
@@ -65,35 +107,76 @@ export default function QueryExecutor() {
     }
   };
 
+  /**
+   * handleExecuteDirect: 
+   * Identica ad handleExecute, ma pensata concettualmente per la modalità "diretta", 
+   * dove l'utente scrive o incolla il codice JCoQL a mano.
+   */
   const handleExecuteDirect = async () => {
     if (!jcoqlQuery.trim()) {
-      setError('Inserisci una query JCoQL');
-      return;
+      setError('Nessuna query JCoQL da eseguire')
+      return
     }
 
-    setIsExecuting(true);
-    setError('');
+    setIsExecuting(true)
+    setError('')
 
     try {
-      const response = await axios.post('http://localhost:8000/api/execute', {
-        jcoql_query: jcoqlQuery
-      });
+      console.log('🔍 Payload inviato:', {
+        jcoql_query: jcoqlQuery,
+        databases: selectedDatabases,
+        database_name: selectedDatabases[0]
+      })
+
+      // Usa axios con il payload corretto
+      const response = await axios.post(
+        'http://localhost:8000/api/execute',
+        {
+          jcoql_query: jcoqlQuery,
+          databases: selectedDatabases,
+          database_name: selectedDatabases[0]
+        },
+        {
+          headers: {
+            'Content-Type': 'application/json'
+          }
+        }
+      )
+
+      console.log('✅ Risposta ricevuta:', response.data)
+      console.log('📊 Structure:', {
+        success: response.data.success,
+        count: response.data.count,
+        results_type: typeof response.data.results,
+        results_is_array: Array.isArray(response.data.results),
+        results_content: response.data.results
+      })
 
       if (response.data.success) {
-        setResults(response.data);
+        setResults(response.data)
+        setError('')
       } else {
-        setError('Errore esecuzione: ' + response.data.error);
+        setError('Errore esecuzione: ' + response.data.error)
       }
     } catch (err) {
-      setError('Errore esecuzione: ' + err.message);
+      console.error('❌ Errore completo:', err)
+      if (err.response?.status === 422) {
+        setError('Errore validazione dati (422): ' + (err.response?.data?.detail || 'Controlla i parametri'))
+      } else {
+        setError('Errore esecuzione: ' + err.message)
+      }
     } finally {
-      setIsExecuting(false);
+      setIsExecuting(false)
     }
-  };
+  }
 
+  // ==========================================
+  // 4. RENDER DELL'INTERFACCIA (JSX)
+  // ==========================================
   return (
     <div className="max-w-6xl mx-auto p-6 space-y-6">
-      {/* Header */}
+      
+      {/* --- HEADER --- */}
       <div className="bg-gradient-to-r from-blue-600 to-purple-600 text-white p-6 rounded-lg shadow-lg">
         <div className="flex justify-between items-center">
           <div>
@@ -102,32 +185,19 @@ export default function QueryExecutor() {
               Genera ed esegui query JCoQL su MongoDB
             </p>
           </div>
-          <div className="flex gap-2">
-            <Link
-              to="/"
-              className="px-4 py-2 bg-white/20 hover:bg-white/30 text-white rounded-lg transition"
-            >
-              ← Interfaccia
-            </Link>
-            <Link
-              to="/upload"
-              className="px-4 py-2 bg-white text-blue-600 hover:bg-gray-100 rounded-lg font-medium transition"
-            >
-              📤 Upload Dati
-            </Link>
-          </div>
+          {/* RIMOSSO: I vecchi tag <Link> per la navigazione sono stati eliminati per prevenire il crash e snellire la singola pagina */}
         </div>
       </div>
 
-      {/* Mode Selector */}
+      {/* --- SELETTORE MODALITÀ (TABS) --- */}
       <div className="bg-white rounded-lg shadow-md p-4">
         <div className="flex gap-2">
           <button
             onClick={() => setMode('nl')}
             className={`flex-1 px-4 py-3 rounded-lg font-medium transition ${
               mode === 'nl'
-                ? 'bg-blue-600 text-white'
-                : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+                ? 'bg-blue-600 text-white' // Stile Attivo
+                : 'bg-gray-100 text-gray-700 hover:bg-gray-200' // Stile Inattivo
             }`}
           >
             🗣️ Linguaggio Naturale
@@ -136,8 +206,8 @@ export default function QueryExecutor() {
             onClick={() => setMode('direct')}
             className={`flex-1 px-4 py-3 rounded-lg font-medium transition ${
               mode === 'direct'
-                ? 'bg-blue-600 text-white'
-                : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+                ? 'bg-blue-600 text-white' // Stile Attivo
+                : 'bg-gray-100 text-gray-700 hover:bg-gray-200' // Stile Inattivo
             }`}
           >
             ⚡ Query JCoQL Diretta
@@ -145,9 +215,10 @@ export default function QueryExecutor() {
         </div>
       </div>
 
-      {/* Mode: Natural Language */}
+      {/* --- VISTA: LINGUAGGIO NATURALE --- */}
       {mode === 'nl' && (
         <>
+          {/* Box di inserimento testo */}
           <div className="bg-white rounded-lg shadow-md p-6">
             <label className="block text-sm font-medium text-gray-700 mb-2">
               Query in Linguaggio Naturale
@@ -157,13 +228,13 @@ export default function QueryExecutor() {
                 type="text"
                 value={nlQuery}
                 onChange={(e) => setNlQuery(e.target.value)}
-                onKeyPress={(e) => e.key === 'Enter' && handleGenerate()}
+                onKeyPress={(e) => e.key === 'Enter' && handleGenerate()} // Permette di generare premendo Invio
                 placeholder="Es: Hotel a Milano con rating superiore a 4"
                 className="flex-1 px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
               />
               <button
                 onClick={handleGenerate}
-                disabled={isGenerating}
+                disabled={isGenerating} // Disabilita durante il caricamento
                 className="px-6 py-3 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed font-medium transition"
               >
                 {isGenerating ? '⏳ Generazione...' : '🤖 Genera'}
@@ -171,6 +242,7 @@ export default function QueryExecutor() {
             </div>
           </div>
 
+          {/* Box della query JCoQL (visibile solo DOPO la generazione) */}
           {jcoqlQuery && (
             <div className="bg-white rounded-lg shadow-md p-6">
               <div className="flex justify-between items-center mb-3">
@@ -193,12 +265,13 @@ export default function QueryExecutor() {
         </>
       )}
 
-      {/* Mode: Direct JCoQL */}
+      {/* --- VISTA: QUERY DIRETTA (MANUALE) --- */}
       {mode === 'direct' && (
         <div className="bg-white rounded-lg shadow-md p-6">
           <label className="block text-sm font-medium text-gray-700 mb-2">
             Query JCoQL Diretta
           </label>
+          {/* Textarea permette l'inserimento multi-linea */}
           <textarea
             value={jcoqlQuery}
             onChange={(e) => setJcoqlQuery(e.target.value)}
@@ -216,28 +289,30 @@ export default function QueryExecutor() {
             </button>
           </div>
           <p className="mt-2 text-xs text-gray-500">
-            💡 Tip: Puoi copiare query generate dall&apos;interfaccia principale
+            💡 Tip: Puoi incollare qui il codice JCoQL per testare modifiche manuali senza usare l&apos;AI.
           </p>
         </div>
       )}
 
-      {/* Errori */}
+      {/* --- GESTIONE AVVISI ED ERRORI GLOBALI --- */}
       {error && (
         <div className="bg-red-50 border border-red-200 text-red-800 px-4 py-3 rounded-lg">
           ⚠️ {error}
         </div>
       )}
 
-      {/* Risultati */}
-      {results && (
+      {/* --- SCHEDA DEI RISULTATI DEL DATABASE --- */}
+      {results && results.results && Array.isArray(results.results) && (
         <div className="bg-white rounded-lg shadow-md p-6">
           <div className="flex justify-between items-center mb-4">
             <h2 className="text-xl font-bold text-gray-800">
               📊 Risultati ({results.count} documenti)
             </h2>
-            <span className="text-sm text-gray-500">
-              Database: jcoql_test
-            </span>
+            <div className="text-sm text-gray-500 flex gap-3">
+              <span className="inline-block bg-blue-100 text-blue-800 px-3 py-1 rounded">
+                📦 Database: {results.database || selectedDatabases[0] || 'N/A'}
+              </span>
+            </div>
           </div>
 
           {results.count === 0 ? (
@@ -245,18 +320,18 @@ export default function QueryExecutor() {
               Nessun risultato trovato
             </div>
           ) : (
-            <div className="space-y-4 max-h-96 overflow-y-auto">
+            <div className="space-y-4 max-h-96 overflow-y-auto border border-gray-100 rounded p-2 bg-gray-50">
               {results.results.map((doc, index) => (
                 <div
                   key={doc._id || index}
-                  className="bg-gray-50 rounded-lg p-4 border border-gray-200 hover:border-blue-300 transition"
+                  className="bg-white rounded-lg p-4 border border-gray-200 hover:border-blue-300 transition shadow-sm"
                 >
                   <div className="flex justify-between items-start mb-2">
                     <span className="text-xs font-mono text-gray-500">
                       ID: {doc._id}
                     </span>
                     <span className="text-xs bg-blue-100 text-blue-800 px-2 py-1 rounded">
-                      #{index + 1}
+                      Documento #{index + 1}
                     </span>
                   </div>
                   <pre className="text-sm overflow-x-auto">
@@ -272,7 +347,7 @@ export default function QueryExecutor() {
               <summary className="cursor-pointer text-gray-600 hover:text-gray-800 font-medium">
                 🔍 Visualizza query MongoDB tradotta
               </summary>
-              <pre className="mt-2 bg-gray-50 p-3 rounded border border-gray-200 overflow-x-auto">
+              <pre className="mt-2 bg-gray-900 text-green-400 p-3 rounded overflow-x-auto">
                 {JSON.stringify(results.mongo_query, null, 2)}
               </pre>
             </details>
@@ -280,9 +355,19 @@ export default function QueryExecutor() {
         </div>
       )}
 
-      {/* Quick Examples */}
+      {/* FALLBACK se results è malformato */}
+      {results && !Array.isArray(results.results) && (
+        <div className="bg-red-50 border border-red-200 rounded-lg p-4">
+          <p className="text-red-800">
+            ⚠️ Errore nella risposta del server:<br/>
+            <code>{JSON.stringify(results, null, 2)}</code>
+          </p>
+        </div>
+      )}
+
+      {/* --- SUGGERIMENTI (QUICK EXAMPLES) --- */}
       <div className="bg-blue-50 rounded-lg p-4 border border-blue-200">
-        <h3 className="font-medium text-blue-900 mb-2">💡 Esempi Query:</h3>
+        <h3 className="font-medium text-blue-900 mb-2">💡 Esempi Rapidi:</h3>
         <div className="grid grid-cols-1 md:grid-cols-2 gap-2 text-sm">
           {[
             'Hotel a Milano con rating superiore a 4',
@@ -294,8 +379,11 @@ export default function QueryExecutor() {
           ].map((example, i) => (
             <button
               key={i}
-              onClick={() => setNlQuery(example)}
-              className="text-left px-3 py-2 bg-white rounded border border-blue-200 hover:border-blue-400 hover:bg-blue-50 transition"
+              onClick={() => {
+                setMode('nl'); // Assicura che l'utente sia nella scheda giusta
+                setNlQuery(example);
+              }}
+              className="text-left px-3 py-2 bg-white rounded border border-blue-200 hover:border-blue-400 hover:bg-blue-50 transition shadow-sm"
             >
               • {example}
             </button>

@@ -1,0 +1,251 @@
+/**
+ * QueryExecutor.css
+ */
+
+.query-executor {
+  background: white;
+  border-radius: 8px;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+  padding: 25px;
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+}
+
+.query-executor h2 {
+  margin: 0;
+  font-size: 20px;
+  color: #007bff;
+}
+
+.input-section {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.input-section label {
+  font-size: 13px;
+  font-weight: 600;
+  color: #333;
+}
+
+.input-section input,
+.input-section textarea {
+  padding: 10px;
+  border: 1px solid #ced4da;
+  border-radius: 4px;
+  font-size: 13px;
+  font-family: inherit;
+}
+
+.input-section input:focus,
+.input-section textarea:focus {
+  outline: none;
+  border-color: #007bff;
+  box-shadow: 0 0 0 3px rgba(0, 123, 255, 0.1);
+}
+
+.input-info {
+  font-size: 12px;
+  color: #6c757d;
+}
+
+.input-info kbd {
+  background: #f8f9fa;
+  border: 1px solid #dee2e6;
+  border-radius: 3px;
+  padding: 2px 6px;
+  font-family: monospace;
+  font-size: 11px;
+}
+
+.execute-btn,
+.copy-btn {
+  padding: 10px 16px;
+  border: none;
+  border-radius: 4px;
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.execute-btn {
+  background: #007bff;
+  color: white;
+}
+
+.execute-btn:hover:not(:disabled) {
+  background: #0056b3;
+}
+
+.execute-btn:disabled {
+  background: #6c757d;
+  opacity: 0.7;
+  cursor: not-allowed;
+}
+
+.copy-btn {
+  background: #28a745;
+  color: white;
+}
+
+.copy-btn:hover {
+  background: #218838;
+}
+
+.jcoql-section {
+  background: #f0f7ff;
+  border: 1px solid #b3d9ff;
+  border-radius: 6px;
+  padding: 15px;
+}
+
+.jcoql-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 12px;
+}
+
+.jcoql-header h3 {
+  margin: 0;
+  font-size: 14px;
+  color: #004085;
+}
+
+.jcoql-query {
+  background: white;
+  border: 1px solid #dee2e6;
+  border-radius: 4px;
+  padding: 12px;
+  overflow-x: auto;
+}
+
+.jcoql-query code {
+  color: #e83e8c;
+  font-family: 'Courier New', monospace;
+  font-size: 12px;
+  word-break: break-all;
+}
+
+.error-section {
+  background: #f8d7da;
+  border: 1px solid #f5c6cb;
+  color: #721c24;
+  padding: 12px;
+  border-radius: 6px;
+  font-size: 13px;
+}
+
+.results-section {
+  background: #d4edda;
+  border: 1px solid #c3e6cb;
+  border-radius: 6px;
+  padding: 15px;
+}
+
+.results-section h3 {
+  margin: 0 0 15px 0;
+  color: #155724;
+  font-size: 14px;
+}
+
+.results-info {
+  background: white;
+  border-radius: 4px;
+  padding: 12px;
+  margin-bottom: 15px;
+}
+
+.info-row {
+  display: flex;
+  justify-content: space-between;
+  padding: 6px 0;
+  font-size: 13px;
+  border-bottom: 1px solid #f0f0f0;
+}
+
+.info-row:last-child {
+  border-bottom: none;
+}
+
+.info-row strong {
+  color: #333;
+}
+
+.info-row span {
+  color: #007bff;
+  font-weight: 600;
+}
+
+.waiting-message {
+  text-align: center;
+  padding: 40px 20px;
+  color: #6c757d;
+  font-style: italic;
+}
+
+.mode-selector {
+  display: flex;
+  gap: 8px;
+  background: #f8f9fa;
+  padding: 6px;
+  border-radius: 6px;
+}
+
+.mode-selector button {
+  flex: 1;
+  padding: 8px;
+  background: white;
+  border: 1px solid #dee2e6;
+  border-radius: 4px;
+  cursor: pointer;
+  font-size: 12px;
+  font-weight: 600;
+  transition: all 0.2s;
+}
+
+.mode-selector button.active {
+  background: #007bff;
+  border-color: #007bff;
+  color: white;
+}
+
+.examples-rapid {
+  display: flex;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+
+.example-btn {
+  padding: 6px 10px;
+  background: #e7f3ff;
+  border: 1px solid #b3d9ff;
+  border-radius: 4px;
+  cursor: pointer;
+  font-size: 12px;
+  transition: all 0.2s;
+}
+
+.example-btn:hover {
+  background: #b3d9ff;
+  color: white;
+}
+
+@media (max-width: 768px) {
+  .query-executor {
+    padding: 15px;
+  }
+
+  .jcoql-header {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 10px;
+  }
+
+  .copy-btn {
+    width: 100%;
+  }
+}

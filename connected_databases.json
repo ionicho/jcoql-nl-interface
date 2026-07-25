@@ -1,0 +1,12 @@
+{
+  "jcoql_test": {
+    "name": "jcoql_test",
+    "mongo_uri": null,
+    "database_name": "jcoql_test"
+  },
+  "test_db": {
+    "name": "test_db",
+    "mongo_uri": null,
+    "database_name": "test_db"
+  }
+}

@@ -36,6 +36,9 @@ from dotenv import load_dotenv
 # Import corrector
 from backend.query_corrector import correct_query
 
+#import salvataggio database
+from backend.database_persistence import load_databases_from_file, save_databases_to_file
+
 # ==============================================================================
 # CONFIGURAZIONE PATH E MODULI INTERNI
 # ==============================================================================
@@ -158,6 +161,9 @@ async def startup_event():
     except Exception as e:
         startup_logger.error(f"❌ Errore Database Registry: {e}", exc_info=True)
     
+    # 💾 Carica database salvati dal file
+    load_databases_from_file(db_registry)
+
     # Inizializza l'Executor delle query
     startup_logger.info("🔧 Inizializzazione Executor...")
     try:
@@ -467,35 +473,66 @@ async def list_parsers():
 # ENDPOINT: ESECUZIONE QUERY JCOQL SU MONGODB
 # ==============================================================================
 @app.post("/api/execute")
-async def execute_query(request: Request):
+async def execute_query(request_data: dict):
     """
-    Esegue una query JCoQL traducendola ed eseguendola su MongoDB tramite l'Executor.
+    Esegue una query JCoQL su MongoDB
     """
     try:
-        data = await request.json()
-        jcoql_query = data.get('jcoql_query', '')
+        jcoql_query = request_data.get('jcoql_query', '').strip()
+        databases = request_data.get('databases', ['jcoql_test'])
+        database_name = request_data.get('database_name')
         
         if not jcoql_query:
-            return JSONResponse(
-                status_code=400,
-                content={'error': 'jcoql_query è un parametro obbligatorio'}
-            )
+            return {"success": False, "error": "Query vuota"}
         
-        if not executor:
-            return JSONResponse(
-                status_code=500,
-                content={'error': 'Executor non inizializzato'}
-            )
-
-        # Esegue la query tramite l'Executor
-        exec_result = executor.execute(jcoql_query)
-        return JSONResponse(content=exec_result)
+        target_db = database_name or (databases[0] if databases else 'jcoql_test')
         
-    except Exception as e:
-        return JSONResponse(
-            status_code=500,
-            content={'success': False, 'error': str(e)}
+        query_logger.info(f"📤 Esecuzione: {jcoql_query}")
+        query_logger.info(f"📦 Database: {target_db}")
+        
+        # ✅ FORCE: Ricrea l'executor con il database giusto
+        global executor
+        executor = ExecutorFactory.create_executor(
+            ExecutorType(ACTIVE_EXECUTOR),
+            mongo_uri="mongodb://localhost:27017",
+            database=target_db  # ← Usa il database selezionato!
         )
+        query_logger.info(f"♻️ Executor ricreato per database: {target_db}")
+        
+        # Validazione
+        is_valid, errors = parser.validate(jcoql_query)
+        
+        if not is_valid:
+            error_messages = [err.message for err in errors] if errors else ["Errore sconosciuto"]
+            return {"success": False, "error": f"Query non valida"}
+        
+        # Esecuzione
+        if not executor:
+            return {"success": False, "error": "Executor non inizializzato"}
+        
+        execution_result = executor.execute(jcoql_query)
+        
+        if isinstance(execution_result, dict) and 'results' in execution_result:
+            actual_results = execution_result.get('results', [])
+            actual_count = execution_result.get('count', len(actual_results))
+        else:
+            actual_results = execution_result if isinstance(execution_result, list) else []
+            actual_count = len(actual_results)
+        
+        query_logger.info(f"✅ Risultati: {actual_count} documenti da {target_db}")
+        
+        return {
+            "success": True,
+            "jcoql_query": jcoql_query,
+            "count": actual_count,
+            "results": actual_results,
+            "database": target_db,
+            "mongo_query": None
+        }
+        
+    except Exception as err:
+        query_logger.error(f"❌ Errore: {err}", exc_info=True)
+        return {"success": False, "error": str(err)}
 
 # ==============================================================================
 # ENDPOINT: GESTIONE COLLEZIONI MONGODB
@@ -608,6 +645,8 @@ async def connect_database(db_name: str, mongo_uri: str, database_name: str):
     """Aggiunge ed instaura la connessione con un nuovo database."""
     success = db_registry.add_database(db_name, mongo_uri, database_name)
     if success:
+        # 💾 Salva database su file SUBITO
+        save_databases_to_file(db_registry)
         db_info = db_registry.get_database_info(db_name)
         return {
             "success": True,
@@ -616,6 +655,45 @@ async def connect_database(db_name: str, mongo_uri: str, database_name: str):
         }
     else:
         return {"success": False, "error": f"Errore di connessione al database '{db_name}'"}
+
+@app.post("/api/databases/disconnect")
+async def disconnect_database(db_name: str):
+    """
+    Scollega un database dalla registry
+    Non elimina i dati, solo lo rimuove dalla lista connessi
+    
+    Args:
+        db_name: Nome del database da scollegare
+    
+    Returns:
+        {"success": bool, "message": str}
+    """
+    try:
+        # Controlla se il database esiste
+        if db_name not in db_registry.databases:
+            return {
+                "success": False,
+                "message": f"Database '{db_name}' non trovato"
+            }
+        
+        # Rimuovi dalla registry
+        db_registry.databases.pop(db_name)
+        db_registry_logger.info(f"✅ Database '{db_name}' scollegato")
+        
+        # Aggiorna il file di persistenza
+        save_databases_to_file(db_registry)
+        
+        return {
+            "success": True,
+            "message": f"Database '{db_name}' scollegato con successo"
+        }
+        
+    except Exception as err:
+        db_registry_logger.error(f"❌ Errore scollegamento database '{db_name}': {err}")
+        return {
+            "success": False,
+            "message": str(err)
+        }
 
 @app.get("/api/databases/{db_name}")
 async def get_database_info(db_name: str):
