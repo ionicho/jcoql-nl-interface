@@ -89,14 +89,20 @@ export default function QueryExecutor({ selectedDatabases = [], joinConfig = nul
     setError('');
 
     try {
+      console.log('🔍 ESECUZIONE (modalità NL)')
+      console.log('selectedDatabases:', selectedDatabases)
+      console.log('joinConfig:', joinConfig)
+      
       const response = await axios.post('http://localhost:8000/api/execute', {
         jcoql_query: jcoqlQuery,
-        databases: selectedDatabases,        // ← AGGIUNTO: invia la lista dei DB selezionati
-        database_name: selectedDatabases[0]  // ← AGGIUNTO: invia il DB principale
+        databases: selectedDatabases,
+        database_name: selectedDatabases[0],
+        join_config: joinConfig  // ← AGGIUNGI QUESTA RIGA!
       });
 
       if (response.data.success) {
-        setResults(response.data); // Salva i documenti restituiti dal DB
+        console.log('✅ Risultati ricevuti:', response.data)
+        setResults(response.data);
       } else {
         setError('Errore esecuzione: ' + response.data.error);
       }
@@ -122,49 +128,38 @@ export default function QueryExecutor({ selectedDatabases = [], joinConfig = nul
     setError('')
 
     try {
-      console.log('🔍 Payload inviato:', {
+      console.log('🔍 INIZIO ESECUZIONE')
+      console.log('selectedDatabases prop ricevuto:', selectedDatabases)
+      console.log('joinConfig prop ricevuto:', joinConfig)  // ← AGGIUNGI QUESTO
+      console.log('Query:', jcoqlQuery)
+      
+      const payload = {
         jcoql_query: jcoqlQuery,
         databases: selectedDatabases,
-        database_name: selectedDatabases[0]
-      })
+        database_name: selectedDatabases[0],
+        join_config: joinConfig  // ← AGGIUNGI QUESTA RIGA!
+      }
+      
+      console.log('📤 Payload inviato al backend:', payload)
 
-      // Usa axios con il payload corretto
       const response = await axios.post(
         'http://localhost:8000/api/execute',
-        {
-          jcoql_query: jcoqlQuery,
-          databases: selectedDatabases,
-          database_name: selectedDatabases[0]
-        },
-        {
-          headers: {
-            'Content-Type': 'application/json'
-          }
-        }
+        payload
       )
 
       console.log('✅ Risposta ricevuta:', response.data)
-      console.log('📊 Structure:', {
-        success: response.data.success,
-        count: response.data.count,
-        results_type: typeof response.data.results,
-        results_is_array: Array.isArray(response.data.results),
-        results_content: response.data.results
-      })
 
       if (response.data.success) {
+        console.log('📊 Mostrando risultati...')
         setResults(response.data)
         setError('')
       } else {
-        setError('Errore esecuzione: ' + response.data.error)
+        console.log('❌ Errore dalla risposta:', response.data.error)
+        setError('Errore: ' + response.data.error)
       }
     } catch (err) {
-      console.error('❌ Errore completo:', err)
-      if (err.response?.status === 422) {
-        setError('Errore validazione dati (422): ' + (err.response?.data?.detail || 'Controlla i parametri'))
-      } else {
-        setError('Errore esecuzione: ' + err.message)
-      }
+      console.error('❌ ERRORE COMPLETO:', err)
+      setError('Errore: ' + err.message)
     } finally {
       setIsExecuting(false)
     }

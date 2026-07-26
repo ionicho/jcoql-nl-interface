@@ -39,6 +39,9 @@ from backend.query_corrector import correct_query
 #import salvataggio database
 from backend.database_persistence import load_databases_from_file, save_databases_to_file
 
+#import per join database
+from backend.join_executor import JoinExecutor
+
 # ==============================================================================
 # CONFIGURAZIONE PATH E MODULI INTERNI
 # ==============================================================================
@@ -473,40 +476,65 @@ async def list_parsers():
 # ENDPOINT: ESECUZIONE QUERY JCOQL SU MONGODB
 # ==============================================================================
 @app.post("/api/execute")
+@app.post("/api/execute")
 async def execute_query(request_data: dict):
     """
-    Esegue una query JCoQL su MongoDB
+    Esegue query JCoQL - con supporto JOIN
     """
     try:
         jcoql_query = request_data.get('jcoql_query', '').strip()
         databases = request_data.get('databases', ['jcoql_test'])
         database_name = request_data.get('database_name')
+        join_config = request_data.get('join_config')
+        
+        # ✅ DEBUG: Mostra cosa riceve il backend
+        query_logger.info(f"DEBUG - request_data keys: {request_data.keys()}")
+        query_logger.info(f"DEBUG - databases: {databases}")
+        query_logger.info(f"DEBUG - join_config: {join_config}")
+        query_logger.info(f"DEBUG - len(databases): {len(databases)}")
         
         if not jcoql_query:
             return {"success": False, "error": "Query vuota"}
         
+        # ✅ SE JOIN è configurato, usa JoinExecutor
+        if join_config and len(databases) >= 2:
+            query_logger.info(f"🔗 JOIN MODE ATTIVATO")
+            join_executor = JoinExecutor(ExecutorFactory, parser, db_registry)
+            actual_results = join_executor.execute_join(jcoql_query, join_config)
+            actual_count = len(actual_results)
+            target_db = f"{join_config['db1']} ⊕ {join_config['db2']}"
+            
+            return {
+                "success": True,
+                "jcoql_query": jcoql_query,
+                "count": actual_count,
+                "results": actual_results,
+                "database": target_db,
+                "join_config": join_config,
+                "mongo_query": None
+            }
+        
+        # ✅ ALTRIMENTI, query singola su un database
         target_db = database_name or (databases[0] if databases else 'jcoql_test')
         
         query_logger.info(f"📤 Esecuzione: {jcoql_query}")
         query_logger.info(f"📦 Database: {target_db}")
         
-        # ✅ FORCE: Ricrea l'executor con il database giusto
+        # Ricrea executor con database giusto
         global executor
         executor = ExecutorFactory.create_executor(
             ExecutorType(ACTIVE_EXECUTOR),
             mongo_uri="mongodb://localhost:27017",
-            database=target_db  # ← Usa il database selezionato!
+            database=target_db
         )
         query_logger.info(f"♻️ Executor ricreato per database: {target_db}")
         
         # Validazione
         is_valid, errors = parser.validate(jcoql_query)
-        
         if not is_valid:
             error_messages = [err.message for err in errors] if errors else ["Errore sconosciuto"]
             return {"success": False, "error": f"Query non valida"}
         
-        # Esecuzione
         if not executor:
             return {"success": False, "error": "Executor non inizializzato"}
         

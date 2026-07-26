@@ -10,17 +10,16 @@ current_folder = Path(__file__).parent.absolute()
 if str(current_folder) not in sys.path:
     sys.path.insert(0, str(current_folder))
 
-# 2. Import del traduttore Python (il file python_translator.py che abbiamo visto nel dir)
+# 2. Import del traduttore Python
 try:
-    # Importiamo dal file python_translator.py
     import python_translator
-    # NOTA: Assicurati che dentro python_translator.py la classe si chiami JCoQLExecutor 
-    # o adatta il nome qui sotto
-    PythonExecutorClass = python_translator.JCoQLExecutor 
+    # ✅ La classe si chiama JCoQLExecutor
+    PythonExecutorClass = python_translator.JCoQLExecutor
     IMPORT_SUCCESS = True
 except Exception as e:
     IMPORT_SUCCESS = False
     IMPORT_ERROR = str(e)
+    print(f"⚠️ IMPORT ERROR: {e}")
 
 class ExecutorType(Enum):
     PYTHON_TRANSLATOR = "python_translator"
@@ -28,20 +27,42 @@ class ExecutorType(Enum):
 
 class ExecutorFactory:
     @staticmethod
-    def create_executor(executor_type: ExecutorType, **kwargs):
-        if executor_type == ExecutorType.PYTHON_TRANSLATOR:
-            if not IMPORT_SUCCESS:
-                raise ImportError(f"Errore import: {IMPORT_ERROR}")
-            
-            return PythonExecutorClass(
-                mongo_uri=kwargs.get('mongo_uri', 'mongodb://localhost:27017'),
-                database=kwargs.get('database', 'jcoql_test')
-            )
+    def create_executor(executor_type, **kwargs):
+        """
+        Crea un'istanza dell'executor richiesto
         
-        elif executor_type == ExecutorType.JCO_FRAMEWORK:
-            # Qui potresti puntare a quello "NOTWORKING" se vuoi far vedere l'errore al prof
+        Args:
+            executor_type: ExecutorType enum o stringa
+            **kwargs: mongo_uri, database, ecc.
+        
+        Returns:
+            Istanza dell'executor
+        """
+        # Se viene passata una stringa, convertila a ExecutorType
+        if isinstance(executor_type, str):
+            executor_type = ExecutorType(executor_type)
+        
+        if executor_type == ExecutorType.PYTHON_TRANSLATOR or executor_type.value == "python_translator":
+            if not IMPORT_SUCCESS:
+                raise ImportError(f"Errore import python_translator: {IMPORT_ERROR}")
+            
+            try:
+                # ✅ Parametro si chiama 'database', non 'database_name'
+                executor = PythonExecutorClass(
+                    mongo_uri=kwargs.get('mongo_uri', 'mongodb://localhost:27017'),
+                    database=kwargs.get('database', 'jcoql_test')
+                )
+                return executor
+            except Exception as e:
+                print(f"❌ Errore creazione executor: {e}")
+                raise
+        
+        elif executor_type == ExecutorType.JCO_FRAMEWORK or executor_type.value == "jco_framework":
             raise NotImplementedError("JCO Framework (Java) non attivo. Usare Python Translator.")
         
+        else:
+            raise ValueError(f"Executor type sconosciuto: {executor_type}")
+    
     @staticmethod
     def get_available_executors() -> list:
         """Restituisce lista executor disponibili"""
@@ -67,26 +88,13 @@ class ExecutorFactory:
 if __name__ == "__main__":
     print(f"✅ Cerco i file in: {current_folder}")
     
-    # Lista executor disponibili
-    print("\n📋 Executor disponibili:")
-    print(json.dumps(ExecutorFactory.get_available_executors(), indent=2))
-    
     if IMPORT_SUCCESS:
         print("\n✅ Modulo 'python_translator' caricato correttamente!")
         try:
-            # Test query reale
             ex = ExecutorFactory.create_executor(ExecutorType.PYTHON_TRANSLATOR)
             print("🚀 Factory pronta per l'uso!")
-            
-            # Test esecuzione
-            test_query = "GET COLLECTION hotels; FILTER CASE WHERE .location.city = 'Milano' KEEP OTHERS;"
-            print(f"\n🧪 Test query: {test_query[:60]}...")
-            result = ex.execute(test_query)
-            print(f"✅ Success: {result['success']}")
-            print(f"📊 Count: {result['count']}")
             ex.close()
-            
         except Exception as e:
-            print(f"❌ Errore durante l'istanza: {e}")
+            print(f"❌ Errore: {e}")
     else:
-        print(f"❌ Non trovo 'python_translator.py' o errore interno: {IMPORT_ERROR}")
+        print(f"❌ Errore import: {IMPORT_ERROR}")

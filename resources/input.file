@@ -1,1 +1,1 @@
-GET COLLECTION restaurants; FILTER CASE WHERE .city = 'Roma' AND .status = 'open' KEEP OTHERS;
+GET COLLECTION users;
