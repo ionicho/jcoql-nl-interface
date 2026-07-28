@@ -117,7 +117,7 @@ function MainInterface() {
       {/* ════════════════ HEADER ════════════════ */}
       <header className="app-header">
         <div className="header-content">
-          <h1>🚀 JCoQL+ Natural Language Interface</h1>
+          <h1> JCoQL+ Natural Language Interface</h1>
           
           <div className="header-info">
             <span className="info-item">
@@ -133,7 +133,7 @@ function MainInterface() {
               >
                 <option value="gemini">☁️ Gemini (Cloud)</option>
                 <option value="llama">🏠 Llama (Locale - 4.7GB)</option>
-                <option value="gemma">🏠 Gemma (Locale - 5.4GB) ⚠️</option>
+                <option value="gemma">🏠 Gemma (Locale - 5.4GB) </option>
               </select>
             </span>
           </div>
@@ -143,6 +143,13 @@ function MainInterface() {
           </Link>
         </div>
 
+        {selectedLlm === 'llama' && (
+          <div style={{ marginTop: '12px', padding: '10px', background: 'rgba(255, 204, 0, 0.2)', border: '1px solid rgba(255, 204, 0, 0.5)', borderRadius: '6px', fontSize: '13px' }}>
+            <strong>⚠️ Nota VRAM:</strong> Llama richiede 4.7GB. 
+            Se hai appena usato Gemma e hai , riavvia Gemma per liberare memoria: 
+            <code style={{ background: 'rgba(0,0,0,0.3)', padding: '2px 6px', borderRadius: '4px', marginLeft: '6px' }}>ollama stop gemma</code>
+          </div>
+        )}
         {selectedLlm === 'gemma' && (
           <div style={{ marginTop: '12px', padding: '10px', background: 'rgba(255, 204, 0, 0.2)', border: '1px solid rgba(255, 204, 0, 0.5)', borderRadius: '6px', fontSize: '13px' }}>
             <strong>⚠️ Nota VRAM:</strong> Gemma richiede 5.4GB. 
@@ -166,51 +173,63 @@ function MainInterface() {
         {/* ──────────── MAIN CONTENT (Destra) ──────────── */}
         <main className="main-content">
           
-          {/* SEZIONE GENERATORE NL */}
-          <section className="bg-white rounded-lg shadow p-6 mb-6">
-            <h2 className="text-lg font-semibold mb-4 text-gray-800">📝 Input Linguaggio Naturale</h2>
+          {/* SEZIONE GENERATORE NL (AGGIORNATA CON HEADER GRADIENTE) */}
+          <section className="bg-white rounded-lg shadow mb-6 overflow-hidden">
             
-            <div className="mb-4">
-              <p className="text-sm text-gray-600 mb-2">Esempi rapidi:</p>
-              <div className="flex flex-wrap gap-2">
-                {exampleQueries.map((ex, i) => (
-                  <button
-                    key={i}
-                    onClick={() => setNlQuery(ex)}
-                    className="px-3 py-1 bg-gray-100 hover:bg-gray-200 rounded text-sm transition-colors"
-                  >
-                    {ex.substring(0, 30)}...
-                  </button>
-                ))}
+            {/* Banner con gradiente per uniformità con Query Executor */}
+            <div className="bg-gradient-to-r from-blue-600 to-purple-600 p-6 text-white">
+              <div className="flex items-center gap-3">
+                <span className="text-3xl">📝</span>
+                <h2 className="text-2xl font-bold">Input Linguaggio Naturale</h2>
               </div>
+              <p className="text-blue-100 mt-1">Traduci la tua richiesta in query JCoQL</p>
             </div>
-
-            <textarea
-              value={nlQuery}
-              onChange={(e) => setNlQuery(e.target.value)}
-              placeholder="Scrivi la tua richiesta in italiano..."
-              className="w-full h-32 p-4 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent resize-none"
-            />
-
-            <button
-              onClick={handleGenerate}
-              disabled={generateMutation.isPending || !nlQuery.trim()}
-              className="w-full mt-4 px-6 py-3 bg-blue-600 hover:bg-blue-700 disabled:bg-gray-400 text-white font-medium rounded-lg transition-colors"
-            >
-              {generateMutation.isPending ? (
-                <span>🔄 Generazione in corso...</span>
-              ) : (
-                <span>🚀 Genera Query JCoQL</span>
-              )}
-            </button>
-
-            {generateMutation.isError && (
-              <div className="mt-4 p-4 bg-red-50 border border-red-200 rounded-lg">
-                <p className="text-sm text-red-800">
-                  <strong>Errore:</strong> {generateMutation.error.response?.data?.detail || generateMutation.error.message}
-                </p>
+            
+            {/* Contenitore interno con padding ripristinato */}
+            <div className="p-6">
+              <div className="mb-4">
+                <p className="text-sm text-gray-600 mb-2">Esempi rapidi:</p>
+                <div className="flex flex-wrap gap-2">
+                  {exampleQueries.map((ex, i) => (
+                    <button
+                      key={i}
+                      onClick={() => setNlQuery(ex)}
+                      className="px-3 py-1 bg-gray-100 hover:bg-gray-200 rounded text-sm transition-colors"
+                    >
+                      {ex.substring(0, 30)}...
+                    </button>
+                  ))}
+                </div>
               </div>
-            )}
+
+              <textarea
+                value={nlQuery}
+                onChange={(e) => setNlQuery(e.target.value)}
+                placeholder="Scrivi la tua richiesta in italiano..."
+                className="w-full h-32 p-4 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent resize-none"
+              />
+
+              {/* Fix visibilità bottone disabilitato */}
+              <button
+                onClick={handleGenerate}
+                disabled={generateMutation.isPending || !nlQuery.trim()}
+                className="w-full mt-4 px-6 py-3 bg-blue-600 hover:bg-blue-700 disabled:bg-gray-300 disabled:text-gray-600 disabled:cursor-not-allowed text-white font-medium rounded-lg transition-colors"
+              >
+                {generateMutation.isPending ? (
+                  <span>🔄 Generazione in corso...</span>
+                ) : (
+                  <span>🚀 Genera Query JCoQL</span>
+                )}
+              </button>
+
+              {generateMutation.isError && (
+                <div className="mt-4 p-4 bg-red-50 border border-red-200 rounded-lg">
+                  <p className="text-sm text-red-800">
+                    <strong>Errore:</strong> {generateMutation.error.response?.data?.detail || generateMutation.error.message}
+                  </p>
+                </div>
+              )}
+            </div>
           </section>
 
           {/* VISUALIZZAZIONE QUERY GENERATA */}
@@ -269,7 +288,8 @@ function MainInterface() {
 
       {/* ════════════════ FOOTER ════════════════ */}
       <footer className="app-footer">
-        <p>JCoQL+ NL Interface | Tesi Magistrale Università Bergamo 🎓</p>
+        <p>Iotti Nicholas</p>
+        <p>JCoQL+ NL Interface | Università degli Studi di Bergamo</p>
       </footer>
     </div>
   )

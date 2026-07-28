@@ -3,6 +3,7 @@
 ANTLR3 Official Parser Wrapper
 Parser ufficiale dei professori (JCoProjectTeam/JcoQL)
 """
+import re
 from typing import Tuple, List
 from .parser_interface import ParserInterface, ValidationError
 from .java_parser_wrapper import validate_with_java_parser

@@ -2,6 +2,7 @@
 """
 Parser Factory - Crea il parser richiesto
 """
+from typing import List
 from .parser_interface import ParserInterface, ParserType
 from .antlr4_custom_parser import ANTLR4CustomParser
 from .antlr3_official_parser import ANTLR3OfficialParser

@@ -1,217 +1,209 @@
 import { useState, useEffect } from 'react';
 import axios from 'axios';
 import { Link } from 'react-router-dom';
+import './Dashboard.css';
 
 export default function Dashboard() {
-  const [stats, setStats] = useState({
-    parsers: [],
-    llms: [],
-    executors: [],
-    collections: [],
-    currentParser: '',
-    currentLLM: '',
-    currentExecutor: 'python_translator'
-  });
-
+  const [stats, setStats] = useState(null);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
     loadStats();
+    // Ricarica ogni 10 secondi
+    const interval = setInterval(loadStats, 10000);
+    return () => clearInterval(interval);
   }, []);
 
   const loadStats = async () => {
     try {
-      const [parsersRes, llmsRes, collectionsRes] = await Promise.all([
-        axios.get('http://localhost:8000/api/parsers'),
-        axios.get('http://localhost:8000/api/llms'),
-        axios.get('http://localhost:8000/api/collections')
-      ]);
-
-      setStats({
-        parsers: parsersRes.data.available || [],
-        llms: llmsRes.data.available || [],
-        executors: [
-          {
-            type: 'python_translator',
-            name: 'Python JCoQL→MongoDB Translator',
-            status: 'available',
-            latency: '<100ms',
-            coverage: '90%'
-          },
-          {
-            type: 'jco_framework',
-            name: 'JCO Framework Official',
-            status: 'not_implemented',
-            latency: '60+ sec',
-            coverage: '100%'
-          }
-        ],
-        collections: collectionsRes.data.collections || [],
-        currentParser: parsersRes.data.current || '',
-        currentLLM: llmsRes.data.current || '',
-        currentExecutor: 'python_translator'
-      });
-
+      const res = await axios.get('http://localhost:8000/api/stats');
+      setStats(res.data);
       setLoading(false);
     } catch (err) {
-      console.error('Error loading stats:', err);
+      console.error('Errore caricamento stats:', err);
       setLoading(false);
     }
   };
 
   if (loading) {
     return (
-      <div className="flex items-center justify-center min-h-screen">
-        <div className="text-xl text-gray-600 font-semibold animate-pulse">Loading dashboard...</div>
+      <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-gray-50 to-gray-100">
+        <div className="text-center">
+          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto mb-4"></div>
+          <p className="text-lg font-semibold text-gray-700">Caricamento dashboard...</p>
+        </div>
+      </div>
+    );
+  }
+
+  if (!stats) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-gray-50 to-gray-100">
+        <div className="text-center">
+          <p className="text-lg font-semibold text-red-600">Errore caricamento statistiche</p>
+        </div>
       </div>
     );
   }
 
   return (
-    <div className="max-w-7xl mx-auto p-6 space-y-12">
-      {/* Header */}
-      <div className="bg-gradient-to-r from-indigo-600 to-purple-600 text-white p-6 rounded-lg shadow-lg">
-        <h1 className="text-3xl font-bold">📊 System Dashboard</h1>
-        <p className="mt-2 opacity-90">Architettura Multi-Provider con Factory Pattern</p>
-      </div>
+    <div className="min-h-screen bg-gradient-to-br from-gray-50 via-white to-gray-100 p-6">
+      <div className="max-w-7xl mx-auto space-y-8">
 
-      {/* Quick Actions */}
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-        <Link to="/" className="bg-white p-6 rounded-lg shadow-md hover:shadow-lg transition border-l-4 border-blue-500">
-          <h3 className="font-bold text-lg">🗣️ Interfaccia Principale</h3>
-          <p className="text-sm text-gray-600">Genera query da linguaggio naturale</p>
-        </Link>
-        <Link to="/executor" className="bg-white p-6 rounded-lg shadow-md hover:shadow-lg transition border-l-4 border-green-500">
-          <h3 className="font-bold text-lg">⚡ Query Executor</h3>
-          <p className="text-sm text-gray-600">Esegui query su MongoDB</p>
-        </Link>
-        <Link to="/upload" className="bg-white p-6 rounded-lg shadow-md hover:shadow-lg transition border-l-4 border-orange-500">
-          <h3 className="font-bold text-lg">📤 Upload Dati</h3>
-          <p className="text-sm text-gray-600">Carica file JSON personalizzati</p>
-        </Link>
-      </div>
+        {/* ════════════════ HEADER ════════════════ */}
+        <div className="relative bg-gradient-to-r from-blue-600 to-purple-600 text-white p-8 rounded-lg shadow-lg">
+          <Link 
+            to="/" 
+            className="absolute top-8 right-8 bg-white text-blue-600 hover:bg-blue-50 px-4 py-2 rounded-lg font-semibold text-sm transition-all shadow-md hover:shadow-lg"
+          >
+            ← Torna all'Interfaccia
+          </Link>
+          
+          <div className="flex items-center gap-4 mb-2 pr-48">
+            <span className="text-4xl">📊</span>
+            <h1 className="text-3xl font-bold">System Dashboard</h1>
+          </div>
+          <p className="text-blue-100 mt-2">JCo Framework • Multi-Database • Production-Ready</p>
+        </div>
 
-      {/* LLM & Parsers Sezione */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        {/* LLM Providers */}
+        {/* ════════════════ EXECUTOR STATUS ════════════════ */}
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+          <div className="bg-white rounded-lg shadow-md p-6 border-l-4 border-green-500">
+            <div className="flex items-start justify-between">
+              <div>
+                <p className="text-xs font-bold text-gray-500 uppercase tracking-widest">Executor Attivo</p>
+                <p className="text-3xl font-bold text-gray-900 mt-2 capitalize">{stats.executor?.name || 'N/A'}</p>
+                <p className="text-xs text-gray-600 mt-2">✅ Operativo</p>
+              </div>
+              <span className="text-3xl">⚙️</span>
+            </div>
+          </div>
+
+          <div className="bg-white rounded-lg shadow-md p-6 border-l-4 border-purple-500">
+            <div className="flex items-start justify-between">
+              <div>
+                <p className="text-xs font-bold text-gray-500 uppercase tracking-widest">Parser</p>
+                <p className="text-3xl font-bold text-gray-900 mt-2">ANTLR3</p>
+                <p className="text-xs text-gray-600 mt-2">Official • 100% Coverage</p>
+              </div>
+              <span className="text-3xl">📝</span>
+            </div>
+          </div>
+        </div>
+
+        {/* ════════════════ SYSTEM INFO ════════════════ */}
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
+          <div className="bg-white rounded-lg shadow-md p-6 border border-gray-200">
+            <div className="flex items-start justify-between">
+              <div>
+                <p className="text-xs font-bold text-gray-500 uppercase tracking-widest">Database Connessi</p>
+                <p className="text-3xl font-bold text-gray-900 mt-2">{stats.databases?.count || 0}</p>
+              </div>
+              <span className="text-3xl">🗄️</span>
+            </div>
+          </div>
+
+          <div className="bg-white rounded-lg shadow-md p-6 border border-gray-200">
+            <div className="flex items-start justify-between">
+              <div>
+                <p className="text-xs font-bold text-gray-500 uppercase tracking-widest">Collezioni Totali</p>
+                <p className="text-3xl font-bold text-gray-900 mt-2">{stats.databases?.collections_total || 0}</p>
+              </div>
+              <span className="text-3xl">📊</span>
+            </div>
+          </div>
+
+          <div className="bg-white rounded-lg shadow-md p-6 border border-gray-200">
+            <div className="flex items-start justify-between">
+              <div>
+                <p className="text-xs font-bold text-gray-500 uppercase tracking-widest">Uptime</p>
+                <p className="text-3xl font-bold text-gray-900 mt-2">
+                  {Math.floor((stats.system?.uptime_seconds || 0) / 3600)}h
+                </p>
+              </div>
+              <span className="text-3xl">⏱️</span>
+            </div>
+          </div>
+        </div>
+
+        {/* ════════════════ DATABASE LIST ════════════════ */}
         <div className="bg-white rounded-lg shadow-md p-6 border border-gray-200">
-          <h2 className="text-xl font-bold mb-4 flex items-center gap-2"><span>🤖</span> LLM Providers</h2>
+          <div className="flex items-center gap-2 mb-6">
+            <span className="text-2xl">🗄️</span>
+            <h2 className="text-xl font-bold text-gray-800">Database Connessi</h2>
+          </div>
+          
           <div className="space-y-3">
-            {stats.llms.map((llm) => (
-              <div key={llm} className={`p-4 rounded-lg border-2 transition ${llm === stats.currentLLM ? 'border-green-500 bg-green-50' : 'border-gray-200 bg-gray-50'}`}>
+            {stats.databases?.list?.map((db, idx) => (
+              <div key={`db-${idx}`} className="p-4 rounded-lg border-2 border-blue-200 bg-blue-50">
                 <div className="flex justify-between items-center">
-                  <div>
-                    <h3 className="font-bold capitalize">{llm}</h3>
-                    <p className="text-xs text-gray-600">{llm === 'gemini' ? '☁️ Cloud' : '💻 Local'}</p>
-                  </div>
-                  {llm === stats.currentLLM && <span className="text-xs bg-green-500 text-white px-2 py-1 rounded">ATTIVO</span>}
+                  <h3 className="font-bold text-gray-800">{db}</h3>
+                  <span className="text-xs bg-blue-500 text-white px-3 py-1 rounded-full">✓ Connesso</span>
                 </div>
               </div>
             ))}
           </div>
         </div>
 
-        {/* Parsers */}
+        {/* ════════════════ LLM AVAILABLE ════════════════ */}
         <div className="bg-white rounded-lg shadow-md p-6 border border-gray-200">
-          <h2 className="text-xl font-bold mb-4 flex items-center gap-2"><span>📝</span> Parsers</h2>
-          <div className="space-y-3">
-            {stats.parsers.map((parser) => (
-              <div key={parser} className={`p-4 rounded-lg border-2 transition ${parser === stats.currentParser ? 'border-blue-500 bg-blue-50' : 'border-gray-200 bg-gray-50'}`}>
+          <div className="flex items-center gap-2 mb-6">
+            <span className="text-2xl">🤖</span>
+            <h2 className="text-xl font-bold text-gray-800">LLM Disponibili</h2>
+          </div>
+          
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+            {stats.llms?.available?.map((llm) => (
+              <div 
+                key={llm}
+                className={`p-4 rounded-lg border-2 ${
+                  llm === stats.llms?.current
+                    ? 'border-green-500 bg-green-50'
+                    : 'border-gray-200 bg-gray-50'
+                }`}
+              >
                 <div className="flex justify-between items-center">
-                  <h3 className="font-bold">{parser === 'antlr4_custom' ? 'ANTLR4 Custom' : 'ANTLR3 Official'}</h3>
-                  {parser === stats.currentParser && <span className="text-xs bg-blue-500 text-white px-2 py-1 rounded">ATTIVO</span>}
+                  <h3 className="font-bold text-gray-800 capitalize">{llm}</h3>
+                  {llm === stats.llms?.current && (
+                    <span className="text-xs bg-green-500 text-white px-2 py-1 rounded">✓ Attivo</span>
+                  )}
                 </div>
               </div>
             ))}
           </div>
         </div>
-      </div>
 
-      {/* Architecture Pattern */}
-      <div className="bg-gradient-to-br from-purple-50 via-white to-blue-50 rounded-xl p-8 border border-purple-200 shadow-sm">
-        <div className="flex items-center gap-3 mb-8">
-          <span className="text-3xl">🏗️</span>
-          <h2 className="text-2xl font-bold text-purple-900 tracking-tight">Factory Pattern Architecture</h2>
-        </div>
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-12 text-sm leading-relaxed">
-          <div className="relative">
-            <h3 className="font-extrabold text-purple-800 mb-3 text-base uppercase tracking-wide">LLM Factory</h3>
-            <p className="text-gray-700 pr-4">Switch runtime tra provider cloud e locali senza modifiche al codice core.</p>
-            <div className="hidden md:block absolute right-0 top-0 h-full w-px bg-purple-100"></div>
+        {/* ════════════════ FEATURES ════════════════ */}
+        <div className="bg-gradient-to-br from-green-50 to-emerald-50 rounded-lg p-8 border border-green-300">
+          <div className="flex items-center gap-3 mb-6">
+            <span className="text-3xl">✅</span>
+            <h2 className="text-2xl font-bold text-gray-800">Features Implementate</h2>
           </div>
-          <div className="relative">
-            <h3 className="font-extrabold text-purple-800 mb-3 text-base uppercase tracking-wide">Parser Factory</h3>
-            <p className="text-gray-700 pr-4">Supporto dinamico per grammatiche multiple: ANTLR3 ufficiale e ANTLR4 custom.</p>
-            <div className="hidden md:block absolute right-0 top-0 h-full w-px bg-purple-100"></div>
-          </div>
-          <div>
-            <h3 className="font-extrabold text-purple-800 mb-3 text-base uppercase tracking-wide">Executor Factory</h3>
-            <p className="text-gray-700">Architettura plug-and-play progettata per l'estensione verso il JCO Framework.</p>
-          </div>
-        </div>
-      </div>
-
-      {/* SYSTEM METRICS */}
-      <div className="bg-gradient-to-br from-gray-50 via-white to-gray-100 rounded-xl p-8 border border-gray-200 shadow-sm">
-        <div className="flex items-center gap-3 mb-8">
-          <h2 className="text-2xl font-bold text-gray-800 tracking-tight">📈 System Performance Metrics</h2>
-        </div>
-
-        <div className="space-y-10">
-          {/* Accuracy */}
-          <div className="flex items-start gap-6 group">
-            <div className="flex-shrink-0 w-12 h-12 bg-green-100 text-green-600 rounded-xl flex items-center justify-center text-2xl shadow-sm transition-all">
-              ✅
-            </div>
-            <div className="space-y-1">
-              <h3 className="text-sm font-extrabold text-gray-500 uppercase tracking-widest">Overall Accuracy</h3>
-              <p className="text-3xl font-black text-gray-900">100%</p>
-              <p className="text-sm text-gray-600">Validazione su test suite JCoQL+</p>
-            </div>
-          </div>
-
-          <div className="h-px bg-gray-100 ml-16"></div>
-
-          {/* Latency */}
-          <div className="flex items-start gap-6 group">
-            <div className="flex-shrink-0 w-12 h-12 bg-blue-100 text-blue-600 rounded-xl flex items-center justify-center text-2xl shadow-sm transition-all">
-              ⚡
-            </div>
-            <div className="space-y-1">
-              <h3 className="text-sm font-extrabold text-gray-500 uppercase tracking-widest">Average Latency</h3>
-              <p className="text-3xl font-black text-gray-900">&lt;100ms</p>
-              <p className="text-sm text-gray-600">Tempo medio di traduzione AST</p>
-            </div>
-          </div>
-
-          <div className="h-px bg-gray-100 ml-16"></div>
-
-          {/* Examples */}
-          <div className="flex items-start gap-6 group">
-            <div className="flex-shrink-0 w-12 h-12 bg-purple-100 text-purple-600 rounded-xl flex items-center justify-center text-2xl shadow-sm transition-all">
-              🎯
-            </div>
-            <div className="space-y-1">
-              <h3 className="text-sm font-extrabold text-gray-500 uppercase tracking-widest">Test Examples</h3>
-              <p className="text-3xl font-black text-gray-900">188</p>
-              <p className="text-sm text-gray-600">Query campionate per tipologia</p>
-            </div>
-          </div>
-
-          <div className="h-px bg-gray-100 ml-16"></div>
-
-          {/* Coverage */}
-          <div className="flex items-start gap-6 group">
-            <div className="flex-shrink-0 w-12 h-12 bg-orange-100 text-orange-600 rounded-xl flex items-center justify-center text-2xl shadow-sm transition-all">
-              📊
-            </div>
-            <div className="space-y-1">
-              <h3 className="text-sm font-extrabold text-gray-500 uppercase tracking-widest">Grammar Coverage</h3>
-              <p className="text-3xl font-black text-gray-900">90%</p>
-              <p className="text-sm text-gray-600">Supporto istruzioni JCoQL Core</p>
-            </div>
+          
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+            {[
+              { icon: '⚙️', name: 'JCo Framework', desc: 'Official Java implementation' },
+              { icon: '📝', name: 'ANTLR3 Parser', desc: 'Grammar validation' },
+              { icon: '🗄️', name: 'Multi-Database', desc: 'Schema discovery per DB' },
+              { icon: '🔗', name: 'JOIN Support', desc: 'INNER/LEFT/RIGHT/FULL' },
+              { icon: '🏭', name: 'Factory Pattern', desc: 'Plug-and-play architecture' },
+              { icon: '📊', name: 'Real-time Stats', desc: 'API-driven dashboard' },
+            ].map((feature) => (
+              <div key={feature.name} className="bg-white rounded-lg p-4 border border-green-200">
+                <div className="text-2xl mb-2">{feature.icon}</div>
+                <h3 className="font-bold text-gray-800 text-sm mb-1">{feature.name}</h3>
+                <p className="text-xs text-gray-600">{feature.desc}</p>
+              </div>
+            ))}
           </div>
         </div>
+
+        {/* ════════════════ FOOTER ════════════════ */}
+        <div className="text-center py-8 text-gray-600 text-sm border-t border-gray-200">
+          <p>JCoQL+ Natural Language Interface • JCo Framework • Production-Ready 🎓</p>
+          <p className="text-xs text-gray-500 mt-2">Dashboard aggiornato automaticamente ogni 10 secondi</p>
+        </div>
+
       </div>
     </div>
   );

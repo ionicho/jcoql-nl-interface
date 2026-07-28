@@ -1,112 +1,158 @@
 #!/usr/bin/env python3
 """
-JCO Framework Executor - Versione Funzionante
+JCO Framework Executor - Fix Classpath per ClassLoader Resources e gestione dinamica JAR
 """
 import os
+import re
 import subprocess
-import tempfile
 from pathlib import Path
 
 class JCoFrameworkExecutor:
     def __init__(self, mongo_uri="mongodb://localhost:27017", database="jcoql_test"):
-        self.jco_base = Path("C:/Users/nicho/jcoql-project/jco-framework")
-        self.data_path = Path("C:/Users/nicho/.data/.zunTestScripts")
-        self.mongo_host = mongo_uri.split("//")[1].split(":")[0]
-        self.mongo_port = mongo_uri.split(":")[-1].split("/")[0]
-        self.database = database
+        # Percorsi dinamici basati sulla HOME dell'utente per evitare path assoluti rigidi
+        user_home = Path.home()
+        self.jco_base = user_home / "jcoql-project" / "jco-framework"
+        self.data_path = user_home / ".data" / ".zunTestScripts"
         
-        # Verifica cartelle esistano
+        self.mongo_uri = mongo_uri
+        self.database_name = database
+        
         self._setup_directories()
     
     def _setup_directories(self):
-        """Crea cartelle necessarie"""
+        """Crea le cartelle temporanee di supporto per log, report e script di esecuzione."""
         self.data_path.mkdir(parents=True, exist_ok=True)
         (self.data_path.parent / ".zunLogs").mkdir(exist_ok=True)
         (self.data_path.parent / ".zunReports").mkdir(exist_ok=True)
     
+    def _get_latest_jar(self, search_path, pattern):
+        """
+        Cerca tutti i file JAR corrispondenti al pattern nella directory indicata,
+        estrae il numero di versione dal nome del file e restituisce il percorso
+        del JAR con la versione più recente (es. seleziona la 4.x.x anziché la 3.x.x).
+        """
+        jars = [j for j in search_path.rglob(pattern) if "-sources" not in str(j) and "-javadoc" not in str(j)]
+        if not jars:
+            return None
+        
+        def extract_version_key(path):
+            # Estrae tutti i numeri di versione (es. "4.1.1" -> [4, 1, 1]) per un ordinamento semantico corretto
+            match = re.search(r'-(\d+(?:\.\d+)+)', path.name)
+            if match:
+                return [int(x) for x in match.group(1).split('.')]
+            return [0]
+
+        # Ordina in base alla versione estratta ed estrae l'ultima (quella più recente)
+        jars_sorted = sorted(jars, key=extract_version_key)
+        return str(jars_sorted[-1])
+
     def execute(self, jcoql_query):
-        """Esegue query JCoQL tramite JCO Framework"""
+        """Esegue query JCoQL tramite il framework Java JcoScriptLauncher."""
         try:
-            # 1. Crea file query.jcoql
+            # 1. Scrittura della query JCoQL e del file prolog temporanei
             query_file = self.data_path / "query.jcoql"
             query_file.write_text(jcoql_query, encoding='utf-8')
             
-            # 2. Crea file prolog (può essere vuoto)
             prolog_file = self.data_path / "setup_mongodb.prolog"
             if not prolog_file.exists():
                 prolog_file.write_text("% Setup\n", encoding='utf-8')
             
-            # 3. Crea file mongodb_connection.properties
-            connection_props = self.data_path / "mongodb_connection.properties"
-            connection_props.write_text(
-                f"mongodb.host={self.mongo_host}\n"
-                f"mongodb.port={self.mongo_port}\n"
-                f"mongodb.database={self.database}\n"
-                f"mongodb.auth=false\n",
+            # 2. Scrittura delle proprietà di connessione al database MongoDB
+            conn_props = self.data_path / "mongodb_connection.properties"
+            conn_props.write_text(
+                f"mongo.uri={self.mongo_uri}\n"
+                f"mongo.db={self.database_name}\n"
+                "mongo.replicaSet=\n"
+                "mongo.user=\n"
+                "mongo.password=\n"
+                "mongo.useSSL=false\n",
                 encoding='utf-8'
             )
             
-            # 4. Crea file mongodb_test.properties (principale)
+            # 3. Scrittura delle configurazioni generali per il Launcher Java
             main_props = self.data_path / "mongodb_test.properties"
+            
+            # Formattazione percorsi con '/' per compatibilità con l'engine Java su Windows/Unix
+            prolog_path_str = str(prolog_file).replace('\\', '/')
+            query_path_str = str(query_file).replace('\\', '/')
+            conn_path_str = str(conn_props).replace('\\', '/')
+            
             main_props.write_text(
-                "fileInProlog=setup_mongodb.prolog\n"
-                "fileInTest=query.jcoql\n"
-                "testName=MongoDB_Query_Test\n"
-                "keyPropertyFile=mongodb_connection.properties\n"
+                f"fileInProlog={prolog_path_str}\n"
+                f"fileInTest={query_path_str}\n"
+                "testName=PythonAutomatedTest\n"
+                f"keyPropertyFile={conn_path_str}\n"
                 "toScreen=true\n",
                 encoding='utf-8'
             )
             
-            # 5. Costruisci classpath includendo cache Gradle
+            # 4. Costruzione dinamica del Classpath Java isolando le librerie corrette
             gradle_cache = Path.home() / ".gradle/caches/modules-2/files-2.1"
 
-            # Trova JAR critici per SLF4J (ESCLUDI -sources.jar)
-            slf4j_api = [j for j in (gradle_cache / "org.slf4j/slf4j-api").rglob("slf4j-api-*.jar") if "-sources" not in str(j)]
-            slf4j_log4j = [j for j in (gradle_cache / "org.slf4j/slf4j-log4j12").rglob("slf4j-log4j12-*.jar") if "-sources" not in str(j)]
-            log4j_jar = [j for j in (gradle_cache / "log4j/log4j").rglob("log4j-*.jar") if "-sources" not in str(j)]
-
-            # AGGIUNGI Spring Framework (necessario per JCO!)
-            spring_context = [j for j in (gradle_cache / "org.springframework/spring-context").rglob("spring-context-*.jar") if "-sources" not in str(j)]
-            spring_core = [j for j in (gradle_cache / "org.springframework/spring-core").rglob("spring-core-*.jar") if "-sources" not in str(j)]
-            spring_beans = [j for j in (gradle_cache / "org.springframework/spring-beans").rglob("spring-beans-*.jar") if "-sources" not in str(j)]
-            spring_aop = [j for j in (gradle_cache / "org.springframework/spring-aop").rglob("spring-aop-*.jar") if "-sources" not in str(j)]
-
-            print(f"Found SLF4J-API: {len(slf4j_api)} JARs")
-            print(f"Found SLF4J-Log4j: {len(slf4j_log4j)} JARs")
-            print(f"Found Log4j: {len(log4j_jar)} JARs")
-            print(f"Found Spring Context: {len(spring_context)} JARs")
-            print(f"Found Spring Core: {len(spring_core)} JARs")
-
-            # Costruisci classpath
-            classpath_parts = [
-                str(self.jco_base / "jcoql-engine/build/classes/java/main"),
-                str(self.jco_base / "jcoql-model/build/classes/java/main"),
-                str(self.jco_base / "jcoql-model/lib/*"),
-                str(self.jco_base / "jcoql-ds-core/lib/*"),
-                str(self.jco_base / "jcoql-engine-mongodb/build/classes/java/main"),
+            # Recupero delle dipendenze garantendo la versione più recente
+            jar_patterns = [
+                (gradle_cache / "org.antlr/antlr-runtime", "antlr-runtime-*.jar"),
+                (gradle_cache / "org.slf4j/slf4j-api", "slf4j-api-*.jar"),
+                (gradle_cache / "org.slf4j/slf4j-log4j12", "slf4j-log4j12-*.jar"),
+                (gradle_cache / "log4j/log4j", "log4j-*.jar"),
+                (gradle_cache / "commons-logging/commons-logging", "commons-logging-*.jar"),
+                
+                # Dipendenze MongoDB
+                (gradle_cache / "org.mongodb/bson", "bson-*.jar"),
+                (gradle_cache / "org.mongodb/mongodb-driver-core", "mongodb-driver-core-*.jar"),
+                (gradle_cache / "org.mongodb/mongodb-driver-sync", "mongodb-driver-sync-*.jar"),
+                (gradle_cache / "org.mongodb/mongodb-driver", "mongodb-driver-*.jar"),
+                (gradle_cache / "org.mongodb/mongo-java-driver", "mongo-java-driver-*.jar"),
+                
+                # Jackson (JSON Serializer) -> Aggiunti per risolvere JsonProcessingException
+                (gradle_cache / "com.fasterxml.jackson.core/jackson-core", "jackson-core-*.jar"),
+                (gradle_cache / "com.fasterxml.jackson.core/jackson-databind", "jackson-databind-*.jar"),
+                (gradle_cache / "com.fasterxml.jackson.core/jackson-annotations", "jackson-annotations-*.jar"),
+                
+                # Dipendenze Spring Framework
+                (gradle_cache / "org.springframework/spring-context", "spring-context-*.jar"),
+                (gradle_cache / "org.springframework/spring-core", "spring-core-*.jar"),
+                (gradle_cache / "org.springframework/spring-beans", "spring-beans-*.jar"),
+                (gradle_cache / "org.springframework/spring-aop", "spring-aop-*.jar"),
+                (gradle_cache / "org.springframework/spring-jcl", "spring-jcl-*.jar"),
+                (gradle_cache / "org.springframework/spring-expression", "spring-expression-*.jar")
             ]
 
-            # Aggiungi SLF4J (prendi ultima versione, NO sources)
-            if slf4j_api:
-                classpath_parts.append(str(slf4j_api[-1]))
-            if slf4j_log4j:
-                classpath_parts.append(str(slf4j_log4j[-1]))
-            if log4j_jar:
-                classpath_parts.append(str(log4j_jar[-1]))
+            classpath_parts = [
+                # Radice del framework e risorse di configurazione
+                str(self.jco_base),
+                str(self.jco_base / "config"),
 
-            # Aggiungi Spring Framework
-            if spring_context:
-                classpath_parts.append(str(spring_context[-1]))
-            if spring_core:
-                classpath_parts.append(str(spring_core[-1]))
-            if spring_beans:
-                classpath_parts.append(str(spring_beans[-1]))
-            if spring_aop:
-                classpath_parts.append(str(spring_aop[-1]))
+                # Classi compilate e risorse dei moduli del framework JCoQL
+                str(self.jco_base / "jcoql-engine/build/classes/java/main"),
+                str(self.jco_base / "jcoql-engine/build/resources/main"),
+                str(self.jco_base / "jcoql-model/build/classes/java/main"),
+                str(self.jco_base / "jcoql-model/build/resources/main"),
+                str(self.jco_base / "jcoql-engine-mongodb/build/classes/java/main"),
+                str(self.jco_base / "jcoql-engine-mongodb/build/resources/main"),
 
-            classpath = ";".join(classpath_parts)
+                # Librerie JAR locali dei singoli moduli
+                str(self.jco_base / "jcoql-model/lib/*"),
+                str(self.jco_base / "jcoql-ds-core/lib/*"),
+            ]
+
+            # Inserimento nel Classpath dei file JAR più recenti individuati nella cache Gradle
+            for base_path, pattern in jar_patterns:
+                if base_path.exists():
+                    latest_jar = self._get_latest_jar(base_path, pattern)
+                    if latest_jar:
+                        classpath_parts.append(latest_jar)
+
+            # Aggiunta generica dei JAR presenti nelle directory libs del framework
+            for libs_dir in self.jco_base.rglob("libs"):
+                if libs_dir.is_dir():
+                    classpath_parts.append(str(libs_dir / "*"))
+
+            # Assemblaggio finale della stringa Classpath con il separatore di sistema ';' (Windows) o ':' (Linux/Mac)
+            classpath_sep = ";" if os.name == "nt" else ":"
+            classpath = classpath_sep.join(classpath_parts)
             
-            # 6. Esegui JcoScriptLauncher
+            # 5. Definizione del comando di avvio del processo Java
             cmd = [
                 'java',
                 '-cp', classpath,
@@ -114,8 +160,7 @@ class JCoFrameworkExecutor:
                 str(main_props)
             ]
             
-            print(f"Executing: {' '.join(cmd)}")
-            
+            # 6. Esecuzione del subprocesso con cattura dell'output
             result = subprocess.run(
                 cmd,
                 cwd=str(self.jco_base),
@@ -126,21 +171,19 @@ class JCoFrameworkExecutor:
                 errors='replace'
             )
             
-            print(f"STDOUT:\n{result.stdout}")
-            print(f"STDERR:\n{result.stderr}")
-            
-            # 7. Parse risultati
-            if result.returncode == 0:
+            if result.returncode == 0 and "ECCEZIONE:" not in result.stdout:
+                parsed_results = self._parse_output(result.stdout)
                 return {
                     'success': True,
                     'raw_output': result.stdout,
-                    'results': self._parse_output(result.stdout),
+                    'results': parsed_results,
+                    'doc_count': parsed_results.get('doc_count', 0),
                     'executor': 'jco_framework'
                 }
             else:
                 return {
                     'success': False,
-                    'error': result.stderr,
+                    'error': result.stderr or result.stdout,
                     'raw_output': result.stdout,
                     'executor': 'jco_framework'
                 }
@@ -148,7 +191,7 @@ class JCoFrameworkExecutor:
         except subprocess.TimeoutExpired:
             return {
                 'success': False,
-                'error': 'JCO Framework timeout (>30 seconds)',
+                'error': 'JCO Framework timeout (>30 secondi)',
                 'executor': 'jco_framework'
             }
         except Exception as e:
@@ -159,30 +202,26 @@ class JCoFrameworkExecutor:
             }
     
     def _parse_output(self, output):
-        """Parse output JCO per estrarre risultati JSON"""
-        # TODO: implementa parsing specifico output JCO
-        # Per ora ritorna raw output
-        return output
-    
-    def close(self):
-        """Cleanup"""
-        pass
-
-
-# TEST
-if __name__ == "__main__":
-    executor = JCoFrameworkExecutor()
-    
-    query = "GET COLLECTION hotels; FILTER CASE WHERE .location.city = 'Milano' KEEP OTHERS;"
-    
-    print("Testing JCO Framework Executor...")
-    result = executor.execute(query)
-    
-    print("\nRESULT:")
-    print(f"Success: {result['success']}")
-    if result['success']:
-        print(f"Output:\n{result['raw_output']}")
-    else:
-        print(f"Error: {result.get('error', 'Unknown')}")
-    
-    executor.close()
+        """Parse output JCO per estrarre i documenti JSON"""
+        import re
+        import json
+        
+        # Estrai il firstBatch dal MongoDB command reply
+        match = re.search(r'"firstBatch":\s*(\[.*?\])', output, re.DOTALL)
+        if match:
+            try:
+                documents_json = match.group(1)
+                documents = json.loads(documents_json)
+                # ✅ Ritorna SEMPRE un dizionario
+                return {
+                    'text': json.dumps(documents, indent=2),
+                    'doc_count': len(documents)
+                }
+            except:
+                pass
+        
+        # Fallback: ritorna testo grezzo
+        return {
+            'text': output,
+            'doc_count': 0
+        }

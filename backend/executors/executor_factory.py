@@ -58,7 +58,17 @@ class ExecutorFactory:
                 raise
         
         elif executor_type == ExecutorType.JCO_FRAMEWORK or executor_type.value == "jco_framework":
-            raise NotImplementedError("JCO Framework (Java) non attivo. Usare Python Translator.")
+            try:
+                from backend.executors.jco_framework_executor_v2 import JCoFrameworkExecutor
+                
+                executor = JCoFrameworkExecutor(
+                    mongo_uri=kwargs.get('mongo_uri', 'mongodb://localhost:27017'),
+                    database=kwargs.get('database', 'jcoql_test')  # ← database, non database_name!
+                )
+                return executor
+            except Exception as e:
+                print(f"❌ Errore JCo Framework: {e}")
+                raise
         
         else:
             raise ValueError(f"Executor type sconosciuto: {executor_type}")

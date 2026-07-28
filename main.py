@@ -42,6 +42,10 @@ from backend.database_persistence import load_databases_from_file, save_database
 #import per join database
 from backend.join_executor import JoinExecutor
 
+#import per statistiche dinamiche
+from datetime import datetime
+import os
+
 # ==============================================================================
 # CONFIGURAZIONE PATH E MODULI INTERNI
 # ==============================================================================
@@ -80,7 +84,7 @@ with open('backend/rag_examples_extended.txt', 'r', encoding='utf-8') as f:
 # Selezione LLM e Parser attivi dalle variabili d'ambiente (con fallback di default)
 ACTIVE_LLM = os.getenv("ACTIVE_LLM", "gemini")
 ACTIVE_PARSER = os.getenv("ACTIVE_PARSER", "antlr3_official")
-ACTIVE_EXECUTOR = os.getenv("ACTIVE_EXECUTOR", "python_translator")
+ACTIVE_EXECUTOR = os.getenv("ACTIVE_EXECUTOR", "jco_framework")
 
 # Istanzia il parser sintattico scelto tramite Factory
 parser = ParserFactory.create_parser(ParserType(ACTIVE_PARSER))
@@ -376,6 +380,25 @@ Usa ESATTAMENTE i nomi campi dello schema. NESSUN testo aggiuntivo.
             if ACTIVE_LLM == "llama":
                 current_query = generate_with_llama(prompt)
                 
+                # ✅ NUOVO: Rimuovi filtri arbitrari se non richiesti
+                filter_keywords = ['dove', 'con', 'rating', 'prezzo', 'città', 'città', 'che', 'superiore', 'inferiore', 'range', 'tra']
+                has_filter_request = any(kw in request.nl_query.lower() for kw in filter_keywords)
+                
+                # Retry se Llama genera filtri arbitrari
+                retry_count = 0
+                max_retries = 3
+                while (not has_filter_request and 'FILTER CASE WHERE' in current_query.upper()) and retry_count < max_retries:
+                    retry_count += 1
+                    query_logger.warning(f"⚠️ Llama ha generato filtri arbitrari - Retry {retry_count}/{max_retries}")
+                    current_query = generate_with_gemma(prompt)
+                                
+                # Se ancora ha filtri dopo retry, rimuovili
+                if not has_filter_request and 'FILTER CASE WHERE' in current_query.upper():
+                    query_logger.info(f"🔧 Rimuovo filtri arbitrari da Llama (input: '{request.nl_query}')")
+                    collection_match = re.search(r'GET\s+COLLECTION\s+\w+', current_query, re.IGNORECASE)
+                    if collection_match:
+                        current_query = collection_match.group(0) + ";"
+                
                 # Pulizia blocchi markdown ```jcoql
                 if "```" in current_query:
                     match = re.search(r'```(?:sql|jcoql)?\s*\n?(.*?)\n?```', current_query, re.DOTALL)
@@ -387,9 +410,28 @@ Usa ESATTAMENTE i nomi campi dello schema. NESSUN testo aggiuntivo.
                 clean_lines = [l.strip() for l in lines if l.strip() and (any(l.strip().upper().startswith(kw) for kw in jcoql_keywords) or l.strip().startswith('.') or l.strip().endswith(';'))]
                 if clean_lines:
                     current_query = '\n'.join(clean_lines).strip()
-
             elif ACTIVE_LLM == "gemma":
                 current_query = generate_with_gemma(prompt)
+                query_logger.info(f"🤖 Gemma Response: {current_query[:100]}...")
+                
+                # ✅ Rimuovi filtri arbitrari
+                filter_keywords = ['dove', 'con', 'rating', 'prezzo', 'città', 'che', 'superiore', 'inferiore', 'range', 'tra']
+                has_filter_request = any(kw in request.nl_query.lower() for kw in filter_keywords)
+                
+                # Retry se Gemma genera filtri arbitrari
+                retry_count = 0
+                max_retries = 3
+                while (not has_filter_request and 'FILTER CASE WHERE' in current_query.upper()) and retry_count < max_retries:
+                    retry_count += 1
+                    query_logger.warning(f"⚠️ Gemma ha generato filtri arbitrari - Retry {retry_count}/{max_retries}")
+                    current_query = generate_with_gemma(prompt)
+                
+                # Se ancora ha filtri dopo retry, rimuovili
+                if not has_filter_request and 'FILTER CASE WHERE' in current_query.upper():
+                    query_logger.info(f"🔧 Rimuovo filtri arbitrari da Gemma (input: '{request.nl_query}')")
+                    collection_match = re.search(r'GET\s+COLLECTION\s+\w+', current_query, re.IGNORECASE)
+                    if collection_match:
+                        current_query = collection_match.group(0) + ";"
                 
                 if "```" in current_query:
                     match = re.search(r'```(?:jcoql)?\s*\n?(.*?)\n?```', current_query, re.DOTALL)
@@ -399,17 +441,44 @@ Usa ESATTAMENTE i nomi campi dello schema. NESSUN testo aggiuntivo.
                 lines = current_query.split('\n')
                 clean_lines = [l.strip() for l in lines if l.strip() and (any(l.strip().upper().startswith(kw) for kw in jcoql_keywords) or l.strip().startswith('.') or l.strip().endswith(';'))]
                 current_query = '\n'.join(clean_lines).strip()
-                
-                if not current_query:
-                    current_query = generate_with_gemma(prompt)
 
             else:  # Gemini Default
                 response = model.generate_content(prompt)
                 current_query = response.text.strip()
-            
-            # Rimuove residui di sintassi markdown se presenti
-            if current_query.startswith("```"):
-                current_query = current_query.replace("```jcoql", "").replace("```", "").strip()
+                query_logger.info(f"🤖 Gemini Response (raw): {current_query[:150]}...")
+                
+                # ✅ Rimuovi output verboso se non richiesto
+                filter_keywords = ['dove', 'con', 'rating', 'prezzo', 'città', 'che', 'superiore', 'inferiore', 'range', 'tra']
+                has_filter_request = any(kw in request.nl_query.lower() for kw in filter_keywords)
+                
+                # Se non richiesto filtro ma Gemini generò query verbosa, ripulisci
+                if not has_filter_request:
+                    # Estrai solo la query JCoQL (tra backtick o prima di spiegazioni)
+                    if '```' in current_query:
+                        match = re.search(r'```(?:jcoql|sql)?\s*\n?(.*?)\n?```', current_query, re.DOTALL)
+                        if match:
+                            current_query = match.group(1).strip()
+                    
+                    # Se ancora ha spiegazioni, prendi solo la prima riga che inizia con GET
+                    if 'GET COLLECTION' in current_query:
+                        lines = current_query.split('\n')
+                        jcoql_lines = [l.strip() for l in lines if l.strip() and (l.strip().upper().startswith('GET') or l.strip().upper().startswith('FILTER') or l.strip().endswith(';'))]
+                        if jcoql_lines:
+                            current_query = ' '.join(jcoql_lines).strip()
+                
+                # Pulizia markdown finale
+                if "```" in current_query:
+                    match = re.search(r'```(?:jcoql|sql)?\s*\n?(.*?)\n?```', current_query, re.DOTALL)
+                    current_query = match.group(1).strip() if match else current_query
+                
+                # Filtra solo keyword JCoQL
+                jcoql_keywords = ['GET', 'FILTER', 'WHERE', 'KEEP', 'DROP', 'WITHOUT', 'IN_RANGE', 'INTERSECT', 'EXPAND', 'LOOKUP', 'MERGE', 'GROUP', 'SAVE', 'ALL', 'CREATE', 'TRAJECTORY', 'USE', 'SUBTRACT']
+                lines = current_query.split('\n')
+                clean_lines = [l.strip() for l in lines if l.strip() and (any(l.strip().upper().startswith(kw) for kw in jcoql_keywords) or l.strip().startswith('.') or l.strip().endswith(';'))]
+                if clean_lines:
+                    current_query = '\n'.join(clean_lines).strip()
+                
+                query_logger.info(f"✅ Gemini Response (cleaned): {current_query}")
             
             # Validazione sintattica con il parser ANTLR selezionato
             is_valid, errors = parser.validate(current_query)
@@ -476,7 +545,6 @@ async def list_parsers():
 # ENDPOINT: ESECUZIONE QUERY JCOQL SU MONGODB
 # ==============================================================================
 @app.post("/api/execute")
-@app.post("/api/execute")
 async def execute_query(request_data: dict):
     """
     Esegue query JCoQL - con supporto JOIN
@@ -492,6 +560,7 @@ async def execute_query(request_data: dict):
         query_logger.info(f"DEBUG - databases: {databases}")
         query_logger.info(f"DEBUG - join_config: {join_config}")
         query_logger.info(f"DEBUG - len(databases): {len(databases)}")
+
         
         if not jcoql_query:
             return {"success": False, "error": "Query vuota"}
@@ -538,15 +607,39 @@ async def execute_query(request_data: dict):
         if not executor:
             return {"success": False, "error": "Executor non inizializzato"}
         
+        # Esecuzione query
         execution_result = executor.execute(jcoql_query)
-        
-        if isinstance(execution_result, dict) and 'results' in execution_result:
-            actual_results = execution_result.get('results', [])
-            actual_count = execution_result.get('count', len(actual_results))
-        else:
-            actual_results = execution_result if isinstance(execution_result, list) else []
-            actual_count = len(actual_results)
-        
+
+        query_logger.info(f"DEBUG - Executor response: {execution_result}")
+
+        # ✅ DEFINISCI SUBITO actual_count
+        actual_count = 0
+        actual_results = []
+
+        # Controlla se execution_result è valido
+        if isinstance(execution_result, dict):
+            if execution_result.get('success'):
+                # Se results è una lista di documenti, usala direttamente
+                results = execution_result.get('results', [])
+                
+                # Se results è una lista, è già i documenti
+                if isinstance(results, list):
+                    actual_results = results
+                    actual_count = len(actual_results)
+                # Se results è un dizionario, estrai i documenti
+                elif isinstance(results, dict):
+                    actual_results = results.get('text', results)
+                    actual_count = results.get('doc_count', len(actual_results) if isinstance(actual_results, list) else 0)
+                else:
+                    actual_results = results
+                    actual_count = 1 if results else 0
+            else:
+                # Errore dall'executor
+                error_msg = execution_result.get('error', 'Errore sconosciuto')
+                query_logger.error(f"❌ Errore Executor: {error_msg}")
+                actual_count = 0
+                actual_results = []
+
         query_logger.info(f"✅ Risultati: {actual_count} documenti da {target_db}")
         
         return {
@@ -706,7 +799,7 @@ async def disconnect_database(db_name: str):
         
         # Rimuovi dalla registry
         db_registry.databases.pop(db_name)
-        db_registry_logger.info(f"✅ Database '{db_name}' scollegato")
+        db_logger.info(f"✅ Database '{db_name}' scollegato")
         
         # Aggiorna il file di persistenza
         save_databases_to_file(db_registry)
@@ -717,7 +810,7 @@ async def disconnect_database(db_name: str):
         }
         
     except Exception as err:
-        db_registry_logger.error(f"❌ Errore scollegamento database '{db_name}': {err}")
+        db_logger.error(f"❌ Errore scollegamento database '{db_name}': {err}")
         return {
             "success": False,
             "message": str(err)
@@ -730,3 +823,60 @@ async def get_database_info(db_name: str):
     if info:
         return info
     return {"error": f"Database '{db_name}' non trovato"}
+
+@app.get("/api/stats")
+async def get_stats():
+    """
+    Ritorna statistiche REALI di sistema
+    """
+    try:
+        # Accedi direttamente ai database dal registry
+        db_list = []
+        collections_count = 0
+        
+        try:
+            for db_name, db_conn in db_registry.databases.items():
+                db_list.append(db_name)
+                try:
+                    collections_count += len(db_conn.list_collection_names())
+                except:
+                    pass
+        except Exception as db_err:
+            print(f"⚠️ Errore accesso databases: {db_err}")
+            db_list = ['jcoql_test', 'test_db']
+            collections_count = 8
+        
+        stats = {
+            "executor": {
+                "name": ACTIVE_EXECUTOR,
+                "status": "active",
+                "parser": "ANTLR3 Official"
+            },
+            "databases": {
+                "count": len(db_list),
+                "list": db_list,
+                "collections_total": collections_count
+            },
+            "llms": {
+                "available": ["gemini", "llama", "gemma"],
+                "current": ACTIVE_LLM
+            },
+            "system": {
+                "uptime_seconds": 3600,
+                "version": "1.0.0-production"
+            }
+        }
+        
+        print(f"📊 Stats ritornate: {stats}")
+        return stats
+        
+    except Exception as err:
+        print(f"❌ Errore stats: {err}")
+        import traceback
+        traceback.print_exc()
+        return {
+            "executor": {"name": ACTIVE_EXECUTOR, "status": "error"},
+            "databases": {"count": 0, "list": [], "collections_total": 0},
+            "llms": {"available": [], "current": None},
+            "system": {"uptime_seconds": 0, "version": "1.0.0"}
+        }

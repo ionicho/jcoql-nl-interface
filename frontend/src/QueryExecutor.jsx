@@ -3,48 +3,27 @@
 // ==========================================
 import { useState } from 'react';
 import axios from 'axios';
-// RIMOSSO: import { Link } from 'react-router-dom'; -> Non serve più nell'architettura a pagina singola
-
 import './QueryExecutor.css';
-
 
 // ==========================================
 // 2. DEFINIZIONE COMPONENTE
-// Riceve (opzionalmente) come Props i database selezionati dal componente padre (MainInterface)
 // ==========================================
 export default function QueryExecutor({ selectedDatabases = [], joinConfig = null }) {
   
   // --- STATI DEL COMPONENTE ---
-  // mode: Gestisce la vista attuale ('nl' per Linguaggio Naturale, 'direct' per query JCoQL manuale)
   const [mode, setMode] = useState('nl'); 
-  
-  // nlQuery: Memorizza l'input testuale dell'utente in linguaggio naturale
   const [nlQuery, setNlQuery] = useState('');
-  
-  // jcoqlQuery: Memorizza la query JCoQL (sia quella generata dal backend, sia quella digitata a mano)
   const [jcoqlQuery, setJcoqlQuery] = useState('');
-  
-  // Stati di caricamento per gestire i bottoni disabilitati e gli spinner visivi
   const [isGenerating, setIsGenerating] = useState(false);
   const [isExecuting, setIsExecuting] = useState(false);
-  
-  // results: Salva la risposta del database dopo l'esecuzione della query
   const [results, setResults] = useState(null);
-  
-  // error: Gestisce la visualizzazione di eventuali messaggi di errore a schermo
   const [error, setError] = useState('');
 
   // ==========================================
   // 3. HANDLERS (FUNZIONI LOGICHE)
   // ==========================================
 
-  /**
-   * handleGenerate: 
-   * Invia la stringa in linguaggio naturale (nlQuery) al backend FastAPI.
-   * Il backend interroga l'LLM e restituisce una query JCoQL formattata.
-   */
   const handleGenerate = async () => {
-    // Controllo validità: impedisce richieste vuote
     if (!nlQuery.trim()) {
       setError('Inserisci una query in linguaggio naturale');
       return;
@@ -52,7 +31,7 @@ export default function QueryExecutor({ selectedDatabases = [], joinConfig = nul
 
     setIsGenerating(true);
     setError('');
-    setResults(null); // Pulisce eventuali risultati precedenti
+    setResults(null); 
 
     try {
       const response = await axios.post('http://localhost:8000/api/generate', {
@@ -60,25 +39,18 @@ export default function QueryExecutor({ selectedDatabases = [], joinConfig = nul
         max_retries: 3
       });
 
-      // Se la query generata supera i controlli di validazione (es. sintassi ANTLR3)
       if (response.data.is_valid) {
-        setJcoqlQuery(response.data.jcoql_query); // Imposta la query nel box di esecuzione
+        setJcoqlQuery(response.data.jcoql_query); 
       } else {
-        // Mostra gli errori di validazione restituiti dal server
         setError('Query generata non valida: ' + response.data.validation_errors.join(', '));
       }
     } catch (err) {
       setError('Errore generazione: ' + err.message);
     } finally {
-      setIsGenerating(false); // Riabilita il bottone indipendentemente dall'esito
+      setIsGenerating(false); 
     }
   };
 
-  /**
-   * handleExecute: 
-   * Invia la query JCoQL (jcoqlQuery) appena generata al backend per l'esecuzione su MongoDB.
-   * AGGIORNATO: Ora invia anche i database selezionati per evitare il fallback su jcoql_test
-   */
   const handleExecute = async () => {
     if (!jcoqlQuery.trim()) {
       setError('Nessuna query JCoQL da eseguire');
@@ -89,22 +61,33 @@ export default function QueryExecutor({ selectedDatabases = [], joinConfig = nul
     setError('');
 
     try {
-      console.log('🔍 ESECUZIONE (modalità NL)')
-      console.log('selectedDatabases:', selectedDatabases)
-      console.log('joinConfig:', joinConfig)
-      
       const response = await axios.post('http://localhost:8000/api/execute', {
         jcoql_query: jcoqlQuery,
         databases: selectedDatabases,
         database_name: selectedDatabases[0],
-        join_config: joinConfig  // ← AGGIUNGI QUESTA RIGA!
+        join_config: joinConfig  
       });
 
-      if (response.data.success) {
-        console.log('✅ Risultati ricevuti:', response.data)
-        setResults(response.data);
+      const data = response.data;
+      if (data.success) {
+        // ✅ Parse results se è una stringa JSON
+        let parsedResults = data.results;
+        if (typeof data.results === 'string') {
+          try {
+            parsedResults = JSON.parse(data.results);
+          } catch (e) {
+            console.error('Errore parsing results:', e);
+            parsedResults = data.results;
+          }
+        }
+
+        // Memorizziamo l'oggetto completo aggiornando il campo results con l'array parsato
+        setResults({
+          ...data,
+          results: parsedResults
+        });
       } else {
-        setError('Errore esecuzione: ' + response.data.error);
+        setError('Errore esecuzione: ' + data.error);
       }
     } catch (err) {
       setError('Errore esecuzione: ' + err.message);
@@ -113,57 +96,56 @@ export default function QueryExecutor({ selectedDatabases = [], joinConfig = nul
     }
   };
 
-  /**
-   * handleExecuteDirect: 
-   * Identica ad handleExecute, ma pensata concettualmente per la modalità "diretta", 
-   * dove l'utente scrive o incolla il codice JCoQL a mano.
-   */
   const handleExecuteDirect = async () => {
     if (!jcoqlQuery.trim()) {
-      setError('Nessuna query JCoQL da eseguire')
-      return
+      setError('Nessuna query JCoQL da eseguire');
+      return;
     }
 
-    setIsExecuting(true)
-    setError('')
+    setIsExecuting(true);
+    setError('');
 
     try {
-      console.log('🔍 INIZIO ESECUZIONE')
-      console.log('selectedDatabases prop ricevuto:', selectedDatabases)
-      console.log('joinConfig prop ricevuto:', joinConfig)  // ← AGGIUNGI QUESTO
-      console.log('Query:', jcoqlQuery)
-      
       const payload = {
         jcoql_query: jcoqlQuery,
         databases: selectedDatabases,
         database_name: selectedDatabases[0],
-        join_config: joinConfig  // ← AGGIUNGI QUESTA RIGA!
-      }
+        join_config: joinConfig  
+      };
       
-      console.log('📤 Payload inviato al backend:', payload)
-
       const response = await axios.post(
         'http://localhost:8000/api/execute',
         payload
-      )
+      );
 
-      console.log('✅ Risposta ricevuta:', response.data)
+      const data = response.data;
+      if (data.success) {
+        // ✅ Parse results se è una stringa JSON
+        let parsedResults = data.results;
+        if (typeof data.results === 'string') {
+          try {
+            parsedResults = JSON.parse(data.results);
+          } catch (e) {
+            console.error('Errore parsing results:', e);
+            parsedResults = data.results;
+          }
+        }
 
-      if (response.data.success) {
-        console.log('📊 Mostrando risultati...')
-        setResults(response.data)
-        setError('')
+        // Memorizziamo l'oggetto completo aggiornando il campo results con l'array parsato
+        setResults({
+          ...data,
+          results: parsedResults
+        });
+        setError('');
       } else {
-        console.log('❌ Errore dalla risposta:', response.data.error)
-        setError('Errore: ' + response.data.error)
+        setError('Errore: ' + data.error);
       }
     } catch (err) {
-      console.error('❌ ERRORE COMPLETO:', err)
-      setError('Errore: ' + err.message)
+      setError('Errore: ' + err.message);
     } finally {
-      setIsExecuting(false)
+      setIsExecuting(false);
     }
-  }
+  };
 
   // ==========================================
   // 4. RENDER DELL'INTERFACCIA (JSX)
@@ -180,7 +162,6 @@ export default function QueryExecutor({ selectedDatabases = [], joinConfig = nul
               Genera ed esegui query JCoQL su MongoDB
             </p>
           </div>
-          {/* RIMOSSO: I vecchi tag <Link> per la navigazione sono stati eliminati per prevenire il crash e snellire la singola pagina */}
         </div>
       </div>
 
@@ -189,21 +170,21 @@ export default function QueryExecutor({ selectedDatabases = [], joinConfig = nul
         <div className="flex gap-2">
           <button
             onClick={() => setMode('nl')}
-            className={`flex-1 px-4 py-3 rounded-lg font-medium transition ${
-              mode === 'nl'
-                ? 'bg-blue-600 text-white' // Stile Attivo
-                : 'bg-gray-100 text-gray-700 hover:bg-gray-200' // Stile Inattivo
-            }`}
+            style={{
+              backgroundColor: mode === 'nl' ? '#2563eb' : '#f3f4f6',
+              color: mode === 'nl' ? '#ffffff' : '#374151',
+            }}
+            className="flex-1 px-4 py-3 rounded-lg font-medium transition-colors shadow-sm"
           >
             🗣️ Linguaggio Naturale
           </button>
           <button
             onClick={() => setMode('direct')}
-            className={`flex-1 px-4 py-3 rounded-lg font-medium transition ${
-              mode === 'direct'
-                ? 'bg-blue-600 text-white' // Stile Attivo
-                : 'bg-gray-100 text-gray-700 hover:bg-gray-200' // Stile Inattivo
-            }`}
+            style={{
+              backgroundColor: mode === 'direct' ? '#2563eb' : '#f3f4f6',
+              color: mode === 'direct' ? '#ffffff' : '#374151',
+            }}
+            className="flex-1 px-4 py-3 rounded-lg font-medium transition-colors shadow-sm"
           >
             ⚡ Query JCoQL Diretta
           </button>
@@ -213,7 +194,6 @@ export default function QueryExecutor({ selectedDatabases = [], joinConfig = nul
       {/* --- VISTA: LINGUAGGIO NATURALE --- */}
       {mode === 'nl' && (
         <>
-          {/* Box di inserimento testo */}
           <div className="bg-white rounded-lg shadow-md p-6">
             <label className="block text-sm font-medium text-gray-700 mb-2">
               Query in Linguaggio Naturale
@@ -223,21 +203,26 @@ export default function QueryExecutor({ selectedDatabases = [], joinConfig = nul
                 type="text"
                 value={nlQuery}
                 onChange={(e) => setNlQuery(e.target.value)}
-                onKeyPress={(e) => e.key === 'Enter' && handleGenerate()} // Permette di generare premendo Invio
+                onKeyPress={(e) => e.key === 'Enter' && handleGenerate()} 
                 placeholder="Es: Hotel a Milano con rating superiore a 4"
                 className="flex-1 px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
               />
               <button
                 onClick={handleGenerate}
-                disabled={isGenerating} // Disabilita durante il caricamento
-                className="px-6 py-3 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed font-medium transition"
+                disabled={isGenerating} 
+                style={{
+                  backgroundColor: isGenerating ? '#9ca3af' : '#2563eb',
+                  color: '#ffffff',
+                  cursor: isGenerating ? 'not-allowed' : 'pointer',
+                  opacity: isGenerating ? 0.8 : 1
+                }}
+                className="px-6 py-3 rounded-lg font-medium transition-colors shadow-sm"
               >
                 {isGenerating ? '⏳ Generazione...' : '🤖 Genera'}
               </button>
             </div>
           </div>
 
-          {/* Box della query JCoQL (visibile solo DOPO la generazione) */}
           {jcoqlQuery && (
             <div className="bg-white rounded-lg shadow-md p-6">
               <div className="flex justify-between items-center mb-3">
@@ -247,7 +232,13 @@ export default function QueryExecutor({ selectedDatabases = [], joinConfig = nul
                 <button
                   onClick={handleExecute}
                   disabled={isExecuting}
-                  className="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 disabled:opacity-50 font-medium transition"
+                  style={{
+                    backgroundColor: isExecuting ? '#9ca3af' : '#4b5563',
+                    color: '#ffffff',
+                    cursor: isExecuting ? 'not-allowed' : 'pointer',
+                    opacity: isExecuting ? 0.8 : 1
+                  }}
+                  className="px-4 py-2 rounded-lg font-medium transition-colors shadow-sm"
                 >
                   {isExecuting ? '⏳ Esecuzione...' : '▶️ Esegui su MongoDB'}
                 </button>
@@ -266,7 +257,6 @@ export default function QueryExecutor({ selectedDatabases = [], joinConfig = nul
           <label className="block text-sm font-medium text-gray-700 mb-2">
             Query JCoQL Diretta
           </label>
-          {/* Textarea permette l'inserimento multi-linea */}
           <textarea
             value={jcoqlQuery}
             onChange={(e) => setJcoqlQuery(e.target.value)}
@@ -278,7 +268,13 @@ export default function QueryExecutor({ selectedDatabases = [], joinConfig = nul
             <button
               onClick={handleExecuteDirect}
               disabled={isExecuting}
-              className="px-6 py-3 bg-green-600 text-white rounded-lg hover:bg-green-700 disabled:opacity-50 font-medium transition"
+              style={{
+                backgroundColor: isExecuting ? '#9ca3af' : '#16a34a',
+                color: '#ffffff',
+                cursor: isExecuting ? 'not-allowed' : 'pointer',
+                opacity: isExecuting ? 0.8 : 1
+              }}
+              className="px-6 py-3 rounded-lg font-medium transition-colors shadow-sm"
             >
               {isExecuting ? '⏳ Esecuzione...' : '▶️ Esegui su MongoDB'}
             </button>
@@ -375,7 +371,7 @@ export default function QueryExecutor({ selectedDatabases = [], joinConfig = nul
             <button
               key={i}
               onClick={() => {
-                setMode('nl'); // Assicura che l'utente sia nella scheda giusta
+                setMode('nl'); 
                 setNlQuery(example);
               }}
               className="text-left px-3 py-2 bg-white rounded border border-blue-200 hover:border-blue-400 hover:bg-blue-50 transition shadow-sm"
