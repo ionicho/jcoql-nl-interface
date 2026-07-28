@@ -54,18 +54,23 @@ class JCoFrameworkExecutor:
             query_file.write_text(jcoql_query, encoding='utf-8')
             
             prolog_file = self.data_path / "setup_mongodb.prolog"
-            if not prolog_file.exists():
-                prolog_file.write_text("% Setup\n", encoding='utf-8')
+            # ✅ SCRIVI il comando per selezionare il database
+            prolog_file.write_text(
+                f"USE DATABASE {self.database_name};\n",
+                encoding='utf-8'
+            )
             
             # 2. Scrittura delle proprietà di connessione al database MongoDB
             conn_props = self.data_path / "mongodb_connection.properties"
             conn_props.write_text(
-                f"mongo.uri={self.mongo_uri}\n"
-                f"mongo.db={self.database_name}\n"
-                "mongo.replicaSet=\n"
-                "mongo.user=\n"
-                "mongo.password=\n"
-                "mongo.useSSL=false\n",
+                f"mongodb.host=localhost\n"
+                f"mongodb.port=27017\n"
+                f"mongodb.database={self.database_name}\n"  # ← Chiave corretta!
+                f"mongodb.uri={self.mongo_uri}\n"
+                "mongodb.replicaSet=\n"
+                "mongodb.user=\n"
+                "mongodb.password=\n"
+                "mongodb.useSSL=false\n",
                 encoding='utf-8'
             )
             
@@ -157,11 +162,12 @@ class JCoFrameworkExecutor:
             
             # 5. Definizione del comando di avvio del processo Java
             cmd = [
-                'java',
-                '-cp', classpath,
-                'jco.ql.engine.JcoScriptLauncher',
-                str(main_props)
-            ]
+                        'java',
+                        f'-Dmongodb.database={self.database_name}',  # ← AGGIUNGI QUESTA RIGA
+                        '-cp', classpath,
+                        'jco.ql.engine.JcoScriptLauncher',
+                        str(main_props)
+                    ]
             
             # 6. Esecuzione del subprocesso con cattura dell'output
             result = subprocess.run(
@@ -173,6 +179,26 @@ class JCoFrameworkExecutor:
                 encoding='utf-8',
                 errors='replace'
             )
+
+            # ✅ DEBUG LOGGING - AGGIUNGI QUESTE RIGHE
+            print(f"\n{'='*60}")
+            print(f"🔍 JCO FRAMEWORK DEBUG")
+            print(f"{'='*60}")
+            print(f"Database: {self.database_name}")
+            print(f"Return code: {result.returncode}")
+            print(f"STDOUT length: {len(result.stdout)}")
+
+            # ✅ AGGIUNGI QUESTA RICERCA:
+            if "firstBatch" in result.stdout:
+                print("✅ 'firstBatch' TROVATO nel output!")
+                # Mostra 500 chars PRIMA di firstBatch
+                idx = result.stdout.find("firstBatch")
+                print(f"\nContext intorno a 'firstBatch':\n{result.stdout[max(0, idx-200):idx+500]}")
+            else:
+                print("❌ 'firstBatch' NON trovato!")
+                print(f"\n📄 FULL STDOUT:\n{result.stdout}")
+
+            print(f"{'='*60}\n")
             
             if result.returncode == 0 and "ECCEZIONE:" not in result.stdout:
                 parsed_results = self._parse_output(result.stdout)
