@@ -47,7 +47,7 @@ class JCoFrameworkExecutor:
         return str(jars_sorted[-1])
 
     def execute(self, jcoql_query):
-        """Esegue query JCoQL tramite il framework Java JcoScriptLauncher."""
+        """Esegui query JCoQL con JCo Framework"""
         try:
             # 1. Scrittura della query JCoQL e del file prolog temporanei
             query_file = self.data_path / "query.jcoql"
@@ -71,17 +71,20 @@ class JCoFrameworkExecutor:
             
             # 3. Scrittura delle configurazioni generali per il Launcher Java
             main_props = self.data_path / "mongodb_test.properties"
-            
+
             # Formattazione percorsi con '/' per compatibilità con l'engine Java su Windows/Unix
             prolog_path_str = str(prolog_file).replace('\\', '/')
             query_path_str = str(query_file).replace('\\', '/')
             conn_path_str = str(conn_props).replace('\\', '/')
-            
+
+            # database nel properties principale
             main_props.write_text(
                 f"fileInProlog={prolog_path_str}\n"
                 f"fileInTest={query_path_str}\n"
                 "testName=PythonAutomatedTest\n"
                 f"keyPropertyFile={conn_path_str}\n"
+                f"mongodb.database={self.database_name}\n" 
+                f"mongodb.uri={self.mongo_uri}\n"            
                 "toScreen=true\n",
                 encoding='utf-8'
             )
