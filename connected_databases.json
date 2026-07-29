@@ -4,21 +4,6 @@
     "mongo_uri": null,
     "database_name": "jcoql_test"
   },
-  "test_db": {
-    "name": "test_db",
-    "mongo_uri": null,
-    "database_name": "test_db"
-  },
-  "sample_airbnb": {
-    "name": "sample_airbnb",
-    "mongo_uri": null,
-    "database_name": "sample_airbnb"
-  },
-  "sample_restaurants": {
-    "name": "sample_restaurants",
-    "mongo_uri": null,
-    "database_name": "sample_restaurants"
-  },
   "sample_mflix": {
     "name": "sample_mflix",
     "mongo_uri": null,

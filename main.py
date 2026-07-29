@@ -39,6 +39,9 @@ from backend.query_corrector import correct_query
 from backend.database_persistence import load_databases_from_file, save_databases_to_file
 from backend.join_executor import JoinExecutor
 
+#import per utilizzo liste
+from typing import List, Optional
+
 # ==============================================================================
 # CONFIGURAZIONE PATH E MODULI INTERNI
 # ==============================================================================
@@ -121,6 +124,12 @@ class GenerateRequest(BaseModel):
     nl_query: str
     max_retries: int = 3
 
+class QueryRequest(BaseModel):
+    jcoql_query: str = ""
+    database_name: Optional[str] = None
+    databases: List[str] = ["jcoql_test"]
+    join_config: Optional[dict] = None
+
 # ==============================================================================
 # LIFECYCLE EVENTS
 # ==============================================================================
@@ -152,17 +161,18 @@ async def startup_event():
 
     startup_logger.info("🔧 Inizializzazione Executor...")
     try:
+        # Recupera il database corrente impostato nel registry
+        current_db = db_registry.get_current_database_name() or "jcoql_test"
+
         executor = ExecutorFactory.create_executor(
             ExecutorType(ACTIVE_EXECUTOR),
             mongo_uri="mongodb://localhost:27017",
-            database="jcoql_test"
+            database=current_db
         )
-        startup_logger.info(f"✅ Executor '{ACTIVE_EXECUTOR}' inizializzato correttamente")
+        startup_logger.info(f"✅ Executor '{ACTIVE_EXECUTOR}' inizializzato sul database '{current_db}'")
     except Exception as e:
         startup_logger.error(f"❌ Errore Inizializzazione Executor: {e}", exc_info=True)
         executor = None
-    
-    startup_logger.info("🚀 Startup completato con successo!")
 
 
 @app.on_event("shutdown")
@@ -404,24 +414,30 @@ async def list_parsers():
 # ==============================================================================
 # ENDPOINT: ESECUZIONE QUERY JCOQL SU MONGODB
 # ==============================================================================
+# ==============================================================================
+# ENDPOINT: ESECUZIONE QUERY JCOQL SU MONGODB
+# ==============================================================================
 @app.post("/api/execute")
-async def execute_query(request_data: dict):
+async def execute_query(request: QueryRequest):
+    global executor
+
     try:
-        jcoql_query = request_data.get('jcoql_query', '').strip()
-        databases = request_data.get('databases', ['jcoql_test'])
-        database_name = request_data.get('database_name')
-        join_config = request_data.get('join_config')
+        # 1. Estrazione di TUTTI i campi dalla request (evita NameError)
+        jcoql_query = request.jcoql_query.strip() if request.jcoql_query else ""
+        databases = request.databases or []
+        database_name = request.database_name
+        join_config = request.join_config  # <-- DEFINITA QUI!
         
         if not jcoql_query:
             return {"success": False, "error": "Query vuota"}
-        
-        # JOIN mode
+
+        # 2. Gestione JOIN mode (se presente)
         if join_config and len(databases) >= 2:
             query_logger.info("🔗 JOIN MODE ATTIVATO")
             join_executor = JoinExecutor(ExecutorFactory, parser, db_registry)
             actual_results = join_executor.execute_join(jcoql_query, join_config)
             actual_count = len(actual_results)
-            target_db = f"{join_config['db1']} ⊕ {join_config['db2']}"
+            target_db = f"{join_config.get('db1', '')} ⊕ {join_config.get('db2', '')}"
             
             return {
                 "success": True,
@@ -432,27 +448,21 @@ async def execute_query(request_data: dict):
                 "join_config": join_config,
                 "mongo_query": None
             }
-        
-        # Query singola
-        target_db = database_name or (databases[0] if databases else 'jcoql_test')
-        
-        query_logger.info(f"📤 Esecuzione: {jcoql_query}")
-        query_logger.info(f"📦 Database: {target_db}")
-        
-        global executor
-        executor = ExecutorFactory.create_executor(
-            ExecutorType(ACTIVE_EXECUTOR),
-            mongo_uri="mongodb://localhost:27017",
-            database=target_db
-        )
-        
+
+        # 3. Determinazione dinamica del Database Target dal registro o dalla request
+        target_db = database_name or db_registry.get_current_database_name() or "jcoql_test"
+
+        if hasattr(executor, "set_database"):
+            executor.set_database(target_db)
+
         is_valid, errors = parser.validate(jcoql_query)
         if not is_valid:
             return {"success": False, "error": "Query non valida"}
-        
-        if not executor:
-            return {"success": False, "error": "Executor non inizializzato"}
-        
+
+        query_logger.info(f"📤 Esecuzione: {jcoql_query}")
+        query_logger.info(f"📦 Database Attivo: {target_db}")
+
+        # 4. Esecuzione passando il database target dinamico
         execution_result = executor.execute(jcoql_query)
 
         actual_count = 0
@@ -460,12 +470,12 @@ async def execute_query(request_data: dict):
 
         if isinstance(execution_result, dict):
             if execution_result.get('success'):
-                results = execution_result.get('results', [])
+                results = execution_result.get('results', {})
                 if isinstance(results, list):
                     actual_results = results
                     actual_count = len(actual_results)
                 elif isinstance(results, dict):
-                    actual_results = results.get('text', results)
+                    actual_results = results.get('data', results.get('text', []))
                     actual_count = results.get('doc_count', len(actual_results) if isinstance(actual_results, list) else 0)
                 else:
                     actual_results = results
@@ -483,10 +493,12 @@ async def execute_query(request_data: dict):
             "database": target_db,
             "mongo_query": None
         }
-        
-    except Exception as err:
-        query_logger.error(f"❌ Errore esecuzione: {err}", exc_info=True)
-        return {"success": False, "error": str(err)}
+
+    except Exception as e:
+        import traceback
+        query_logger.error(f"❌ Errore non gestito in /api/execute: {e}")
+        query_logger.error(traceback.format_exc())
+        raise HTTPException(status_code=500, detail=str(e))
 
 # ==============================================================================
 # ENDPOINT: GESTIONE COLLEZIONI MONGODB
@@ -571,10 +583,18 @@ async def list_databases():
 
 @app.post("/api/databases/select")
 async def select_database(database_name: str):
-    global GLOBAL_SCHEMA
+    global GLOBAL_SCHEMA, executor
+    
     success = db_registry.set_current_database(database_name)
     if success:
         GLOBAL_SCHEMA = db_registry.get_current_schema()
+        
+        # 🔄 Aggiorna/Re-inizializza l'executor con il nuovo database selezionato
+        if executor:
+            executor.db = executor.client[database_name]  # Se la tua classe supporta il riassegnamento del DB
+            # Oppure ricrei l'istanza se necessario:
+            # executor = ExecutorFactory.create_executor(ExecutorType(ACTIVE_EXECUTOR), "mongodb://localhost:27017", database=database_name)
+            
         return {
             "success": True,
             "current_database": database_name,
@@ -585,9 +605,21 @@ async def select_database(database_name: str):
 
 @app.post("/api/databases/connect")
 async def connect_database(db_name: str, mongo_uri: str, database_name: str):
+    """Connetti a un database MongoDB"""
     try:
-        db_registry.add_database(database_name, mongo_uri)
+        # ❌ SBAGLIATO:
+        # db_registry.add_database(database_name, mongo_uri)
+        
+        # ✅ CORRETTO:
+        db_registry.add_database(
+            db_name=db_name,
+            mongo_uri=mongo_uri,
+            database_name=database_name
+        )
+        
+        from backend.database_persistence import save_databases_to_file
         save_databases_to_file(db_registry)
+        
         return {
             "success": True,
             "database": database_name,
