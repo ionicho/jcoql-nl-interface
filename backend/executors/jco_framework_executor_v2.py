@@ -4,6 +4,86 @@ import os, re, json, subprocess
 from pathlib import Path
 from urllib.parse import urlparse
 
+def apply_filter_to_results(results: list, filter_condition: str) -> list:
+    """
+    Applica un filtro ai risultati quando il JCo non lo ha fatto
+    
+    Supporta: .field > value, .nested.field = value, etc.
+    
+    Args:
+        results: Lista di documenti
+        filter_condition: Condizione JCOQL (es: ".imdb.rating > 8")
+    
+    Returns:
+        Lista filtrata
+    """
+    if not filter_condition or not results:
+        return results
+    
+    import re
+    
+    # Parse della condizione: .field OPERATOR value
+    match = re.match(r'\.([a-zA-Z0-9_.]+)\s*(>=|<=|>|<|=|!=)\s*(.+)', filter_condition.strip())
+    
+    if not match:
+        return results  # Non riesco a parsare, ritorna tutto
+    
+    field_path, operator, value_str = match.groups()
+    value_str = value_str.strip().strip("'\"")
+    
+    # Converti il valore
+    try:
+        if value_str.lower() in ('true', 'false'):
+            value = value_str.lower() == 'true'
+        elif value_str.isdigit() or (value_str.startswith('-') and value_str[1:].isdigit()):
+            value = int(value_str)
+        elif '.' in value_str and all(c.isdigit() or c == '.' for c in value_str):
+            value = float(value_str)
+        else:
+            value = value_str
+    except:
+        value = value_str
+    
+    filtered = []
+    
+    for doc in results:
+        # Navigazione nested: .imdb.rating → doc["imdb"]["rating"]
+        doc_value = doc
+        for part in field_path.split('.'):
+            if isinstance(doc_value, dict) and part in doc_value:
+                doc_value = doc_value[part]
+            else:
+                doc_value = None
+                break
+        
+        if doc_value is None:
+            continue  # Campo non trovato, skip
+        
+        # Applica l'operatore
+        try:
+            if operator == '>':
+                matches = doc_value > value
+            elif operator == '<':
+                matches = doc_value < value
+            elif operator == '>=':
+                matches = doc_value >= value
+            elif operator == '<=':
+                matches = doc_value <= value
+            elif operator == '=':
+                matches = doc_value == value
+            elif operator == '!=':
+                matches = doc_value != value
+            else:
+                matches = False
+            
+            if matches:
+                filtered.append(doc)
+        except TypeError:
+            # Confronto non possibile (es: stringa > numero)
+            pass
+    
+    return filtered
+
 class JCoFrameworkExecutor:
     def __init__(self, mongo_uri="mongodb://localhost:27017", database="jcoql_test"):
         user_home = Path.home()
@@ -21,17 +101,198 @@ class JCoFrameworkExecutor:
     def _get_latest_jar(self, search_path, pattern):
         jars = [j for j in search_path.rglob(pattern) if "-sources" not in str(j)]
         return str(sorted(jars)[-1]) if jars else None
-    
-    def _parse_output(self, output):
-        try:
-            match = re.search(r'"firstBatch":\s*(\[.*?\])', output, re.DOTALL)
+
+    def _extract_collection_name(self, jcoql_query):
+            """Estrai il nome della collezione dalla query JCoQL"""
+            # Pattern: GET COLLECTION nome_collezione
+            match = re.search(r'GET\s+COLLECTION\s+(\w+)', jcoql_query, re.IGNORECASE)
             if match:
-                docs = json.loads(match.group(1))
-                return {'text': json.dumps(docs, indent=2), 'doc_count': len(docs), 'results': docs}
-        except:
-            pass
-        return {'text': output, 'doc_count': 0, 'results': []}
+                return match.group(1)
+            return None  # Nessun default
+
     
+    def _parse_output(self, output, jcoql_query):
+        """Estrai documenti dal log, con fallback MongoDB se parsing fallisce"""
+        doc_count = 0
+        docs = []
+        
+        try:
+            # ✅ Ricerca del numero di documenti
+            match = re.search(r'Get Collection.*?executed:\s+(\d+)\s+documents', output, re.DOTALL | re.IGNORECASE)
+            if match:
+                doc_count = int(match.group(1))
+                print(f"[JCoFrameworkExecutor] ✅ Trovati {doc_count} documenti!")
+                
+                try:
+                    # ✅ Cerca il comando "find" per sapere da dove iniziano i film
+                    find_index = output.find('Command: {"find"')
+                    if find_index == -1:
+                        find_index = 0
+                    
+                    search_from = output[find_index:]
+                    
+                    # Estrai firstBatch DOPO il comando find
+                    fb_matches = re.findall(r'"firstBatch":\s*\[([^\[\]]*(?:\[[^\[\]]*\][^\[\]]*)*)\]', search_from, re.DOTALL)
+                    for i, fb in enumerate(fb_matches):
+                        try:
+                            # Filtra i batch che sono collezioni (hanno solo "name" e "type")
+                            if '"name"' in fb and '"type": "collection"' in fb:
+                                print(f"[JCoFrameworkExecutor] ⚠️ Skipping collections batch #{i}")
+                                continue
+                            
+                            batch_docs = json.loads('[' + fb + ']')
+                            docs.extend(batch_docs)
+                            print(f"[JCoFrameworkExecutor] ✅ Estratti {len(batch_docs)} doc da firstBatch #{i}")
+                        except Exception as e:
+                            print(f"[JCoFrameworkExecutor] ⚠️ Errore parsing firstBatch #{i}: {str(e)[:50]}")
+                    
+                    # Estrai nextBatch
+                    nb_matches = re.findall(r'"nextBatch":\s*\[([^\[\]]*(?:\[[^\[\]]*\][^\[\]]*)*)\]', search_from, re.DOTALL)
+                    for i, nb in enumerate(nb_matches):
+                        try:
+                            batch_docs = json.loads('[' + nb + ']')
+                            docs.extend(batch_docs)
+                            print(f"[JCoFrameworkExecutor] ✅ Estratti {len(batch_docs)} doc da nextBatch #{i}")
+                        except Exception as e:
+                            print(f"[JCoFrameworkExecutor] ⚠️ Errore parsing nextBatch #{i}: {str(e)[:50]}")
+                            
+                except Exception as e:
+                    print(f"[JCoFrameworkExecutor] ⚠️ Parsing batch fallito: {e}")
+            else:
+                print(f"[JCoFrameworkExecutor] ⚠️ Pattern '[Get Collection] executed' non trovato!")
+                
+        except Exception as e:
+            print(f"[JCoFrameworkExecutor] Errore parsing: {e}")
+        
+        # ✅ FALLBACK MONGODB - Estrai il nome della collezione dalla query
+        if not docs and doc_count > 0:
+            collection_name = self._extract_collection_name(jcoql_query)
+            if collection_name:
+                print(f"[JCoFrameworkExecutor] 📦 Fallback: estrazione da MongoDB ({collection_name})...")
+                docs = self._get_documents_from_mongodb(collection_name, limit=100)
+                print(f"[JCoFrameworkExecutor] ✅ Estratti {len(docs)} doc da MongoDB")
+        
+        # ✅ RETURN - Ora docs potrebbe non essere vuoto grazie al fallback
+        return {
+            'text': json.dumps(docs[:5], indent=2) if docs else f"✅ {doc_count} documenti caricati",
+            'doc_count': doc_count,
+            'results': docs[:100] if docs else []
+        }
+
+
+    
+
+
+    def _get_documents_from_mongodb(self, collection_name, limit=100):
+        """Fallback: estrai documenti direttamente da MongoDB se il parsing fallisce"""
+        try:
+            from pymongo import MongoClient
+            from datetime import datetime
+            
+            client = MongoClient("mongodb://localhost:27017")
+            db = client[self.database_name]
+            collection = db[collection_name]
+            
+            # Estrai i primi 'limit' documenti
+            docs = list(collection.find().limit(limit))
+            
+            # ✅ CONVERTI TUTTI I CAMPI NON SERIALIZZABILI
+            for doc in docs:
+                # Converti ObjectId a stringa
+                if '_id' in doc:
+                    doc['_id'] = str(doc['_id'])
+                
+                # Converti tutti i datetime a ISO format
+                for key, value in doc.items():
+                    if isinstance(value, datetime):
+                        doc[key] = value.isoformat()
+                    elif isinstance(value, dict):
+                        # Se è un dict annidato, converti anche i datetime dentro
+                        for k, v in value.items():
+                            if isinstance(v, datetime):
+                                value[k] = v.isoformat()
+            
+            return docs
+        except Exception as e:
+            print(f"[JCoFrameworkExecutor] ⚠️ Errore query MongoDB: {e}")
+            return []
+
+
+    def _apply_filter_to_results(self, results: list, filter_condition: str) -> list:
+        """
+        Applica un filtro ai risultati quando il JCo non lo ha fatto
+        Supporta: .field > value, .nested.field = value, etc.
+        """
+        if not filter_condition or not results:
+            return results
+        
+        # Parse della condizione: .field OPERATOR value
+        match = re.match(r'\.([a-zA-Z0-9_.]+)\s*(>=|<=|>|<|=|!=)\s*(.+)', filter_condition.strip())
+        
+        if not match:
+            return results  # Non riesco a parsare, ritorna tutto
+        
+        field_path, operator, value_str = match.groups()
+        value_str = value_str.strip().strip("'\"")
+        
+        # Converti il valore
+        try:
+            if value_str.lower() in ('true', 'false'):
+                value = value_str.lower() == 'true'
+            elif value_str.lstrip('-').isdigit():
+                value = int(value_str)
+            elif '.' in value_str:
+                try:
+                    value = float(value_str)
+                except:
+                    value = value_str
+            else:
+                value = value_str
+        except:
+            value = value_str
+        
+        filtered = []
+        
+        for doc in results:
+            # Navigazione nested: .imdb.rating → doc["imdb"]["rating"]
+            doc_value = doc
+            for part in field_path.split('.'):
+                if isinstance(doc_value, dict) and part in doc_value:
+                    doc_value = doc_value[part]
+                else:
+                    doc_value = None
+                    break
+            
+            if doc_value is None:
+                continue  # Campo non trovato, skip
+            
+            # Applica l'operatore
+            try:
+                if operator == '>':
+                    matches = doc_value > value
+                elif operator == '<':
+                    matches = doc_value < value
+                elif operator == '>=':
+                    matches = doc_value >= value
+                elif operator == '<=':
+                    matches = doc_value <= value
+                elif operator == '=':
+                    matches = doc_value == value
+                elif operator == '!=':
+                    matches = doc_value != value
+                else:
+                    matches = False
+                
+                if matches:
+                    filtered.append(doc)
+            except TypeError:
+                # Confronto non possibile (es: stringa > numero)
+                pass
+        
+        return filtered
+
+
+
     def execute(self, jcoql_query):
         try:
             query_file = self.data_path / "query.jcoql"
@@ -39,18 +300,47 @@ class JCoFrameworkExecutor:
             conn_props = self.data_path / "mongodb_connection.properties"
             main_props = self.data_path / "mongodb_test.properties"
             
-            # Scrittura del file query (pulita, senza comandi iniettati)[cite: 6]
+            # File 1: mongodb_test.properties
+            properties_file = os.path.join(os.path.expanduser("~"), ".data", ".zunTestScripts", "mongodb_test.properties")
+            properties_content = f"""fileInProlog=C:/Users/nicho/.data/.zunTestScripts/prolog.jcoql
+            fileInTest=C:/Users/nicho/.data/.zunTestScripts/query.jcoql
+            testName=PythonAutomatedTest
+            keyPropertyFile=C:/Users/nicho/.data/.zunTestScripts/mongodb_connection.properties
+            default.server=localhost
+            server.localhost.uri=mongodb://localhost:27017/{self.database_name}
+            server.localhost.database={self.database_name}
+            mongodb.uri=mongodb://localhost:27017/{self.database_name}
+            mongodb.database={self.database_name}
+            mongo.db={self.database_name}
+            database={self.database_name}
+            toScreen=true
+            """
+
+            # File 2: mongodb_connection.properties
+            connection_file = os.path.join(os.path.expanduser("~"), ".data", ".zunTestScripts", "mongodb_connection.properties")
+            connection_content = f"""mongodb.database={self.database_name}
+            mongodb.uri=mongodb://localhost:27017/{self.database_name}
+            """
+
+            try:
+                with open(properties_file, 'w') as f:
+                    f.write(properties_content)
+                with open(connection_file, 'w') as f:
+                    f.write(connection_content)
+                print(f"[JCoFrameworkExecutor] 📝 Properties scritti: {self.database_name}")
+            except Exception as e:
+                print(f"[JCoFrameworkExecutor] ⚠️ Errore scrittura properties: {e}")
+
+            prolog_content = f"USE DB {self.database_name} ON DEFAULT SERVER;\n"
+            prolog_file.write_text(prolog_content, encoding='utf-8')
+
             query_file.write_text(jcoql_query, encoding='utf-8')
             
-            # Scrittura del prolog con la sintassi nativa del framework[cite: 5, 6]
-            prolog_content = ""
-            prolog_file.write_text(prolog_content, encoding='utf-8')
-            
-            # URI con database[cite: 6]
+            # URI con database
             parsed = urlparse(self.mongo_uri)
             mongo_uri_with_db = f"{parsed.scheme or 'mongodb'}://{parsed.netloc}/{self.database_name}"
             
-            # Scrittura properties di connessione con mappatura del server localhost[cite: 3, 6]
+            # Scrittura properties di connessione
             conn_props.write_text(
                 "default.server=localhost\n"
                 f"server.localhost.uri={mongo_uri_with_db}\n"
@@ -59,8 +349,8 @@ class JCoFrameworkExecutor:
                 f"mongodb.uri={mongo_uri_with_db}\n"
                 f"mongo.db={self.database_name}\n"
                 f"mongodb.database={self.database_name}\n"
-                f"dbName={self.database_name}\n"          
-                f"database={self.database_name}\n"        
+                f"dbName={self.database_name}\n"
+                f"database={self.database_name}\n"
                 "mongo.useSSL=false\n",
                 encoding='utf-8'
             )
@@ -68,8 +358,11 @@ class JCoFrameworkExecutor:
             prolog_abs = str(prolog_file.resolve()).replace('\\', '/')
             query_abs = str(query_file.resolve()).replace('\\', '/')
             conn_abs = str(conn_props.resolve()).replace('\\', '/')
-            
-            # Scrittura del file principale delle properties[cite: 4, 6]
+
+            print(f"\n🔍 DEBUG: database_name = {self.database_name}\n")
+            print(f"🔍 DEBUG: mongo_uri_with_db = {mongo_uri_with_db}\n")
+
+            # Scrittura del file principale delle properties
             main_props.write_text(
                 f"fileInProlog={prolog_abs}\n"
                 f"fileInTest={query_abs}\n"
@@ -87,9 +380,14 @@ class JCoFrameworkExecutor:
                 encoding='utf-8'
             )
             
-            # Classpath[cite: 6]
+            # Classpath
             gradle_cache = Path.home() / ".gradle/caches/modules-2/files-2.1"
             jar_patterns = [
+                # ✅ AGGIUNTO 07/2026 - JACKSON (Richiesto da MongoDB DocumentUtils)
+                (gradle_cache / "com.fasterxml.jackson.core/jackson-databind", "jackson-databind-*.jar"),
+                (gradle_cache / "com.fasterxml.jackson.core/jackson-core", "jackson-core-*.jar"),
+                (gradle_cache / "com.fasterxml.jackson.core/jackson-annotations", "jackson-annotations-*.jar"),
+                
                 # --- ANTLR & LOGGING ---
                 (gradle_cache / "org.antlr/antlr-runtime", "antlr-runtime-*.jar"),
                 (gradle_cache / "org.slf4j/slf4j-api", "slf4j-api-*.jar"),
@@ -136,27 +434,54 @@ class JCoFrameworkExecutor:
             classpath = os.pathsep.join(classpath_parts)
             
             cmd = [
-                'java', 
+                'java',
+                '-Xmx512m',
                 f'-Dmongodb.database={self.database_name}',
                 f'-Dmongo.db={self.database_name}',
                 f'-Ddatabase={self.database_name}',
-                '-cp', classpath, 
-                'jco.ql.engine.JcoScriptLauncher', 
+                '-cp', classpath,
+                'jco.ql.engine.JcoScriptLauncher',
                 str(main_props.resolve())
             ]
             
-            result = subprocess.run(cmd, cwd=str(self.jco_base), capture_output=True, 
+            result = subprocess.run(cmd, cwd=str(self.jco_base), capture_output=True,
                                   text=True, timeout=30, encoding='utf-8', errors='replace')
 
             print(f"RAW STDOUT FROM JAVA:\n{result.stdout}\n")
             print(f"\n{'='*60}\nDatabase: {self.database_name}\nQuery: {jcoql_query}\nReturn: {result.returncode}\n{'='*60}\n")
             
             if result.returncode == 0 and "ECCEZIONE:" not in result.stdout:
-                parsed = self._parse_output(result.stdout)
-                return {'success': True, 'raw_output': result.stdout, 'results': parsed, 
-                       'doc_count': parsed.get('doc_count', 0), 'executor': 'jco_framework'}
+                parsed = self._parse_output(result.stdout, jcoql_query)
+                
+                # ✅ FALLBACK: Se il FilterExecutor del JCo non ha filtrato (ritorna TUTTI),
+                #    applica il filtro manualmente in Python
+                if "FILTER CASE WHERE" in jcoql_query.upper():
+                    # Estrai la condizione dal filtro
+                    filter_match = re.search(r'WHERE\s+(.+?)\s+KEEP\s+OTHERS', jcoql_query, re.IGNORECASE)
+                    if filter_match:
+                        filter_condition = filter_match.group(1).strip()
+                        # Applica il filtro
+                        filtered_results = self._apply_filter_to_results(
+                            parsed.get('results', []), 
+                            filter_condition
+                        )
+                        parsed['results'] = filtered_results
+                        parsed['doc_count'] = len(filtered_results)
+                        print(f"[JCoFrameworkExecutor] ✅ Filtro Python applicato: {filter_condition} → {len(filtered_results)} documenti")
+                
+                return {
+                    'success': True,
+                    'jcoql_query': jcoql_query,
+                    'count': parsed.get('doc_count', 0),
+                    'results': parsed.get('results', []),
+                    'text': parsed.get('text', ''),
+                    'executor': 'jco_framework'
+                }
             else:
-                return {'success': False, 'error': result.stderr or "Failed", 
-                       'raw_output': result.stdout, 'executor': 'jco_framework'}
+                return {
+                    'success': False,
+                    'error': result.stderr or "Failed",
+                    'executor': 'jco_framework'
+                }
         except Exception as e:
             return {'success': False, 'error': str(e), 'executor': 'jco_framework'}

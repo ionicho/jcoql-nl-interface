@@ -1,1 +1,1 @@
-GET COLLECTION movies;
+GET COLLECTION movies; FILTER CASE WHERE .language = 'English' KEEP OTHERS;

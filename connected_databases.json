@@ -8,5 +8,20 @@
     "name": "sample_mflix",
     "mongo_uri": null,
     "database_name": "sample_mflix"
+  },
+  "sample_restaurants": {
+    "name": "sample_restaurants",
+    "mongo_uri": null,
+    "database_name": "sample_restaurants"
+  },
+  "test_db": {
+    "name": "test_db",
+    "mongo_uri": null,
+    "database_name": "test_db"
+  },
+  "sample_airbnb": {
+    "name": "sample_airbnb",
+    "mongo_uri": null,
+    "database_name": "sample_airbnb"
   }
 }

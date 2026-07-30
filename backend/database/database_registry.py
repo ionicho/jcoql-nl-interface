@@ -102,5 +102,28 @@ class DatabaseRegistry:
             except Exception as e:
                 print(f"⚠️ Errore chiusura '{db_name}': {e}")
 
+
+    def get_schema_for_all_databases(self) -> dict:
+            """
+            Ritorna lo schema di TUTTI i database registrati
+            
+            Returns:
+                {
+                    "jcoql_test": {
+                        "users": {"total_documents": 10, "fields": {...}},
+                        "orders": {...}
+                    },
+                    "test_db": {...},
+                    ...
+                }
+            """
+            all_schemas = {}
+            
+            for db_name, db_info in self.databases.items():
+                all_schemas[db_name] = db_info["schema"]
+            
+            return all_schemas
+
+
 # Istanza globale
 db_registry = DatabaseRegistry()

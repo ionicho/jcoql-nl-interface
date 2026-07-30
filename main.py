@@ -107,10 +107,21 @@ startup_logger.info("📦 Caricamento configurazione completato.")
 executor = None
 GLOBAL_SCHEMA = {}
 
+from bson import ObjectId
+from json import JSONEncoder
+
+class MongoDBJSONEncoder(JSONEncoder):
+    """Encoder personalizzato per convertire ObjectId e altri tipi MongoDB"""
+    def default(self, obj):
+        if isinstance(obj, ObjectId):
+            return str(obj)  # Converti ObjectId a string
+        return super().default(obj)
+
+
 # ==============================================================================
 # FASTAPI APP & MIDDLEWARE
 # ==============================================================================
-app = FastAPI(title="JCoQL+ Multi-Parser API")
+app = FastAPI(title="JCoQL+ Multi-Parser API", json_encoder=MongoDBJSONEncoder)
 
 app.add_middleware(
     CORSMiddleware,
@@ -294,6 +305,19 @@ Aggiungere dati tramite MongoDB prima di usare le query."""
         Input: "Film del 2020" → Query: GET COLLECTION movies; FILTER CASE WHERE .year = 2020 KEEP OTHERS;
         Input: "Ristoranti" → Query: GET COLLECTION restaurants;
 
+        🔧 IMPORTANTE - ATTRIBUTI NESTED:
+   
+        Quando vedi i nomi campo nello schema, alcuni hanno punti:
+        ✅ .imdb.rating        → Campo annidato in "imdb"
+        ✅ .tomatoes.viewer.meter  → Campo annidato profondo
+        
+        SEMPRE usare il percorso COMPLETO nei filtri:
+        ✅ CORRETTO:   FILTER CASE WHERE .imdb.rating > 9 KEEP OTHERS;
+        ❌ SBAGLIATO:  FILTER CASE WHERE .rating > 9 KEEP OTHERS;
+
+        SCHEMA MONGODB REALE (Database: {db_registry.get_current_database_name()}):
+{schema_prompt_str}
+
 {schema_prompt_str}
 
 {EXTENDED_EXAMPLES}
@@ -452,15 +476,21 @@ async def execute_query(request: QueryRequest):
         # 3. Determinazione dinamica del Database Target dal registro o dalla request
         target_db = database_name or db_registry.get_current_database_name() or "jcoql_test"
 
-        if hasattr(executor, "set_database"):
-            executor.set_database(target_db)
+        # ✅ CORRETTO - Ricrea l'executor se il database è diverso
+        if not executor or (hasattr(executor, 'database_name') and executor.database_name != target_db):
+            query_logger.info(f"🔄 Ricreazione executor per database: {target_db}")
+            executor = ExecutorFactory.create_executor(
+                ExecutorType(ACTIVE_EXECUTOR),
+                mongo_uri="mongodb://localhost:27017",
+                database=target_db
+            )
 
         is_valid, errors = parser.validate(jcoql_query)
         if not is_valid:
             return {"success": False, "error": "Query non valida"}
 
         query_logger.info(f"📤 Esecuzione: {jcoql_query}")
-        query_logger.info(f"📦 Database Attivo: {target_db}")
+        query_logger.info(f"📦 Database Attivo: {target_db}") 
 
         # 4. Esecuzione passando il database target dinamico
         execution_result = executor.execute(jcoql_query)
@@ -470,16 +500,21 @@ async def execute_query(request: QueryRequest):
 
         if isinstance(execution_result, dict):
             if execution_result.get('success'):
-                results = execution_result.get('results', {})
-                if isinstance(results, list):
-                    actual_results = results
-                    actual_count = len(actual_results)
-                elif isinstance(results, dict):
-                    actual_results = results.get('data', results.get('text', []))
-                    actual_count = results.get('doc_count', len(actual_results) if isinstance(actual_results, list) else 0)
+                # Controlla se 'count' esiste direttamente in execution_result
+                if 'count' in execution_result:
+                    actual_count = execution_result['count']
+                    actual_results = execution_result.get('results', [])
                 else:
-                    actual_results = results
-                    actual_count = 1 if results else 0
+                    results = execution_result.get('results', {})
+                    if isinstance(results, list):
+                        actual_results = results
+                        actual_count = len(actual_results)
+                    elif isinstance(results, dict):
+                        actual_results = results.get('data', results.get('text', []))
+                        actual_count = results.get('doc_count', len(actual_results) if isinstance(actual_results, list) else 0)
+                    else:
+                        actual_results = results
+                        actual_count = 1 if results else 0
             else:
                 error_msg = execution_result.get('error', 'Errore sconosciuto')
                 query_logger.error(f"❌ Errore Executor: {error_msg}")
@@ -576,10 +611,23 @@ async def get_collection_count(collection_name: str):
 # ==============================================================================
 @app.get("/api/databases")
 async def list_databases():
-    return {
-        "databases": db_registry.list_databases(),
-        "current": db_registry.get_current_database_name()
-    }
+    """Restituisce la lista di tutti i database registrati"""
+    try:
+        databases_list = db_registry.list_databases()
+        
+        return {
+            "databases": databases_list,
+            "current": db_registry.get_current_database_name(),
+            "schemas": {}  # ← Per adesso, ritorna vuoto
+        }
+    except Exception as e:
+        db_logger.error(f"❌ Errore /api/databases: {e}", exc_info=True)
+        return {
+            "databases": [],
+            "current": "none",
+            "schemas": {},
+            "error": str(e)
+        }
 
 @app.post("/api/databases/select")
 async def select_database(database_name: str):
@@ -590,10 +638,15 @@ async def select_database(database_name: str):
         GLOBAL_SCHEMA = db_registry.get_current_schema()
         
         # 🔄 Aggiorna/Re-inizializza l'executor con il nuovo database selezionato
-        if executor:
-            executor.db = executor.client[database_name]  # Se la tua classe supporta il riassegnamento del DB
-            # Oppure ricrei l'istanza se necessario:
-            # executor = ExecutorFactory.create_executor(ExecutorType(ACTIVE_EXECUTOR), "mongodb://localhost:27017", database=database_name)
+        # 🔄 Aggiorna/Re-inizializza l'executor con il nuovo database selezionato
+    if executor:
+        # ✅ Ricrea l'executor con il nuovo database
+        executor = ExecutorFactory.create_executor(
+            ExecutorType(ACTIVE_EXECUTOR), 
+            mongo_uri="mongodb://localhost:27017", 
+            database=database_name
+        )
+        startup_logger.info(f"✅ Executor ricreato per database: {database_name}")
             
         return {
             "success": True,
