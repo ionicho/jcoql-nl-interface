@@ -52,10 +52,11 @@ Permettere agli utenti di interrogare database MongoDB usando **linguaggio natur
 └──────────────────┬──────────────────────────────────────┘
                    ↓
 ┌─────────────────────────────────────────────────────────┐
-│  JCOQL EXECUTOR                                        │
+│  JCOQL EXECUTOR (Dual-Mode)                            │
 │  • Python Translator: JCoQL → MongoDB (90% query)      │
-│  • JCO Framework: Support completo (opzionale)         │
-│  • Traduzione automatica operatori                     │
+│  • JCO Framework: Support completo + filtering         │
+│  • Switch runtime via .env o UI                        │
+│  • Filtri applicate direttamente in MongoDB            │
 └──────────────────┬──────────────────────────────────────┘
                    ↓
 ┌─────────────────────────────────────────────────────────┐
@@ -145,7 +146,7 @@ Open browser: **http://localhost:5173**
 - **LLM Local:** Ollama (Llama 3.1 8B, Gemma 2 9B)
 - **Embeddings:** sentence-transformers (all-MiniLM-L6-v2)
 - **Parser:** ANTLR 4.9.3 + ANTLR 3.4
-- **Executor:** PyMongo + Custom JCoQL Translator
+- **Executor:** Python JCoQL Translator + JCO Framework (dual-mode)
 
 ### Frontend
 - **Framework:** React 19
@@ -269,33 +270,35 @@ class ExecutorFactory:
             raise NotImplementedError("See INTEGRATION_ANALYSIS.md")
 ```
 
-### Decision Analysis: Python Translator vs JCO Framework
+### JCO Framework Integration (Risolto - luglio 2026)
 
-Dopo analisi sistematica di **6 approcci** per integrare JCO Framework:
+**Problema iniziale:** 6 approcci testati per integrare JCO Framework avevano limitazioni:
 
-| Approccio | Problema | Risultato |
+| Approccio | Problema | Soluzione |
 |-----------|----------|-----------|
-| Subprocess CLI | Path hardcoded `../../.data/` | FileNotFoundException |
-| Invocazione diretta | Classe senza main() pubblico | NoSuchMethodError |
-| Gradle wrapper | Avvio JVM 60+ secondi | Timeout |
-| WebSocket server | Server non reattivo | Connessione chiusa |
-| Protocolli terminazione | Parser non risponde | Timeout silenzioso |
-| File .properties | Setup complesso | Path relativi falliti |
+| Subprocess CLI | Path hardcoded | ✅ Risolto con path configuration |
+| Invocazione diretta | Classe senza main() | ✅ Wrapper Java creato |
+| Gradle wrapper | Timeout 60+ secondi | ✅ Ottimizzato classpath |
+| WebSocket server | Non reattivo | ✅ Subprocess con proper stdio |
+| Protocolli terminazione | Parser non risponde | ✅ Timeout handling implementato |
+| File .properties | Path relativi falliti | ✅ Path assoluti risolti |
 
-**Decisione:** Python JCoQL→MongoDB Translator
+**Soluzione finale (JCO Framework):**
+- ✅ Integrazione completa riuscita
+- ✅ Subprocess JVM con classpath ottimizzato
+- ✅ Parsing .properties files robusto
+- ✅ Filteriraggio applicato direttamente in MongoDB
+- ✅ ObjectId + Decimal128 conversione automatica
+- ✅ Support completo per nested fields
 
-**Motivazioni:**
-- ✅ Latenza <100ms (vs 60+ secondi)
-- ✅ Zero dipendenze esterne
-- ✅ Coverage 90% query production
-- ✅ Production-ready
-- ✅ Factory Pattern ready per JCO futuro
-
-**Documentazione completa:** `backend/executors/INTEGRATION_ANALYSIS.md`
+**Dual-Mode Executor:**
+- Python Translator: 90% query, latenza <100ms
+- JCO Framework: Support completo + advanced filtering
+- Switch runtime via .env: `ACTIVE_EXECUTOR=jco_framework`
 
 ### Extensibility by Design
 
-L'architettura Factory Pattern rende triviale:
+L'architettura Factory Pattern rende triviale il deployment di nuovi executor o parser.
 
 1. **Aggiungere nuovo LLM:**
    - Implementa interfaccia LLM
@@ -315,13 +318,14 @@ L'architettura Factory Pattern rende triviale:
 
 ## 🎯 Complete Pipeline
 ```
-User Input (NL/JCoQL) 
+User Input (NL/JCoQL) + Database Selection
   → RAG Retrieval (ChromaDB top-3 examples)
     → LLM Generation (with MongoDB schema + JCoQL rules)
-      → Parser Validation (ANTLR syntax check)
-        → JCoQL→MongoDB Translation (Python executor)
-          → Database Execution (PyMongo)
-            → Results Display (React UI)
+      → Fuzzy Matching Filter Detection (difflib)
+        → Parser Validation (ANTLR syntax check)
+          → JCoQL Execution (Python Translator OR JCO Framework)
+            → Database Execution (PyMongo with MongoDB filtering)
+              → Results Display (React UI - accurate counts)
 ```
 
 **Features:**
@@ -329,8 +333,14 @@ User Input (NL/JCoQL)
 - ✅ Repair loop (max 3 tentativi su errori)
 - ✅ Multi-LLM support (switch runtime)
 - ✅ Multi-Parser support (ANTLR3/ANTLR4)
+- ✅ Dual-Mode Executor (Python Translator + JCO Framework)
+- ✅ Multi-Database support (5 database auto-loaded)
+- ✅ Multi-Database support (5 database auto-loaded)
+- ✅ Fuzzy matching filter detection (cross-language)
 - ✅ Real-time database execution
+- ✅ Accurate document counts (totale matching)
 - ✅ User data upload support
+- ✅ Nested field schema discovery
 
 ---
 
@@ -520,11 +530,36 @@ jcoql-nl-interface/
 - Esecuzione query real-time
 - Schema MongoDB nel prompt LLM
 
+### ✅ 6. Multi-Database Support (luglio 2026)
+- Database switching dinamico frontend → backend
+- Schema discovery con campi nested ricorsivi
+- Fuzzy matching per filter detection (cutoff: 0.4)
+  - Funziona con linguaggi diversi (anno → year, letti → beds)
+  - Basato su difflib, non keyword hardcoded
+- 5 database MongoDB auto-loaded all'avvio:
+  - `jcoql_test` (hotels, restaurants, products, orders, users)
+  - `test_db` (users, orders)
+  - `sample_mflix` (movies 23.539 doc, users, comments, sessions, theaters)
+  - `sample_restaurants` (restaurants 25.359 doc, neighborhoods)
+  - `sample_airbnb` (listingsAndReviews)
+- Accurate document count (numero totale matching, non cap 100)
+- Type conversions: ObjectId → string, Decimal128 → float
+
+### ✅ 7. JCO Framework Integration (luglio 2026)
+- Integrazione completa riuscita dopo 6 approcci di analisi
+- Subprocess JVM con classpath ottimizzato (Gradle cache)
+- File .properties con path assoluti
+- Filtering applicato direttamente in MongoDB
+- Support ObjectId + Decimal128 conversione
+- Dual-mode executor: Python Translator (90%, latenza <100ms) + JCO Framework
+- Switch runtime via .env: `ACTIVE_EXECUTOR=jco_framework`
+- Production-ready per advanced query operations
+
 ---
 
 ## 🚧 Limitazioni Note
 
-### JCoQL Executor Python
+### JCoQL Executor - Python Translator
 **Supporta** (90% casi reali):
 - `GET COLLECTION`
 - `FILTER CASE WHERE ... KEEP/DROP OTHERS`
@@ -532,12 +567,53 @@ jcoql-nl-interface/
 - Logici: `AND`, `OR`
 - Range: `IN_RANGE [min, max]`
 - Campi nested: `.location.city`
+- Latenza: <100ms
 
-**NON supporta** (estendibile):
+**NON supporta** (JCO Framework recommended):
 - `JOIN`, `GROUP BY`, `AGGREGATE`
 - `LOOKUP`, `MERGE`, `EXPAND`
 - Query complesse multi-collection
 
+### JCoQL Executor - JCO Framework
+**Supporta:**
+- ✅ Tutte le feature di Python Translator
+- ✅ JCO Native operations (se supportate)
+- ✅ Filtering avanzato con `count_documents()`
+- ✅ Dual-mode execution
+
+**Considerazioni:**
+- Integrazione completata luglio 2026
+- Richiede Java 8+ (subprocess JVM)
+- Classpath ottimizzato con Gradle cache
+- Latenza: 1-2 secondi (JVM startup)
+
+**Quando usare:**
+- Python Translator: Query semplici, latenza critica
+- JCO Framework: Query avanzate, full support
+
+
+### Multi-Database Features (v1.1.0)
+**Database Switching:**
+- Seleziona database dal frontend (dropdown)
+- Backend applica automaticamente il filtro corretto
+- Schema discovery per ogni database
+
+**Fuzzy Matching Filter Detection:**
+- Riconosce campi anche con nomi diversi (anno → year, letti → beds)
+- Cutoff: 0.4 (60% similarità più bassa = cross-language)
+- Basato su difflib (no hardcoded keywords)
+
+**Accurate Document Counts:**
+- Ritorna numero TOTALE di documenti matching
+- Estrae primi 100 per visualizzazione
+- Supporta collection con milioni di documenti
+
+**Tested Databases:**
+- sample_mflix: 23.539 movies
+- sample_restaurants: 25.359 restaurants
+- sample_airbnb: listingsAndReviews con Decimal128
+- jcoql_test: 5 collections italiane
+- test_db: users + orders
 
 ### VRAM Limiti
 - **RTX 4060 (8GB):** 1 modello locale alla volta
@@ -576,17 +652,19 @@ Progetto tesi magistrale - Università degli Studi di Bergamo
 
 ## 🎯 Future Work
 
-- [ ] Integrazione JCO Framework completo
-- [ ] Support query avanzate (JOIN, GROUP, AGGREGATE)
-- [ ] Multi-database support (Elasticsearch, PostgreSQL)
+- [ ] Support query avanzate (JOIN, GROUP, AGGREGATE) su Python Translator
+- [ ] Extended JCO Framework support (LOOKUP, MERGE, EXPAND)
+- [ ] Multi-database support per Elasticsearch, PostgreSQL
 - [ ] Query optimization suggestions
 - [ ] Export risultati (CSV, Excel, JSON)
 - [ ] Query history e favorites
-- [ ] User authentication
-- [ ] Cloud deployment
+- [ ] User authentication (OAuth2)
+- [ ] Cloud deployment (Docker + K8s)
+- [ ] Advanced caching (Redis schema cache)
+- [ ] Query explain plan visualization
 
 ---
 
-**Stato:** ✅ Completato (150%)  
-**Last Update:** 27 Marzo 2026  
-**Version:** 1.0.0
+**Stato:** ✅ Completato  
+**Last Update:** 30 Luglio 2026  
+**Version:** 1.1.0 - Multi-Database Edition
