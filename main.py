@@ -541,6 +541,11 @@ async def execute_query(request: QueryRequest):
         # 4. Esecuzione passando il database target dinamico
         execution_result = executor.execute(jcoql_query)
 
+        # DEBUG: Stampa cosa ritorna l'executor
+        print(f"\n🔍 DEBUG execution_result keys: {execution_result.keys() if isinstance(execution_result, dict) else 'NOT A DICT'}")
+        if isinstance(execution_result, dict):
+            print(f"   execution_result: {execution_result}")
+
         actual_count = 0
         actual_results = []
 
@@ -554,7 +559,7 @@ async def execute_query(request: QueryRequest):
                     results = execution_result.get('results', {})
                     if isinstance(results, list):
                         actual_results = results
-                        actual_count = len(actual_results)
+                        actual_count = execution_result.get('doc_count', len(actual_results))
                     elif isinstance(results, dict):
                         actual_results = results.get('data', results.get('text', []))
                         actual_count = results.get('doc_count', len(actual_results) if isinstance(actual_results, list) else 0)

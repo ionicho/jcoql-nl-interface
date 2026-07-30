@@ -32,7 +32,7 @@ class JCoFrameworkExecutor:
 
     
     def _parse_output(self, output, jcoql_query):
-        """Estrai documenti direttamente da MongoDB"""
+        """Estrai documenti da MongoDB, applicando il filtro se presente"""
         doc_count = 0
         docs = []
         
@@ -42,9 +42,8 @@ class JCoFrameworkExecutor:
             if match:
                 doc_count = int(match.group(1))
         except Exception as e:
-            pass
+            print(f"[JCoFrameworkExecutor] ⚠️ Errore lettura count: {e}")
         
-        # Estrai collezione dalla query
         collection_name = self._extract_collection_name(jcoql_query)
         if collection_name:
             try:
@@ -55,15 +54,26 @@ class JCoFrameworkExecutor:
                 db = client[self.database_name]
                 collection = db[collection_name]
                 
-                # Estrai 100 documenti casualmente
-                raw_docs = list(collection.aggregate([{"$sample": {"size": 100}}]))
+                # Estrai il filtro dalla query JCoQL
+                mongo_filter = self._extract_mongo_filter(jcoql_query)
                 
-                # Converti ObjectId e Decimal128 a tipi JSON-serializzabili
-                for doc in raw_docs:
+                # ✅ Conta TUTTI i documenti che matchano
+                if mongo_filter:
+                    total_matching = collection.count_documents(mongo_filter)
+                else:
+                    total_matching = collection.count_documents({})
+                
+                # ✅ Estrai i primi 100
+                if mongo_filter:
+                    docs = list(collection.find(mongo_filter).limit(100))
+                else:
+                    docs = list(collection.find().limit(100))
+                
+                # Converti ObjectId e Decimal128
+                for doc in docs:
                     if '_id' in doc and isinstance(doc['_id'], ObjectId):
                         doc['_id'] = str(doc['_id'])
                     
-                    # Converti tutti i Decimal128 ricorsivamente
                     def convert_decimal(obj):
                         if isinstance(obj, dict):
                             for key, val in obj.items():
@@ -80,17 +90,67 @@ class JCoFrameworkExecutor:
                     
                     convert_decimal(doc)
                 
-                docs = raw_docs
+                # ✅ Ritorna il numero VERO
+                doc_count = total_matching
+                
             except Exception as e:
-                pass
+                print(f"[JCoFrameworkExecutor] ❌ MongoDB fallito: {e}")
         
         return {
             'results': docs,
-            'doc_count': doc_count,
+            'doc_count': doc_count, 
             'text': ''
         }
 
-    
+    def _extract_mongo_filter(self, jcoql_query):
+        """Estrai il filtro JCOQL e convertilo a query MongoDB"""
+        # Pattern: FILTER CASE WHERE .field operator value KEEP OTHERS
+        match = re.search(r'WHERE\s+(.+?)\s+KEEP\s+OTHERS', jcoql_query, re.IGNORECASE)
+        if not match:
+            return None
+        
+        condition = match.group(1).strip()
+        # Pattern: .field operator value
+        field_match = re.match(r'\.([a-zA-Z0-9_.]+)\s*(>=|<=|>|<|=|!=)\s*(.+)', condition)
+        if not field_match:
+            return None
+        
+        field_path, operator, value_str = field_match.groups()
+        value_str = value_str.strip().strip("'\"")
+        
+        # Converti il valore
+        try:
+            if value_str.lower() in ('true', 'false'):
+                value = value_str.lower() == 'true'
+            elif value_str.lstrip('-').isdigit():
+                value = int(value_str)
+            elif '.' in value_str:
+                try:
+                    value = float(value_str)
+                except:
+                    value = value_str
+            else:
+                value = value_str
+        except:
+            value = value_str
+        
+        # Converti l'operatore JCOQL a operatore MongoDB
+        mongo_op_map = {
+            '>': '$gt',
+            '<': '$lt',
+            '>=': '$gte',
+            '<=': '$lte',
+            '=': '$eq',
+            '!=': '$ne'
+        }
+        
+        mongo_op = mongo_op_map.get(operator)
+        if not mongo_op:
+            return None
+        
+        # Costruisci la query MongoDB
+        mongo_filter = {field_path: {mongo_op: value}}
+        return mongo_filter
 
 
     def _get_documents_from_mongodb(self, collection_name, limit=100):
@@ -385,7 +445,6 @@ class JCoFrameworkExecutor:
                             filter_condition
                         )
                         parsed['results'] = filtered_results
-                        parsed['doc_count'] = len(filtered_results)
                 
                 return {
                     'success': True,
