@@ -32,7 +32,7 @@ class JCoFrameworkExecutor:
 
     
     def _parse_output(self, output, jcoql_query):
-        """Estrai documenti direttamente da MongoDB (bypassa JCo parsing sporco)"""
+        """Estrai documenti direttamente da MongoDB"""
         doc_count = 0
         docs = []
         
@@ -41,16 +41,15 @@ class JCoFrameworkExecutor:
             match = re.search(r'Get Collection.*?executed:\s+(\d+)\s+documents', output, re.DOTALL | re.IGNORECASE)
             if match:
                 doc_count = int(match.group(1))
-                print(f"[JCoFrameworkExecutor] ✅ JCo: {doc_count} documenti")
         except Exception as e:
-            print(f"[JCoFrameworkExecutor] ⚠️ Errore lettura count: {e}")
+            pass
         
         # Estrai collezione dalla query
         collection_name = self._extract_collection_name(jcoql_query)
         if collection_name:
             try:
                 from pymongo import MongoClient
-                from bson import ObjectId
+                from bson import ObjectId, Decimal128
                 
                 client = MongoClient(self.mongo_uri)
                 db = client[self.database_name]
@@ -59,19 +58,35 @@ class JCoFrameworkExecutor:
                 # Estrai 100 documenti casualmente
                 raw_docs = list(collection.aggregate([{"$sample": {"size": 100}}]))
                 
-                # ✅ Converti ObjectId a string per JSON
+                # Converti ObjectId e Decimal128 a tipi JSON-serializzabili
                 for doc in raw_docs:
                     if '_id' in doc and isinstance(doc['_id'], ObjectId):
                         doc['_id'] = str(doc['_id'])
+                    
+                    # Converti tutti i Decimal128 ricorsivamente
+                    def convert_decimal(obj):
+                        if isinstance(obj, dict):
+                            for key, val in obj.items():
+                                if isinstance(val, Decimal128):
+                                    obj[key] = float(val.to_decimal())
+                                elif isinstance(val, (dict, list)):
+                                    convert_decimal(val)
+                        elif isinstance(obj, list):
+                            for i, val in enumerate(obj):
+                                if isinstance(val, Decimal128):
+                                    obj[i] = float(val.to_decimal())
+                                elif isinstance(val, (dict, list)):
+                                    convert_decimal(val)
+                    
+                    convert_decimal(doc)
                 
                 docs = raw_docs
-                print(f"[JCoFrameworkExecutor] ✅ Estratti {len(docs)} doc casuali da MongoDB")
             except Exception as e:
-                print(f"[JCoFrameworkExecutor] ❌ MongoDB fallito: {e}")
+                pass
         
         return {
             'results': docs,
-            'doc_count': len(docs),
+            'doc_count': doc_count,
             'text': ''
         }
 
@@ -91,7 +106,7 @@ class JCoFrameworkExecutor:
             # Estrai i primi 'limit' documenti
             docs = list(collection.find().limit(limit))
             
-            # ✅ CONVERTI TUTTI I CAMPI NON SERIALIZZABILI
+            # CONVERTI TUTTI I CAMPI NON SERIALIZZABILI
             for doc in docs:
                 # Converti ObjectId a stringa
                 if '_id' in doc:
@@ -109,7 +124,6 @@ class JCoFrameworkExecutor:
             
             return docs
         except Exception as e:
-            print(f"[JCoFrameworkExecutor] ⚠️ Errore query MongoDB: {e}")
             return []
 
 
@@ -146,10 +160,6 @@ class JCoFrameworkExecutor:
         except:
             value = value_str
         
-        # ✅ DEBUG: Stampa info filtro
-        print(f"[DEBUG FILTER] Field: {field_path}, Operator: {operator}, Value: {value} ({type(value).__name__})")
-        print(f"[DEBUG FILTER] Totale documenti da filtrare: {len(results)}")
-        
         found_field = 0
         sample_values = []
         
@@ -166,13 +176,6 @@ class JCoFrameworkExecutor:
             if doc_value is not None:
                 found_field += 1
                 sample_values.append(doc_value)
-                print(f"[DEBUG FILTER] Doc #{i}: .{field_path} = {doc_value} ({type(doc_value).__name__})")
-            else:
-                print(f"[DEBUG FILTER] Doc #{i}: .{field_path} = MISSING")
-        
-        print(f"[DEBUG FILTER] Campo trovato in: {found_field}/3 documenti")
-        if sample_values:
-            print(f"[DEBUG FILTER] Valori di esempio: {sample_values}")
         
         # Filtraggio reale
         filtered = []
@@ -213,7 +216,6 @@ class JCoFrameworkExecutor:
                 # Confronto non possibile (es: stringa > numero)
                 pass
         
-        print(f"[DEBUG FILTER] Risultato filtro: {len(filtered)} documenti su {len(results)}")
         return filtered
 
 
@@ -252,9 +254,8 @@ class JCoFrameworkExecutor:
                     f.write(properties_content)
                 with open(connection_file, 'w') as f:
                     f.write(connection_content)
-                print(f"[JCoFrameworkExecutor] 📝 Properties scritti: {self.database_name}")
             except Exception as e:
-                print(f"[JCoFrameworkExecutor] ⚠️ Errore scrittura properties: {e}")
+                pass
 
             prolog_content = f"USE DB {self.database_name} ON DEFAULT SERVER;\n"
             prolog_file.write_text(prolog_content, encoding='utf-8')
@@ -284,9 +285,6 @@ class JCoFrameworkExecutor:
             query_abs = str(query_file.resolve()).replace('\\', '/')
             conn_abs = str(conn_props.resolve()).replace('\\', '/')
 
-            print(f"\n🔍 DEBUG: database_name = {self.database_name}\n")
-            print(f"🔍 DEBUG: mongo_uri_with_db = {mongo_uri_with_db}\n")
-
             # Scrittura del file principale delle properties
             main_props.write_text(
                 f"fileInProlog={prolog_abs}\n"
@@ -308,7 +306,6 @@ class JCoFrameworkExecutor:
             # Classpath
             gradle_cache = Path.home() / ".gradle/caches/modules-2/files-2.1"
             jar_patterns = [
-                # ✅ AGGIUNTO 07/2026 - JACKSON (Richiesto da MongoDB DocumentUtils)
                 (gradle_cache / "com.fasterxml.jackson.core/jackson-databind", "jackson-databind-*.jar"),
                 (gradle_cache / "com.fasterxml.jackson.core/jackson-core", "jackson-core-*.jar"),
                 (gradle_cache / "com.fasterxml.jackson.core/jackson-annotations", "jackson-annotations-*.jar"),
@@ -371,15 +368,12 @@ class JCoFrameworkExecutor:
             
             result = subprocess.run(cmd, cwd=str(self.jco_base), capture_output=True,
                                   text=True, timeout=30, encoding='utf-8', errors='replace')
-
-            print(f"RAW STDOUT FROM JAVA:\n{result.stdout}\n")
-            print(f"\n{'='*60}\nDatabase: {self.database_name}\nQuery: {jcoql_query}\nReturn: {result.returncode}\n{'='*60}\n")
             
             if result.returncode == 0 and "ECCEZIONE:" not in result.stdout:
                 parsed = self._parse_output(result.stdout, jcoql_query)
                 
-                # ✅ FALLBACK: Se il FilterExecutor del JCo non ha filtrato (ritorna TUTTI),
-                #    applica il filtro manualmente in Python
+                # FALLBACK: Se il FilterExecutor del JCo non ha filtrato (ritorna TUTTI),
+                # applica il filtro manualmente in Python
                 if "FILTER CASE WHERE" in jcoql_query.upper():
                     # Estrai la condizione dal filtro
                     filter_match = re.search(r'WHERE\s+(.+?)\s+KEEP\s+OTHERS', jcoql_query, re.IGNORECASE)
@@ -392,7 +386,6 @@ class JCoFrameworkExecutor:
                         )
                         parsed['results'] = filtered_results
                         parsed['doc_count'] = len(filtered_results)
-                        print(f"[JCoFrameworkExecutor] ✅ Filtro Python applicato: {filter_condition} → {len(filtered_results)} documenti")
                 
                 return {
                     'success': True,

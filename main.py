@@ -14,7 +14,7 @@ import time
 import json
 import re
 from pathlib import Path
-from typing import List
+from typing import List, Optional
 from datetime import datetime
 
 # FastAPI e utilità HTTP
@@ -38,9 +38,6 @@ from dotenv import load_dotenv
 from backend.query_corrector import correct_query
 from backend.database_persistence import load_databases_from_file, save_databases_to_file
 from backend.join_executor import JoinExecutor
-
-#import per utilizzo liste
-from typing import List, Optional
 
 # ==============================================================================
 # CONFIGURAZIONE PATH E MODULI INTERNI
@@ -69,7 +66,6 @@ def load_file_content(path: str) -> str:
         with open(path, 'r', encoding='utf-8') as f:
             return f.read()
     except Exception as e:
-        print(f"⚠️ Impossibile caricare {path}: {e}")
         return ""
 
 JCOQL_SYNTAX_FULL = load_file_content('backend/jcoql_syntax_official.txt')
@@ -93,7 +89,6 @@ chroma_client = chromadb.PersistentClient(path="./chroma_data")
 try:
     collection = chroma_client.get_collection(name="jcoql_examples")
 except Exception as e:
-    print(f"⚠️ ChromaDB Notice/Error: {e}")
     collection = None
 
 # Logging
@@ -193,12 +188,12 @@ def shutdown():
         if executor:
             executor.close()
     except Exception as e:
-        print(f"⚠️ Errore chiusura executor: {e}")
+        pass
     
     try:
         db_registry.close_all()
     except Exception as e:
-        print(f"⚠️ Errore chiusura database registry: {e}")
+        pass
 
 # ==============================================================================
 # ENDPOINT: GENERAZIONE QUERY JCOQL (NL -> JCoQL)
@@ -357,12 +352,6 @@ USER QUERY:
 Genera SOLO la query JCoQL basata sullo SCHEMA REALE sopra.
 Usa ESATTAMENTE i nomi campi dello schema. NESSUN testo aggiuntivo.
 """
-        #DEBUG: Log dello schema visto dall'LLM
-        print(f"\n{'='*80}")
-        print(f"🔍 SCHEMA CHE VEDE L'LLM:")
-        print(f"{'='*80}")
-        print(schema_prompt_str)
-        print(f"{'='*80}\n")
 
         try:
             if ACTIVE_LLM == "llama":
@@ -373,9 +362,41 @@ Usa ESATTAMENTE i nomi campi dello schema. NESSUN testo aggiuntivo.
                 response = model.generate_content(prompt)
                 current_query = response.text.strip()
 
-            # Rimuovi filtri non richiesti dall'utente
-            filter_keywords = ['dove', 'con', 'rating', 'prezzo', 'città', 'che', 'superiore', 'inferiore', 'range', 'tra', 'del', 'anno', 'genere']
-            has_filter_request = any(kw in request.nl_query.lower() for kw in filter_keywords)
+            # Estrai TUTTI i nomi dei campi (inclusi quelli nested) dallo schema
+            all_field_names = []
+            if current_schema:
+                for coll_name, coll_data in current_schema.items():
+                    if isinstance(coll_data, dict):
+                        fields = coll_data.get('fields', {})
+                        if isinstance(fields, dict):
+                            # Aggiungi sia i nomi top-level che quelli nested
+                            for field_name in fields.keys():
+                                all_field_names.append(field_name)
+                                # Se è un percorso nested (contiene .), aggiungi anche la parte finale
+                                if '.' in field_name:
+                                    # Prendi anche la parte dopo il primo punto
+                                    parts = field_name.split('.')
+                                    for part in parts:
+                                        if part and part not in all_field_names:
+                                            all_field_names.append(part)
+
+            # Controlla se l'utente ha menzionato uno dei campi dello schema (fuzzy match)
+            from difflib import get_close_matches
+            user_query_lower = request.nl_query.lower()
+            user_words = user_query_lower.split()
+            
+            has_filter_request = False
+            for word in user_words:
+                # Cerca il campo più simile (cutoff = 0.6 per 60% di similarità)
+                matches = get_close_matches(word, all_field_names, n=1, cutoff=0.4)
+                if matches:
+                    has_filter_request = True
+                    break
+            
+            # Fallback: keyword generici universali
+            if not has_filter_request:
+                generic_keywords = ['dove', 'con', 'che', '>', '<', '>=', '<=', '=', '!=']
+                has_filter_request = any(kw in user_query_lower for kw in generic_keywords)
             
             if not has_filter_request and 'FILTER CASE WHERE' in current_query.upper():
                 collection_match = re.search(r'GET\s+COLLECTION\s+\w+', current_query, re.IGNORECASE)
@@ -466,9 +487,6 @@ async def list_parsers():
 # ==============================================================================
 # ENDPOINT: ESECUZIONE QUERY JCOQL SU MONGODB
 # ==============================================================================
-# ==============================================================================
-# ENDPOINT: ESECUZIONE QUERY JCOQL SU MONGODB
-# ==============================================================================
 @app.post("/api/execute")
 async def execute_query(request: QueryRequest):
     global executor
@@ -478,7 +496,7 @@ async def execute_query(request: QueryRequest):
         jcoql_query = request.jcoql_query.strip() if request.jcoql_query else ""
         databases = request.databases or []
         database_name = request.database_name
-        join_config = request.join_config  # <-- DEFINITA QUI!
+        join_config = request.join_config
         
         if not jcoql_query:
             return {"success": False, "error": "Query vuota"}
@@ -504,7 +522,7 @@ async def execute_query(request: QueryRequest):
         # 3. Determinazione dinamica del Database Target dal registro o dalla request
         target_db = database_name or db_registry.get_current_database_name() or "jcoql_test"
 
-        # ✅ CORRETTO - Ricrea l'executor se il database è diverso
+        # Ricrea l'executor se il database è diverso
         if not executor or (hasattr(executor, 'database_name') and executor.database_name != target_db):
             query_logger.info(f"🔄 Ricreazione executor per database: {target_db}")
             executor = ExecutorFactory.create_executor(
@@ -646,7 +664,7 @@ async def list_databases():
         return {
             "databases": databases_list,
             "current": db_registry.get_current_database_name(),
-            "schemas": {}  # ← Per adesso, ritorna vuoto
+            "schemas": {}
         }
     except Exception as e:
         db_logger.error(f"❌ Errore /api/databases: {e}", exc_info=True)
@@ -660,9 +678,6 @@ async def list_databases():
 @app.post("/api/databases/select")
 async def select_database(database_name: str = Query(None), request: Request = None):
     """Seleziona un database"""
-    print(f"\n🔴 DEBUG SELECT_DATABASE:")
-    print(f"   Input database_name: {database_name}")
-    
     try:
         if not database_name and request:
             try:
@@ -674,17 +689,12 @@ async def select_database(database_name: str = Query(None), request: Request = N
         if not database_name:
             return {"success": False, "error": "database_name mancante"}
         
-        print(f"   Tentativo set_current_database: {database_name}")
         success = db_registry.set_current_database(database_name)
-        print(f"   Risultato set_current_database: {success}")
         
         if success:
             global GLOBAL_SCHEMA, executor
             
-            # IMPORTANTE: Ricaricare lo schema
             GLOBAL_SCHEMA = db_registry.get_current_schema()
-            print(f"   Schema aggiornato per: {db_registry.get_current_database_name()}")
-            print(f"   Collezioni nello schema: {list(GLOBAL_SCHEMA.keys()) if GLOBAL_SCHEMA else 'VUOTO'}")
             
             if executor:
                 executor = ExecutorFactory.create_executor(
@@ -700,20 +710,14 @@ async def select_database(database_name: str = Query(None), request: Request = N
                 "message": f"Database '{database_name}' selezionato"
             }
         
-        print(f"   ❌ set_current_database ritornò False!")
         return {"success": False, "error": f"Database '{database_name}' non trovato"}
     except Exception as e:
-        print(f"   ❌ Errore: {e}")
         return {"success": False, "error": str(e)}
 
 @app.post("/api/databases/connect")
 async def connect_database(db_name: str, mongo_uri: str, database_name: str):
     """Connetti a un database MongoDB"""
     try:
-        # ❌ SBAGLIATO:
-        # db_registry.add_database(database_name, mongo_uri)
-        
-        # ✅ CORRETTO:
         db_registry.add_database(
             db_name=db_name,
             mongo_uri=mongo_uri,
