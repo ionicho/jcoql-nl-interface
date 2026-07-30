@@ -18,7 +18,7 @@ from typing import List
 from datetime import datetime
 
 # FastAPI e utilità HTTP
-from fastapi import FastAPI, HTTPException, Request, UploadFile, File
+from fastapi import FastAPI, HTTPException, Request, UploadFile, Query, File
 from fastapi.responses import JSONResponse
 from fastapi.middleware.cors import CORSMiddleware
 
@@ -133,6 +133,7 @@ app.add_middleware(
 
 class GenerateRequest(BaseModel):
     nl_query: str
+    database: str = None
     max_retries: int = 3
 
 class QueryRequest(BaseModel):
@@ -206,8 +207,10 @@ def shutdown():
 async def generate_query(request: GenerateRequest):
     """
     Riceve un prompt in Linguaggio Naturale e genera una query JCoQL valida
-    utilizzando RAG, LLM e un loop di auto-riparazione (Repair Loop).
     """
+    if request.database:
+        db_registry.set_current_database(request.database)   
+    
     start_time = time.time()
     
     query_logger.info(f"📝 Query ricevuta: '{request.nl_query}'")
@@ -246,15 +249,25 @@ async def generate_query(request: GenerateRequest):
         schema_prompt_str = f"SCHEMA MONGODB REALE (Database: {db_registry.get_current_database_name()}):\n\n"
         for coll_name, coll_data in current_schema.items():
             schema_prompt_str += f"COLLECTION: {coll_name}\n"
+            
+            # Estrai i campi da coll_data['fields']
             if isinstance(coll_data, dict):
-                for field_name, field_info in coll_data.items():
-                    field_type = field_info.get('type', 'unknown') if isinstance(field_info, dict) else type(field_info).__name__
-                    schema_prompt_str += f"- {field_name} ({field_type})\n"
+                fields = coll_data.get('fields', {})
+                if isinstance(fields, dict):
+                    for field_name, field_info in fields.items():
+                        # Estrai il tipo
+                        if isinstance(field_info, dict):
+                            field_type = field_info.get('type', 'unknown')
+                            if isinstance(field_type, list):
+                                field_type = ', '.join(field_type) if field_type else 'unknown'
+                        else:
+                            field_type = type(field_info).__name__
+                        schema_prompt_str += f"  .{field_name} ({field_type})\n"
+            
             schema_prompt_str += "\n"
     else:
         schema_prompt_str = f"""SCHEMA MONGODB - Database '{db_registry.get_current_database_name()}'
-Nessuna collezione disponibile in questo database.
-Aggiungere dati tramite MongoDB prima di usare le query."""
+    Nessuna collezione disponibile in questo database."""
 
     attempts = 0
     is_valid = False
@@ -282,15 +295,21 @@ Aggiungere dati tramite MongoDB prima di usare le query."""
         Database Attuale: {current_db}
         Collezioni Disponibili: {collections_str}
 
-        🚨 REGOLA CRITICA #1 - NON AGGIUNGERE FILTRI:
-        ❌ SE L'UTENTE DICE SOLO "Film" o "Mostrami X"
+        🚨 REGOLA CRITICA #1 - NON AGGIUNGERE FILTRI INDESIDERATI:
+        ❌ SE L'UTENTE CHIEDE SOLO DI MOSTRARE I DATI (senza condizioni)
         ❌ NON aggiungere FILTER CASE WHERE automaticamente
-        ✅ GENERA SOLO: GET COLLECTION movies;
+        ✅ GENERA SOLO: GET COLLECTION <collection>;
         
-        Aggiungi FILTER CASE WHERE SOLO se l'utente chiede esplicitamente:
-        • "Film dove..." → aggiungi FILTER
-        • "Film del 2020" → aggiungi FILTER
-        • "Mostrami i film" → NO FILTER!
+        Aggiungi FILTER CASE WHERE SOLO se l'utente specifica una CONDIZIONE:
+        • "Dove il campo X è..." → aggiungi FILTER
+        • "Con valore > N" → aggiungi FILTER
+        • "Che soddisfano..." → aggiungi FILTER
+        • "Mostrami i dati" → NO FILTER!
+
+        ESEMPI GENERICI:
+        Input: "Mostrami i dati" → Query: GET COLLECTION <collezione>;
+        Input: "Dati dove campo = valore" → Query: GET COLLECTION <collezione>; FILTER CASE WHERE .campo = valore KEEP OTHERS;
+        Input: "Elementi con numero > 100" → Query: GET COLLECTION <collezione>; FILTER CASE WHERE .numero > 100 KEEP OTHERS;
 
         🚨 REGOLA CRITICA #2 - SINTASSI ISNOTNULL:
         ❌ NON usare: FIELD .campo ISNOTNULL
@@ -300,24 +319,27 @@ Aggiungere dati tramite MongoDB prima di usare le query."""
         Oppure per campi con valore:
         ✅ FILTER CASE WHERE .campo = 'valore' KEEP OTHERS;
 
-        ESEMPI:
-        Input: "Film" → Query: GET COLLECTION movies;
-        Input: "Film del 2020" → Query: GET COLLECTION movies; FILTER CASE WHERE .year = 2020 KEEP OTHERS;
-        Input: "Ristoranti" → Query: GET COLLECTION restaurants;
-
-        🔧 IMPORTANTE - ATTRIBUTI NESTED:
-   
-        Quando vedi i nomi campo nello schema, alcuni hanno punti:
-        ✅ .imdb.rating        → Campo annidato in "imdb"
-        ✅ .tomatoes.viewer.meter  → Campo annidato profondo
+        🔧 REGOLA CRITICA #3 - ATTRIBUTI NESTED (MOLTO IMPORTANTE):
+        ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
         
-        SEMPRE usare il percorso COMPLETO nei filtri:
-        ✅ CORRETTO:   FILTER CASE WHERE .imdb.rating > 9 KEEP OTHERS;
-        ❌ SBAGLIATO:  FILTER CASE WHERE .rating > 9 KEEP OTHERS;
-
+        MongoDB supporta strutture annidate. I campi nello schema possono avere più livelli.
+        
+        COME RICONOSCERE CAMPI ANNIDATI:
+        • Se vedi ".document.field" nello schema → è un campo annidato
+        • Se vedi ".outer.middle.inner" → è profondamente annidato
+        • Se vedi ".field" (senza punti) → è un campo root
+        
+        REGOLA ASSOLUTA:
+        Usa SEMPRE il percorso COMPLETO esattamente come mostrato nello schema.
+        NON inventare percorsi accorciati.
+        
+        COME FARE:
+        1. L'utente dice: "Filtra per [proprietà]"
+        2. Cerchi [proprietà] nello SCHEMA MONGODB sotto
+        3. Leggi il percorso ESATTO mostrato nello schema (con tutti i punti)
+        4. Usa quel percorso nel filtro
+        
         SCHEMA MONGODB REALE (Database: {db_registry.get_current_database_name()}):
-{schema_prompt_str}
-
 {schema_prompt_str}
 
 {EXTENDED_EXAMPLES}
@@ -335,7 +357,13 @@ USER QUERY:
 Genera SOLO la query JCoQL basata sullo SCHEMA REALE sopra.
 Usa ESATTAMENTE i nomi campi dello schema. NESSUN testo aggiuntivo.
 """
-        
+        #DEBUG: Log dello schema visto dall'LLM
+        print(f"\n{'='*80}")
+        print(f"🔍 SCHEMA CHE VEDE L'LLM:")
+        print(f"{'='*80}")
+        print(schema_prompt_str)
+        print(f"{'='*80}\n")
+
         try:
             if ACTIVE_LLM == "llama":
                 current_query = generate_with_llama(prompt)
@@ -630,31 +658,53 @@ async def list_databases():
         }
 
 @app.post("/api/databases/select")
-async def select_database(database_name: str):
-    global GLOBAL_SCHEMA, executor
+async def select_database(database_name: str = Query(None), request: Request = None):
+    """Seleziona un database"""
+    print(f"\n🔴 DEBUG SELECT_DATABASE:")
+    print(f"   Input database_name: {database_name}")
     
-    success = db_registry.set_current_database(database_name)
-    if success:
-        GLOBAL_SCHEMA = db_registry.get_current_schema()
+    try:
+        if not database_name and request:
+            try:
+                data = await request.json()
+                database_name = data.get("database_name") or data.get("database")
+            except:
+                pass
         
-        # 🔄 Aggiorna/Re-inizializza l'executor con il nuovo database selezionato
-        # 🔄 Aggiorna/Re-inizializza l'executor con il nuovo database selezionato
-    if executor:
-        # ✅ Ricrea l'executor con il nuovo database
-        executor = ExecutorFactory.create_executor(
-            ExecutorType(ACTIVE_EXECUTOR), 
-            mongo_uri="mongodb://localhost:27017", 
-            database=database_name
-        )
-        startup_logger.info(f"✅ Executor ricreato per database: {database_name}")
+        if not database_name:
+            return {"success": False, "error": "database_name mancante"}
+        
+        print(f"   Tentativo set_current_database: {database_name}")
+        success = db_registry.set_current_database(database_name)
+        print(f"   Risultato set_current_database: {success}")
+        
+        if success:
+            global GLOBAL_SCHEMA, executor
             
-        return {
-            "success": True,
-            "current_database": database_name,
-            "collections": len(GLOBAL_SCHEMA),
-            "message": f"Database '{database_name}' selezionato"
-        }
-    return {"success": False, "error": f"Database '{database_name}' non trovato"}
+            # IMPORTANTE: Ricaricare lo schema
+            GLOBAL_SCHEMA = db_registry.get_current_schema()
+            print(f"   Schema aggiornato per: {db_registry.get_current_database_name()}")
+            print(f"   Collezioni nello schema: {list(GLOBAL_SCHEMA.keys()) if GLOBAL_SCHEMA else 'VUOTO'}")
+            
+            if executor:
+                executor = ExecutorFactory.create_executor(
+                    ExecutorType(ACTIVE_EXECUTOR), 
+                    mongo_uri="mongodb://localhost:27017", 
+                    database=database_name
+                )
+            
+            return {
+                "success": True,
+                "current_database": database_name,
+                "collections": len(GLOBAL_SCHEMA) if GLOBAL_SCHEMA else 0,
+                "message": f"Database '{database_name}' selezionato"
+            }
+        
+        print(f"   ❌ set_current_database ritornò False!")
+        return {"success": False, "error": f"Database '{database_name}' non trovato"}
+    except Exception as e:
+        print(f"   ❌ Errore: {e}")
+        return {"success": False, "error": str(e)}
 
 @app.post("/api/databases/connect")
 async def connect_database(db_name: str, mongo_uri: str, database_name: str):

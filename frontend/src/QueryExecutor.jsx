@@ -36,6 +36,7 @@ export default function QueryExecutor({ selectedDatabases = [], joinConfig = nul
     try {
       const response = await axios.post('http://localhost:8000/api/generate', {
         nl_query: nlQuery,
+        database: selectedDatabases?.[0], 
         max_retries: 3
       });
 

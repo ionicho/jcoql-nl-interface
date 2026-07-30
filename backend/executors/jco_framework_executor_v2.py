@@ -4,86 +4,6 @@ import os, re, json, subprocess
 from pathlib import Path
 from urllib.parse import urlparse
 
-def apply_filter_to_results(results: list, filter_condition: str) -> list:
-    """
-    Applica un filtro ai risultati quando il JCo non lo ha fatto
-    
-    Supporta: .field > value, .nested.field = value, etc.
-    
-    Args:
-        results: Lista di documenti
-        filter_condition: Condizione JCOQL (es: ".imdb.rating > 8")
-    
-    Returns:
-        Lista filtrata
-    """
-    if not filter_condition or not results:
-        return results
-    
-    import re
-    
-    # Parse della condizione: .field OPERATOR value
-    match = re.match(r'\.([a-zA-Z0-9_.]+)\s*(>=|<=|>|<|=|!=)\s*(.+)', filter_condition.strip())
-    
-    if not match:
-        return results  # Non riesco a parsare, ritorna tutto
-    
-    field_path, operator, value_str = match.groups()
-    value_str = value_str.strip().strip("'\"")
-    
-    # Converti il valore
-    try:
-        if value_str.lower() in ('true', 'false'):
-            value = value_str.lower() == 'true'
-        elif value_str.isdigit() or (value_str.startswith('-') and value_str[1:].isdigit()):
-            value = int(value_str)
-        elif '.' in value_str and all(c.isdigit() or c == '.' for c in value_str):
-            value = float(value_str)
-        else:
-            value = value_str
-    except:
-        value = value_str
-    
-    filtered = []
-    
-    for doc in results:
-        # Navigazione nested: .imdb.rating → doc["imdb"]["rating"]
-        doc_value = doc
-        for part in field_path.split('.'):
-            if isinstance(doc_value, dict) and part in doc_value:
-                doc_value = doc_value[part]
-            else:
-                doc_value = None
-                break
-        
-        if doc_value is None:
-            continue  # Campo non trovato, skip
-        
-        # Applica l'operatore
-        try:
-            if operator == '>':
-                matches = doc_value > value
-            elif operator == '<':
-                matches = doc_value < value
-            elif operator == '>=':
-                matches = doc_value >= value
-            elif operator == '<=':
-                matches = doc_value <= value
-            elif operator == '=':
-                matches = doc_value == value
-            elif operator == '!=':
-                matches = doc_value != value
-            else:
-                matches = False
-            
-            if matches:
-                filtered.append(doc)
-        except TypeError:
-            # Confronto non possibile (es: stringa > numero)
-            pass
-    
-    return filtered
-
 class JCoFrameworkExecutor:
     def __init__(self, mongo_uri="mongodb://localhost:27017", database="jcoql_test"):
         user_home = Path.home()
@@ -112,73 +32,48 @@ class JCoFrameworkExecutor:
 
     
     def _parse_output(self, output, jcoql_query):
-        """Estrai documenti dal log, con fallback MongoDB se parsing fallisce"""
+        """Estrai documenti direttamente da MongoDB (bypassa JCo parsing sporco)"""
         doc_count = 0
         docs = []
         
+        # Ricerca del numero di documenti
         try:
-            # ✅ Ricerca del numero di documenti
             match = re.search(r'Get Collection.*?executed:\s+(\d+)\s+documents', output, re.DOTALL | re.IGNORECASE)
             if match:
                 doc_count = int(match.group(1))
-                print(f"[JCoFrameworkExecutor] ✅ Trovati {doc_count} documenti!")
-                
-                try:
-                    # ✅ Cerca il comando "find" per sapere da dove iniziano i film
-                    find_index = output.find('Command: {"find"')
-                    if find_index == -1:
-                        find_index = 0
-                    
-                    search_from = output[find_index:]
-                    
-                    # Estrai firstBatch DOPO il comando find
-                    fb_matches = re.findall(r'"firstBatch":\s*\[([^\[\]]*(?:\[[^\[\]]*\][^\[\]]*)*)\]', search_from, re.DOTALL)
-                    for i, fb in enumerate(fb_matches):
-                        try:
-                            # Filtra i batch che sono collezioni (hanno solo "name" e "type")
-                            if '"name"' in fb and '"type": "collection"' in fb:
-                                print(f"[JCoFrameworkExecutor] ⚠️ Skipping collections batch #{i}")
-                                continue
-                            
-                            batch_docs = json.loads('[' + fb + ']')
-                            docs.extend(batch_docs)
-                            print(f"[JCoFrameworkExecutor] ✅ Estratti {len(batch_docs)} doc da firstBatch #{i}")
-                        except Exception as e:
-                            print(f"[JCoFrameworkExecutor] ⚠️ Errore parsing firstBatch #{i}: {str(e)[:50]}")
-                    
-                    # Estrai nextBatch
-                    nb_matches = re.findall(r'"nextBatch":\s*\[([^\[\]]*(?:\[[^\[\]]*\][^\[\]]*)*)\]', search_from, re.DOTALL)
-                    for i, nb in enumerate(nb_matches):
-                        try:
-                            batch_docs = json.loads('[' + nb + ']')
-                            docs.extend(batch_docs)
-                            print(f"[JCoFrameworkExecutor] ✅ Estratti {len(batch_docs)} doc da nextBatch #{i}")
-                        except Exception as e:
-                            print(f"[JCoFrameworkExecutor] ⚠️ Errore parsing nextBatch #{i}: {str(e)[:50]}")
-                            
-                except Exception as e:
-                    print(f"[JCoFrameworkExecutor] ⚠️ Parsing batch fallito: {e}")
-            else:
-                print(f"[JCoFrameworkExecutor] ⚠️ Pattern '[Get Collection] executed' non trovato!")
-                
+                print(f"[JCoFrameworkExecutor] ✅ JCo: {doc_count} documenti")
         except Exception as e:
-            print(f"[JCoFrameworkExecutor] Errore parsing: {e}")
+            print(f"[JCoFrameworkExecutor] ⚠️ Errore lettura count: {e}")
         
-        # ✅ FALLBACK MONGODB - Estrai il nome della collezione dalla query
-        if not docs and doc_count > 0:
-            collection_name = self._extract_collection_name(jcoql_query)
-            if collection_name:
-                print(f"[JCoFrameworkExecutor] 📦 Fallback: estrazione da MongoDB ({collection_name})...")
-                docs = self._get_documents_from_mongodb(collection_name, limit=100)
-                print(f"[JCoFrameworkExecutor] ✅ Estratti {len(docs)} doc da MongoDB")
+        # Estrai collezione dalla query
+        collection_name = self._extract_collection_name(jcoql_query)
+        if collection_name:
+            try:
+                from pymongo import MongoClient
+                from bson import ObjectId
+                
+                client = MongoClient(self.mongo_uri)
+                db = client[self.database_name]
+                collection = db[collection_name]
+                
+                # Estrai 100 documenti casualmente
+                raw_docs = list(collection.aggregate([{"$sample": {"size": 100}}]))
+                
+                # ✅ Converti ObjectId a string per JSON
+                for doc in raw_docs:
+                    if '_id' in doc and isinstance(doc['_id'], ObjectId):
+                        doc['_id'] = str(doc['_id'])
+                
+                docs = raw_docs
+                print(f"[JCoFrameworkExecutor] ✅ Estratti {len(docs)} doc casuali da MongoDB")
+            except Exception as e:
+                print(f"[JCoFrameworkExecutor] ❌ MongoDB fallito: {e}")
         
-        # ✅ RETURN - Ora docs potrebbe non essere vuoto grazie al fallback
         return {
-            'text': json.dumps(docs[:5], indent=2) if docs else f"✅ {doc_count} documenti caricati",
-            'doc_count': doc_count,
-            'results': docs[:100] if docs else []
+            'results': docs,
+            'doc_count': len(docs),
+            'text': ''
         }
-
 
     
 
@@ -251,6 +146,35 @@ class JCoFrameworkExecutor:
         except:
             value = value_str
         
+        # ✅ DEBUG: Stampa info filtro
+        print(f"[DEBUG FILTER] Field: {field_path}, Operator: {operator}, Value: {value} ({type(value).__name__})")
+        print(f"[DEBUG FILTER] Totale documenti da filtrare: {len(results)}")
+        
+        found_field = 0
+        sample_values = []
+        
+        # Analizza primi 3 documenti
+        for i, doc in enumerate(results[:3]):
+            doc_value = doc
+            for part in field_path.split('.'):
+                if isinstance(doc_value, dict) and part in doc_value:
+                    doc_value = doc_value[part]
+                else:
+                    doc_value = None
+                    break
+            
+            if doc_value is not None:
+                found_field += 1
+                sample_values.append(doc_value)
+                print(f"[DEBUG FILTER] Doc #{i}: .{field_path} = {doc_value} ({type(doc_value).__name__})")
+            else:
+                print(f"[DEBUG FILTER] Doc #{i}: .{field_path} = MISSING")
+        
+        print(f"[DEBUG FILTER] Campo trovato in: {found_field}/3 documenti")
+        if sample_values:
+            print(f"[DEBUG FILTER] Valori di esempio: {sample_values}")
+        
+        # Filtraggio reale
         filtered = []
         
         for doc in results:
@@ -289,6 +213,7 @@ class JCoFrameworkExecutor:
                 # Confronto non possibile (es: stringa > numero)
                 pass
         
+        print(f"[DEBUG FILTER] Risultato filtro: {len(filtered)} documenti su {len(results)}")
         return filtered
 
 
