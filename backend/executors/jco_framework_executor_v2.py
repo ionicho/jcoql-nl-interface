@@ -264,9 +264,15 @@ class JCoFrameworkExecutor:
                 elif operator == '<=':
                     matches = doc_value <= value
                 elif operator == '=':
-                    matches = doc_value == value
+                    if isinstance(doc_value, list):
+                        matches = value in doc_value
+                    else:
+                        matches = doc_value == value
                 elif operator == '!=':
-                    matches = doc_value != value
+                    if isinstance(doc_value, list):
+                        matches = value not in doc_value
+                    else:
+                        matches = doc_value != value
                 else:
                     matches = False
                 
