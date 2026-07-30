@@ -103,14 +103,39 @@ class JCoFrameworkExecutor:
         }
 
     def _extract_mongo_filter(self, jcoql_query):
-        """Estrai il filtro JCOQL e convertilo a query MongoDB"""
-        # Pattern: FILTER CASE WHERE .field operator value KEEP OTHERS
+        """Estrai il filtro JCOQL con supporto AND/OR"""
         match = re.search(r'WHERE\s+(.+?)\s+KEEP\s+OTHERS', jcoql_query, re.IGNORECASE)
         if not match:
             return None
         
         condition = match.group(1).strip()
-        # Pattern: .field operator value
+        
+        # Split per AND/OR
+        if ' AND ' in condition.upper():
+            parts = re.split(r'\s+AND\s+', condition, flags=re.IGNORECASE)
+            filters = []
+            for part in parts:
+                f = self._parse_single_filter(part.strip())
+                if f:
+                    filters.append(f)
+            if filters:
+                return {'$and': filters}
+        
+        elif ' OR ' in condition.upper():
+            parts = re.split(r'\s+OR\s+', condition, flags=re.IGNORECASE)
+            filters = []
+            for part in parts:
+                f = self._parse_single_filter(part.strip())
+                if f:
+                    filters.append(f)
+            if filters:
+                return {'$or': filters}
+        
+        else:
+            return self._parse_single_filter(condition)
+
+    def _parse_single_filter(self, condition):
+        """Parsa un singolo filtro: .field operator value"""
         field_match = re.match(r'\.([a-zA-Z0-9_.]+)\s*(>=|<=|>|<|=|!=)\s*(.+)', condition)
         if not field_match:
             return None
@@ -118,7 +143,7 @@ class JCoFrameworkExecutor:
         field_path, operator, value_str = field_match.groups()
         value_str = value_str.strip().strip("'\"")
         
-        # Converti il valore
+        # Conversione valore (codice existing)
         try:
             if value_str.lower() in ('true', 'false'):
                 value = value_str.lower() == 'true'
@@ -134,23 +159,12 @@ class JCoFrameworkExecutor:
         except:
             value = value_str
         
-        # Converti l'operatore JCOQL a operatore MongoDB
-        mongo_op_map = {
-            '>': '$gt',
-            '<': '$lt',
-            '>=': '$gte',
-            '<=': '$lte',
-            '=': '$eq',
-            '!=': '$ne'
-        }
-        
+        mongo_op_map = {'>': '$gt', '<': '$lt', '>=': '$gte', '<=': '$lte', '=': '$eq', '!=': '$ne'}
         mongo_op = mongo_op_map.get(operator)
         if not mongo_op:
             return None
         
-        # Costruisci la query MongoDB
-        mongo_filter = {field_path: {mongo_op: value}}
-        return mongo_filter
+        return {field_path: {mongo_op: value}}
 
 
     def _get_documents_from_mongodb(self, collection_name, limit=100):
@@ -190,8 +204,40 @@ class JCoFrameworkExecutor:
     def _apply_filter_to_results(self, results: list, filter_condition: str) -> list:
         """
         Applica un filtro ai risultati quando il JCo non lo ha fatto
-        Supporta: .field > value, .nested.field = value, etc.
+        Supporta: 
+        - Singoli: .field > value
+        - AND: .field = value AND .other > 5
+        - OR: .field = value OR .other != 10
         """
+        if not filter_condition or not results:
+            return results
+        
+        # Supporto AND/OR
+        if ' AND ' in filter_condition.upper():
+            # Splitto per AND e applico tutti i filtri
+            conditions = re.split(r'\s+AND\s+', filter_condition, flags=re.IGNORECASE)
+            filtered = results
+            for condition in conditions:
+                filtered = self._apply_single_filter(filtered, condition.strip())
+            return filtered
+        
+        elif ' OR ' in filter_condition.upper():
+            # Splitto per OR - ritorna documenti che matchano ALMENO una condizione
+            conditions = re.split(r'\s+OR\s+', filter_condition, flags=re.IGNORECASE)
+            filtered = []
+            for doc in results:
+                for condition in conditions:
+                    if self._matches_condition(doc, condition.strip()):
+                        filtered.append(doc)
+                        break  # Documento già matchato, non aggiungerlo di nuovo
+            return filtered
+        
+        else:
+            # Singolo filtro
+            return self._apply_single_filter(results, filter_condition)
+    
+    def _apply_single_filter(self, results: list, filter_condition: str) -> list:
+        """Applica un singolo filtro a una lista di risultati"""
         if not filter_condition or not results:
             return results
         
@@ -220,23 +266,6 @@ class JCoFrameworkExecutor:
         except:
             value = value_str
         
-        found_field = 0
-        sample_values = []
-        
-        # Analizza primi 3 documenti
-        for i, doc in enumerate(results[:3]):
-            doc_value = doc
-            for part in field_path.split('.'):
-                if isinstance(doc_value, dict) and part in doc_value:
-                    doc_value = doc_value[part]
-                else:
-                    doc_value = None
-                    break
-            
-            if doc_value is not None:
-                found_field += 1
-                sample_values.append(doc_value)
-        
         # Filtraggio reale
         filtered = []
         
@@ -264,11 +293,13 @@ class JCoFrameworkExecutor:
                 elif operator == '<=':
                     matches = doc_value <= value
                 elif operator == '=':
+                    # Supporto array
                     if isinstance(doc_value, list):
                         matches = value in doc_value
                     else:
                         matches = doc_value == value
                 elif operator == '!=':
+                    # Supporto array
                     if isinstance(doc_value, list):
                         matches = value not in doc_value
                     else:
@@ -283,6 +314,65 @@ class JCoFrameworkExecutor:
                 pass
         
         return filtered
+    
+    def _matches_condition(self, doc: dict, filter_condition: str) -> bool:
+        """Ritorna True se il documento matcha la condizione"""
+        match = re.match(r'\.([a-zA-Z0-9_.]+)\s*(>=|<=|>|<|=|!=)\s*(.+)', filter_condition.strip())
+        
+        if not match:
+            return True  # Se non riesco a parsare, considera come match
+        
+        field_path, operator, value_str = match.groups()
+        value_str = value_str.strip().strip("'\"")
+        
+        # Converti il valore
+        try:
+            if value_str.lower() in ('true', 'false'):
+                value = value_str.lower() == 'true'
+            elif value_str.lstrip('-').isdigit():
+                value = int(value_str)
+            elif '.' in value_str:
+                try:
+                    value = float(value_str)
+                except:
+                    value = value_str
+            else:
+                value = value_str
+        except:
+            value = value_str
+        
+        # Estrai il valore dal documento
+        doc_value = doc
+        for part in field_path.split('.'):
+            if isinstance(doc_value, dict) and part in doc_value:
+                doc_value = doc_value[part]
+            else:
+                return False
+        
+        # Applica l'operatore
+        try:
+            if operator == '>':
+                return doc_value > value
+            elif operator == '<':
+                return doc_value < value
+            elif operator == '>=':
+                return doc_value >= value
+            elif operator == '<=':
+                return doc_value <= value
+            elif operator == '=':
+                if isinstance(doc_value, list):
+                    return value in doc_value
+                else:
+                    return doc_value == value
+            elif operator == '!=':
+                if isinstance(doc_value, list):
+                    return value not in doc_value
+                else:
+                    return doc_value != value
+            else:
+                return False
+        except TypeError:
+            return False
 
 
 
@@ -440,7 +530,9 @@ class JCoFrameworkExecutor:
                 
                 # FALLBACK: Se il FilterExecutor del JCo non ha filtrato (ritorna TUTTI),
                 # applica il filtro manualmente in Python
-                if "FILTER CASE WHERE" in jcoql_query.upper():
+                # Se il filtro ha AND/OR, non applicare il fallback Python
+# (MongoDB lo ha già fatto correttamente)
+                if "FILTER CASE WHERE" in jcoql_query.upper() and " AND " not in jcoql_query.upper() and " OR " not in jcoql_query.upper():
                     # Estrai la condizione dal filtro
                     filter_match = re.search(r'WHERE\s+(.+?)\s+KEEP\s+OTHERS', jcoql_query, re.IGNORECASE)
                     if filter_match:
