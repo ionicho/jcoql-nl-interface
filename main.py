@@ -77,6 +77,10 @@ ACTIVE_LLM = os.getenv("ACTIVE_LLM", "gemini")
 ACTIVE_PARSER = os.getenv("ACTIVE_PARSER", "antlr3_official")
 ACTIVE_EXECUTOR = os.getenv("ACTIVE_EXECUTOR", "jco_framework")
 
+# Interruttore di debug: imposta JCOQL_DEBUG=true per riattivare i log diagnostici
+# dettagliati (esempi RAG recuperati, riepilogo execution_result). Spento di default.
+JCOQL_DEBUG = os.getenv("JCOQL_DEBUG", "false").lower() == "true"
+
 # Istanzia il parser sintattico
 parser = ParserFactory.create_parser(ParserType(ACTIVE_PARSER))
 
@@ -231,7 +235,7 @@ async def generate_query(request: GenerateRequest):
         try:
             results = collection.query(
                 query_texts=[request.nl_query],
-                n_results=3
+                n_results=6
             )
             retrieved_docs = results['documents'][0] if (results and results.get('documents')) else []
             context_str = "\n\n".join(retrieved_docs)
@@ -273,6 +277,7 @@ async def generate_query(request: GenerateRequest):
     # Repair Loop
     while attempts < request.max_retries and not is_valid:
         attempts += 1
+        missing_get_collection_hint = None
         current_db = db_registry.current_database or "nessuno"
         available_collections = []
         if current_db and current_db in db_registry.databases:
@@ -337,6 +342,58 @@ async def generate_query(request: GenerateRequest):
         SCHEMA MONGODB REALE (Database: {db_registry.get_current_database_name()}):
 {schema_prompt_str}
 
+        🔧 REGOLA CRITICA #4 - COMANDI AVANZATI (JOIN, GROUP, EXPAND, MERGE, INTERSECT, SUBTRACT, SAVE AS):
+        ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+        Oltre a GET COLLECTION + FILTER, JCoQL+ supporta questi comandi. Usali SOLO quando la
+        richiesta dell'utente lo richiede esplicitamente - altrimenti resta sempre sul pattern
+        standard GET COLLECTION + FILTER.
+
+        • JOIN — l'utente chiede di "unire"/"collegare"/"incrociare" due collezioni in base a un
+          campo comune:
+          JOIN OF COLLECTIONS collezione1 AS alias1, collezione2 AS alias2
+          CASE WHERE .alias1.campo = .alias2.campo;
+          La condizione di uguaglianza va SEMPRE in CASE WHERE, MAI in ON (ON è riservato a
+          ON GEOMETRY per casi spaziali). Nel risultato i campi sono raggiungibili come
+          .alias1.campo e .alias2.campo.
+          🚨 IMPORTANTE: NON aggiungere MAI "KEEP OTHERS" alla fine di un JOIN, a meno che
+          l'utente non lo chieda esplicitamente. Su un JOIN, "KEEP OTHERS" mantiene anche le
+          coppie che NON soddisfano la condizione di uguaglianza, trasformando il join in un
+          prodotto cartesiano completo (ogni documento della prima collezione abbinato a ogni
+          documento della seconda) invece di un vero collegamento filtrato. Il JOIN termina
+          con il solo punto e virgola dopo la condizione, senza KEEP OTHERS.
+
+        • GROUP — l'utente chiede di "raggruppare"/"aggregare per":
+          GET COLLECTION collezione;
+          GROUP PARTITION TRUE BY .campo INTO .risultato;
+          Usa PARTITION TRUE se non c'è una condizione specifica di selezione; opzionali
+          DROP GROUPING FIELDS, KEEP OTHERS.
+
+        • EXPAND — l'utente chiede di "espandere" un array, o "un documento/risultato per ogni
+          elemento di" un campo che è una lista:
+          GET COLLECTION collezione;
+          EXPAND UNPACK TRUE ARRAY .campoArray TO .campoDestinazione;
+          Opzionali KEEP OTHERS / DROP OTHERS per i documenti privi di quell'array.
+
+        • MERGE — l'utente chiede di "unire tutti i documenti"/"combinare" due collezioni intere:
+          MERGE COLLECTIONS collezione1, collezione2;
+          Opzionale REMOVE DUPLICATES.
+
+        • INTERSECT — l'utente chiede "cosa hanno in comune" due collezioni, o i documenti
+          presenti in entrambe:
+          INTERSECT COLLECTIONS collezione1, collezione2;
+
+        • SUBTRACT — l'utente chiede i documenti "presenti in X ma non in Y":
+          SUBTRACT COLLECTIONS collezione1, collezione2;
+
+        • SAVE AS — l'utente chiede di "salvare"/"creare una copia"/"fare un backup" del
+          risultato come nuova collezione:
+          GET COLLECTION collezione; [eventuali FILTER/GROUP/EXPAND]
+          SAVE AS nuovoNome@{current_db};
+          🚨 IMPORTANTE: il database dopo @ è SEMPRE OBBLIGATORIO. "SAVE AS nome;" senza
+          @database NON scrive su MongoDB (salva solo temporaneamente nella pipeline interna).
+          Se l'utente chiede di salvare, includi SEMPRE @{current_db} (o il database indicato
+          esplicitamente dall'utente).
+
 {EXTENDED_EXAMPLES}
 
 {JCOQL_SYNTAX_BASIC}
@@ -361,6 +418,46 @@ Usa ESATTAMENTE i nomi campi dello schema. NESSUN testo aggiuntivo.
             else:
                 response = model.generate_content(prompt)
                 current_query = response.text.strip()
+
+            # 🔧 Fix: applicato a TUTTI i modelli locali (Llama e Gemma), non solo Llama.
+            # I modelli locali quantizzati sono più soggetti a due tipi di errore:
+            # (a) nome di collezione sbagliato ma presente, (b) clausola GET COLLECTION
+            # omessa del tutto. Qui correggiamo (a) e rileviamo esplicitamente (b).
+            if ACTIVE_LLM in ("llama", "gemma"):
+                from difflib import get_close_matches
+                import re
+
+                match = re.search(r'GET COLLECTION\s+(\w+)', current_query, re.IGNORECASE)
+                if match:
+                    coll_name = match.group(1)
+
+                    # (a) Nome di collezione presente ma non esistente: correggi con il più simile
+                    if coll_name not in available_collections and available_collections:
+                        close_matches = get_close_matches(coll_name, available_collections, n=1, cutoff=0.6)
+                        if close_matches:
+                            corrected = current_query.replace(
+                                f"GET COLLECTION {coll_name}",
+                                f"GET COLLECTION {close_matches[0]}"
+                            )
+                            query_logger.info(f"🔧 {ACTIVE_LLM.capitalize()} corretto: {coll_name} → {close_matches[0]}")
+                            current_query = corrected
+                else:
+                    # (b) GET COLLECTION del tutto assente: non indoviniamo il nome collezione
+                    # (rischia di essere semanticamente sbagliato, es. "film" vs "movies"),
+                    # ma segnaliamo l'errore in modo esplicito così il repair loop successivo
+                    # ha un'istruzione chiara da correggere, invece di un errore di parsing
+                    # generico difficile da interpretare per il modello. Il messaggio viene
+                    # unito a quello del parser più sotto (stesso tentativo), non aggiunto
+                    # come voce separata, altrimenti verrebbe scartato: il prompt usa solo
+                    # all_errors[-1].
+                    query_logger.warning(
+                        f"⚠️ {ACTIVE_LLM.capitalize()} ha omesso GET COLLECTION nella risposta"
+                    )
+                    missing_get_collection_hint = (
+                        "La query DEVE iniziare con la clausola 'GET COLLECTION <nome_collezione>;' "
+                        "seguita da un punto e virgola. Questa clausola era completamente assente "
+                        f"nel tentativo precedente. Collezioni disponibili: {', '.join(available_collections)}."
+                    )
 
             # Estrai TUTTI i nomi dei campi (inclusi quelli nested) dallo schema
             all_field_names = []
@@ -436,6 +533,10 @@ Usa ESATTAMENTE i nomi campi dello schema. NESSUN testo aggiuntivo.
             
             if not is_valid:
                 error_messages = [err.message for err in errors] if errors else ["Errore sintattico"]
+                # Se avevamo rilevato l'assenza di GET COLLECTION, questo suggerimento
+                # esplicito va in testa: è più utile al LLM del solo errore ANTLR generico.
+                if missing_get_collection_hint:
+                    error_messages = [missing_get_collection_hint] + error_messages
                 all_errors.append(f"Tentativo {attempts}: {', '.join(error_messages)}")
                 validation_errors_for_frontend = [{"message": msg} for msg in error_messages]
 
@@ -452,6 +553,17 @@ Usa ESATTAMENTE i nomi campi dello schema. NESSUN testo aggiuntivo.
         "llm_used": ACTIVE_LLM,
         "parser_used": parser.parser_name
     }
+
+    # Log diagnostico degli esempi RAG recuperati per questa richiesta - utile per capire
+    # se un errore del LLM dipende dal RAG (esempio giusto mai recuperato) o dal LLM stesso
+    # (esempio recuperato ma non seguito correttamente). Attivo solo con JCOQL_DEBUG=true.
+    if JCOQL_DEBUG:
+        print(f"\n🔍 DEBUG RAG - esempi recuperati per '{request.nl_query[:60]}':")
+        if retrieved_docs:
+            for i, doc in enumerate(retrieved_docs, 1):
+                print(f"   [{i}] {doc[:200]}")
+        else:
+            print("   (nessun esempio recuperato)")
 
     elapsed = time.time() - start_time
     query_logger.info(f"✅ Query processata in {elapsed:.3f}s | Valida: {result['is_valid']}")
@@ -490,6 +602,8 @@ async def list_parsers():
 @app.post("/api/execute")
 async def execute_query(request: QueryRequest):
     global executor
+
+    exec_start_time = time.time()
 
     try:
         # 1. Estrazione di TUTTI i campi dalla request (evita NameError)
@@ -540,11 +654,24 @@ async def execute_query(request: QueryRequest):
 
         # 4. Esecuzione passando il database target dinamico
         execution_result = executor.execute(jcoql_query)
+        exec_elapsed = time.time() - exec_start_time
+        query_logger.info(f"⏱️ Esecuzione completata in {exec_elapsed:.3f}s")
 
-        # DEBUG: Stampa cosa ritorna l'executor
-        print(f"\n🔍 DEBUG execution_result keys: {execution_result.keys() if isinstance(execution_result, dict) else 'NOT A DICT'}")
-        if isinstance(execution_result, dict):
-            print(f"   execution_result: {execution_result}")
+        # Log diagnostico di riepilogo di cosa ritorna l'executor (riepilogo, non il
+        # dump completo - con centinaia di documenti pesanti il dump intero rendeva
+        # illeggibile la console). Attivo solo con JCOQL_DEBUG=true.
+        if JCOQL_DEBUG:
+            print(f"\n🔍 DEBUG execution_result keys: {execution_result.keys() if isinstance(execution_result, dict) else 'NOT A DICT'}")
+            if isinstance(execution_result, dict):
+                _dbg_count = execution_result.get('count', execution_result.get('doc_count', '?'))
+                _dbg_results = execution_result.get('results', [])
+                print(f"   success={execution_result.get('success')} count={_dbg_count} "
+                      f"n_results_inviati={len(_dbg_results) if isinstance(_dbg_results, list) else '?'}")
+                if isinstance(_dbg_results, list) and _dbg_results:
+                    _first = str(_dbg_results[0])
+                    print(f"   primo risultato (troncato a 300 char): {_first[:300]}")
+                if execution_result.get('error'):
+                    print(f"   error: {execution_result.get('error')}")
 
         actual_count = 0
         actual_results = []

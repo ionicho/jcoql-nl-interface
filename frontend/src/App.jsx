@@ -19,7 +19,7 @@ const queryClient = new QueryClient()
 const API_BASE_URL = 'http://localhost:8000'
 
 // ==========================================
-// 3. COMPONENTE PRINCIPALE (PAGINA INTERFACCIA JCoQL)
+// 3. COMPONENTE INTERFACCIA JCoQL
 // ==========================================
 function MainInterface() {
   // --- STATI LOCALI ---
@@ -83,7 +83,7 @@ function MainInterface() {
     mutationFn: async (query) => {
       const response = await axios.post(`${API_BASE_URL}/api/generate`, {
         nl_query: query,
-        selected_databases: selectedDatabases,
+        database: selectedDatabases[0],
         join_config: joinConfig,
         max_retries: 2,
         parser_type: 'antlr3_official'
@@ -97,9 +97,9 @@ function MainInterface() {
 
   // Esempi predefiniti per test rapido
   const exampleQueries = [
-    "Hotel a Milano con rating superiore a 4",
-    "Prodotti con prezzo tra 100 e 200 euro",
-    "Utenti senza email registrata"
+    "Hotel a Milano",
+    "Prodotti di elettronica con sconto maggiore del 20%",
+    "Ristoranti aperti a Napoli"
   ]
 
   const handleGenerate = () => {

@@ -1,0 +1,176 @@
+==============================================
+JCOQL+ EXAMPLES - JOIN / GROUP / EXPAND / MERGE / INTERSECT / SUBTRACT / SAVE AS
+==============================================
+
+Validati sul parser ANTLR3 ufficiale e sul motore J-CO Framework (2 agosto 2026).
+Campi e valori basati sullo schema reale osservato nei database jcoql_test e sample_mflix.
+
+ESEMPIO 1: JOIN nativo tra due collezioni (equi-join)
+----------------------------------------------
+Descrizione: Unisci utenti e i loro ordini, dove l'id utente nell'ordine corrisponde all'id dell'utente.
+Query:
+JOIN OF COLLECTIONS users AS u, orders AS o
+CASE WHERE .o.user_id = .u._id;
+
+ESEMPIO 2: JOIN con rimozione duplicati
+----------------------------------------------
+Descrizione: Unisci utenti e ordini come sopra, rimuovendo eventuali documenti duplicati dal risultato.
+Query:
+JOIN OF COLLECTIONS users AS u, orders AS o
+CASE WHERE .o.user_id = .u._id
+REMOVE DUPLICATES;
+
+ESEMPIO 3: GROUP - raggruppamento semplice per campo
+----------------------------------------------
+Descrizione: Raggruppa i film per anno di uscita.
+Query:
+GET COLLECTION movies;
+GROUP PARTITION TRUE BY .year INTO .filmsPerYear;
+
+ESEMPIO 4: GROUP con eliminazione campi di raggruppamento
+----------------------------------------------
+Descrizione: Raggruppa gli ordini per stato, senza mantenere il campo stato originale nel risultato.
+Query:
+GET COLLECTION orders;
+GROUP PARTITION TRUE BY .status INTO .ordersByStatus
+DROP GROUPING FIELDS;
+
+ESEMPIO 5: GROUP con condizione di partizione
+----------------------------------------------
+Descrizione: Raggruppa per stato solo gli ordini con importo totale superiore a 100.
+Query:
+GET COLLECTION orders;
+GROUP PARTITION .total > 100 BY .status INTO .highValueOrders;
+
+ESEMPIO 6: GROUP mantenendo i documenti non raggruppati
+----------------------------------------------
+Descrizione: Raggruppa gli ordini per priorità, mantenendo anche i documenti che non rientrano nella partizione.
+Query:
+GET COLLECTION orders;
+GROUP PARTITION TRUE BY .priority INTO .ordersByPriority
+KEEP OTHERS;
+
+ESEMPIO 7: EXPAND - espansione di un array semplice
+----------------------------------------------
+Descrizione: Crea un documento separato per ogni genere di ciascun film.
+Query:
+GET COLLECTION movies;
+EXPAND UNPACK TRUE ARRAY .genres TO .genre;
+
+ESEMPIO 8: EXPAND con mantenimento dei non corrispondenti
+----------------------------------------------
+Descrizione: Crea un documento separato per ogni attore del cast di ciascun film, mantenendo anche i film senza cast.
+Query:
+GET COLLECTION movies;
+EXPAND UNPACK TRUE ARRAY .cast TO .actor
+KEEP OTHERS;
+
+ESEMPIO 9: EXPAND su array di articoli in un ordine
+----------------------------------------------
+Descrizione: Crea un documento separato per ogni articolo contenuto in ciascun ordine.
+Query:
+GET COLLECTION orders;
+EXPAND UNPACK TRUE ARRAY .items TO .item;
+
+ESEMPIO 10: EXPAND con condizione specifica
+----------------------------------------------
+Descrizione: Espandi i paesi di produzione solo per i documenti di tipo film, scartando gli altri.
+Query:
+GET COLLECTION movies;
+EXPAND UNPACK (.type = 'movie') ARRAY .countries TO .country
+DROP OTHERS;
+
+ESEMPIO 11: MERGE - unione di due collezioni
+----------------------------------------------
+Descrizione: Unisci hotel e ristoranti in un'unica collezione di risultati.
+Query:
+MERGE COLLECTIONS hotels, restaurants;
+
+ESEMPIO 12: MERGE con rimozione duplicati
+----------------------------------------------
+Descrizione: Unisci hotel e ristoranti, rimuovendo eventuali documenti duplicati dal risultato.
+Query:
+MERGE COLLECTIONS hotels, restaurants REMOVE DUPLICATES;
+
+ESEMPIO 13: INTERSECT - intersezione tra due collezioni
+----------------------------------------------
+Descrizione: Trova i documenti presenti sia nella collezione hotels sia nella collezione restaurants.
+Query:
+INTERSECT COLLECTIONS hotels, restaurants;
+
+ESEMPIO 14: SUBTRACT - differenza tra due collezioni
+----------------------------------------------
+Descrizione: Trova i documenti presenti in hotels ma non in restaurants.
+Query:
+SUBTRACT COLLECTIONS hotels, restaurants;
+
+ESEMPIO 15: SAVE AS - salva il risultato come nuova collezione
+----------------------------------------------
+Descrizione: Salva gli hotel come una nuova collezione di backup nel database jcoql_test.
+Query:
+GET COLLECTION hotels;
+SAVE AS hotels_backup@jcoql_test;
+
+ESEMPIO 16: SAVE AS dopo un filtro
+----------------------------------------------
+Descrizione: Filtra gli ordini con priorità urgente e salva il risultato come nuova collezione.
+Query:
+GET COLLECTION orders;
+FILTER CASE WHERE .priority = 'urgent' KEEP OTHERS;
+SAVE AS urgentOrders@jcoql_test;
+
+ESEMPIO 17: Prodotti con sconto elevato
+----------------------------------------------
+Descrizione: Prodotti con uno sconto superiore al 20%.
+Query:
+GET COLLECTION products;
+FILTER CASE WHERE .discount > 20 KEEP OTHERS;
+
+ESEMPIO 18: Prodotti biologici con buon rating
+----------------------------------------------
+Descrizione: Prodotti biologici con una valutazione superiore a 4.
+Query:
+GET COLLECTION products;
+FILTER CASE WHERE .organic = true AND .rating > 4 KEEP OTHERS;
+
+ESEMPIO 19: Prodotti di una marca specifica
+----------------------------------------------
+Descrizione: Prodotti della marca HP.
+Query:
+GET COLLECTION products;
+FILTER CASE WHERE .brand = 'HP' KEEP OTHERS;
+
+ESEMPIO 20: Ristoranti aperti con una cucina specifica
+----------------------------------------------
+Descrizione: Ristoranti aperti con cucina giapponese.
+Query:
+GET COLLECTION restaurants;
+FILTER CASE WHERE .status = 'open' AND .cuisine = 'Japanese' KEEP OTHERS;
+
+ESEMPIO 21: Ristoranti con posti all'aperto senza glutine
+----------------------------------------------
+Descrizione: Ristoranti con posti a sedere all'aperto e menu senza glutine.
+Query:
+GET COLLECTION restaurants;
+FILTER CASE WHERE .outdoor_seating = true AND .gluten_free_menu = true KEEP OTHERS;
+
+ESEMPIO 22: Hotel in una città
+----------------------------------------------
+Descrizione: Hotel situati a Milano.
+Query:
+GET COLLECTION hotels;
+FILTER CASE WHERE .location.city = 'Milano' KEEP OTHERS;
+
+ESEMPIO 23: Ordini urgenti di importo elevato
+----------------------------------------------
+Descrizione: Ordini con priorità urgente e totale superiore a 500.
+Query:
+GET COLLECTION orders;
+FILTER CASE WHERE .priority = 'urgent' AND .total > 500 KEEP OTHERS;
+
+ESEMPIO 24: Ordini con numero di tracciamento assegnato
+----------------------------------------------
+Descrizione: Ordini che hanno un numero di tracciamento registrato.
+Query:
+GET COLLECTION orders;
+FILTER CASE WHERE FIELD .tracking_number ISNOTNULL KEEP OTHERS;

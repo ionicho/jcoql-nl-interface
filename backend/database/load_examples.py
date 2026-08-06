@@ -5,8 +5,20 @@ USANDO EMBEDDINGS LOCALI (no API calls)
 """
 import os
 import re
+import glob
+from pathlib import Path
 import chromadb
 from chromadb.config import Settings
+
+# FIX 3 agosto 2026: percorsi calcolati rispetto alla posizione di QUESTO file, non
+# rispetto alla cartella da cui viene lanciato lo script - prima, lanciandolo da
+# 'backend/' invece che dalla radice del progetto, i percorsi relativi puntavano a
+# cartelle sbagliate/inesistenti (esempi non trovati, e rischio di scrivere ChromaDB
+# in una posizione diversa da quella che l'app vera legge).
+# Questo file e' in <root_progetto>/backend/database/load_examples.py
+PROJECT_ROOT = Path(__file__).resolve().parent.parent.parent
+EXAMPLES_DIR = PROJECT_ROOT / "examples" / "validated"
+CHROMA_PATH = PROJECT_ROOT / "chroma_data"
 
 def parse_examples_file(filepath):
     """Parse esempi da file .txt (supporta entrambi i formati)"""
@@ -93,8 +105,9 @@ def load_examples_to_chromadb():
     print()
     
     # Initialize ChromaDB (usa embeddings LOCALI automaticamente!)
+    print(f"📂 ChromaDB path: {CHROMA_PATH}")
     client = chromadb.PersistentClient(
-        path="./chroma_data",
+        path=str(CHROMA_PATH),
         settings=Settings(
             anonymized_telemetry=False,
             allow_reset=True
@@ -117,14 +130,14 @@ def load_examples_to_chromadb():
     print(f"✅ ChromaDB ready (embeddings LOCALI)")
     print()
     
-    example_files = [
-        'examples/validated/jcoql_examples.txt',
-        'examples/validated/jcoql_examples_EXTENDED.txt',
-        'examples/validated/jcoql_examples_INRANGE.txt',
-        'examples/validated/jcoql_examples_EDGE_CASES.txt',
-        'examples/validated/jcoql_examples_REAL_SYNTAX.txt',
-        'examples/validated/jcoql_examples_SCHEMA_ALIGNED.txt'    
-    ]
+    # FIX 3 agosto 2026: prima era una lista fissa di nomi file, scritta a mano - qualunque
+    # nuovo file di esempi (come jcoql_examples_full.txt, con JOIN/GROUP/EXPAND/MERGE/
+    # INTERSECT/SUBTRACT/SAVE AS) veniva ignorato in silenzio se non esplicitamente elencato
+    # qui. Ora si scansiona l'intera cartella (percorso assoluto, non relativo alla cartella
+    # di lancio), cosi' qualunque file .txt presente viene sempre caricato, oggi e in
+    # futuro, senza bisogno di ricordarsi di aggiornare questa lista.
+    print(f"📂 Cartella esempi: {EXAMPLES_DIR}")
+    example_files = sorted(str(p) for p in EXAMPLES_DIR.glob("*.txt"))
     
     all_examples = []
     for filepath in example_files:

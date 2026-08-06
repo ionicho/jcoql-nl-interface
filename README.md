@@ -1,76 +1,76 @@
 # JCoQL+ Natural Language Interface
 
-Sistema completo di traduzione Natural Language → JCoQL+ con RAG (Retrieval-Augmented Generation), validazione multi-parser e esecuzione su database MongoDB reale.
+Sistema di traduzione Natural Language → JCoQL+ con RAG (Retrieval-Augmented Generation), validazione tramite parser ANTLR3 ufficiale ed esecuzione su database MongoDB reale tramite il motore J-CO Framework.
 
-**Università degli Studi di Bergamo**  
-**Tesi Magistrale** - Nicholas Iotti  
+**Università degli Studi di Bergamo**
+**Tesi Magistrale** - Nicholas Iotti
 **Relatori:** Prof. Giuseppe Psaila, Prof. Paolo Fosci
 
 ---
 
 ## 🎯 Obiettivo
 
-Permettere agli utenti di interrogare database MongoDB usando **linguaggio naturale** invece di scrivere query JCoQL manualmente, con:
-- ✅ Generazione automatica query JCoQL sintatticamente corrette
-- ✅ Validazione tramite parser ANTLR ufficiale
-- ✅ Esecuzione su database MongoDB reale
-- ✅ Upload dati personalizzati
-- ✅ Accuracy 100% su query benchmark
+Permettere agli utenti di interrogare database MongoDB usando **linguaggio naturale** invece di scrivere query JCoQL+ manualmente, con:
+- ✅ Generazione automatica di query JCoQL+ tramite LLM (multi-provider: cloud e locale)
+- ✅ Validazione tramite il parser ANTLR3 ufficiale del progetto J-CO
+- ✅ Esecuzione reale tramite il motore J-CO Framework, non una reimplementazione
+- ✅ Supporto a 9 comandi del linguaggio, non solo GET COLLECTION+FILTER
+- ✅ Multi-database, con scoperta automatica dello schema e riconoscimento approssimato dei campi
+
+> Nota metodologica: le sezioni di questo README riportano solo dati verificati con test diretti sul sistema. Dove una misura non è stata riverificata di recente, è segnalato esplicitamente.
 
 ---
 
 ## 🏗️ Architettura
+
 ```
 ┌─────────────────────────────────────────────────────────┐
-│  USER INPUT                                            │
-│  • Natural Language: "Hotel a Milano rating > 4"       │
-│  • Direct JCoQL: GET COLLECTION hotels; ...            │
-│  • File Upload: custom_data.json                       │
-└──────────────────┬──────────────────────────────────────┘
+│  USER INPUT                                              │
+│  • Natural Language: "Raggruppa gli ordini per stato"    │
+│  • Direct JCoQL+: GET COLLECTION hotels; ...              │
+└──────────────────┬────────────────────────────────────────┘
                    ↓
 ┌─────────────────────────────────────────────────────────┐
-│  RAG RETRIEVAL (ChromaDB)                              │
-│  • 188 esempi validati                                 │
-│  • Embedding: all-MiniLM-L6-v2                         │
-│  • Top-3 esempi simili                                 │
-└──────────────────┬──────────────────────────────────────┘
+│  RAG RETRIEVAL (ChromaDB)                                │
+│  • Esempi validati, caricati da examples/validated/*.txt │
+│  • Embedding locali: all-MiniLM-L6-v2                    │
+│  • Top-N esempi semanticamente più simili                │
+└──────────────────┬────────────────────────────────────────┘
                    ↓
 ┌─────────────────────────────────────────────────────────┐
-│  LLM GENERATION (Multi-Provider)                       │
-│  • Gemini 3.1 Flash Lite (cloud)                       │
-│  • Llama 3.1 8B (locale, 36% più veloce)               │
-│  • Gemma 2 9B (locale)                                 │
-│  • Schema MongoDB integrato nel prompt                 │
-│  • Regole sintattiche JCoQL 4.0                        │
-└──────────────────┬──────────────────────────────────────┘
+│  LLM GENERATION (multi-provider, selezione if/elif,      │
+│  non una vera Factory)                                   │
+│  • Google Gemini (cloud)                                 │
+│  • Llama 3.1 / Gemma via Ollama (locale)                 │
+│  • Schema MongoDB reale del database attivo nel prompt    │
+│  • Regole sintattiche JCoQL+ per tutti i 9 comandi        │
+└──────────────────┬────────────────────────────────────────┘
                    ↓
 ┌─────────────────────────────────────────────────────────┐
-│  PARSER VALIDATION (Multi-Parser)                     │
-│  • ANTLR3 Official (repo prof)                         │
-│  • ANTLR4 Custom (grammatica JCoQL 4.0)                │
-│  • Switch runtime via UI                               │
-└──────────────────┬──────────────────────────────────────┘
+│  PARSER VALIDATION                                        │
+│  • ANTLR3 Official (repository del progetto J-CO)         │
+│  • Repair loop automatico sugli errori di validazione     │
+└──────────────────┬────────────────────────────────────────┘
                    ↓
 ┌─────────────────────────────────────────────────────────┐
-│  JCOQL EXECUTOR (Dual-Mode)                            │
-│  • Python Translator: JCoQL → MongoDB (90% query)      │
-│  • JCO Framework: Support completo + filtering         │
-│  • Switch runtime via .env o UI                        │
-│  • Filtri applicate direttamente in MongoDB            │
-└──────────────────┬──────────────────────────────────────┘
+│  JCO FRAMEWORK EXECUTOR                                   │
+│  • Motore Java ufficiale J-CO, lanciato come subprocess    │
+│  • Per i comandi diversi da GET COLLECTION il motore       │
+│    riporta solo il conteggio: i risultati sono             │
+│    ricostruiti lato Python e verificati incrociando il      │
+│    conteggio dichiarato dal motore stesso                  │
+└──────────────────┬────────────────────────────────────────┘
                    ↓
 ┌─────────────────────────────────────────────────────────┐
-│  MONGODB EXECUTION                                     │
-│  • Database: jcoql_test                                │
-│  • Collections: 5 predefinite + user uploads           │
-│  • Query real-time                                     │
-└──────────────────┬──────────────────────────────────────┘
+│  MONGODB EXECUTION                                         │
+│  • Multi-database, con switching da interfaccia            │
+│  • Schema discovery ricorsiva per database connesso         │
+└──────────────────┬────────────────────────────────────────┘
                    ↓
 ┌─────────────────────────────────────────────────────────┐
-│  RESULTS VISUALIZATION                                 │
-│  • JSON completo documenti                             │
-│  • MongoDB query tradotta                              │
-│  • Statistiche esecuzione                              │
+│  RESULTS VISUALIZATION                                     │
+│  • Documenti JSON, sintassi JCoQL+ completa eseguita        │
+│  • Conteggio reale (non limitato ai documenti visualizzati) │
 └─────────────────────────────────────────────────────────┘
 ```
 
@@ -80,11 +80,12 @@ Permettere agli utenti di interrogare database MongoDB usando **linguaggio natur
 
 ### Prerequisites
 
-- **Python 3.14+**
-- **Node.js 24+**
-- **MongoDB 8.2+**
+- **Python 3.x**
+- **Node.js**
+- **MongoDB**
 - **Ollama** (per LLM locali, opzionale)
-- **Java 8+** (per parser ANTLR3 ufficiale)
+- **Java 8+** (per il motore J-CO Framework e il parser ANTLR3)
+- **Gradle** (per compilare il framework J-CO, se modificato)
 
 ### Installation
 ```bash
@@ -105,25 +106,25 @@ npm install
 
 # 4. Environment variables
 cp .env.example .env
-# Edit .env with your GEMINI_API_KEY
+# Modifica .env con la tua GEMINI_API_KEY
 
-# 5. MongoDB setup
-# Install MongoDB 8.2 from https://www.mongodb.com/try/download/community
-# Import sample data:
-mongoimport --db jcoql_test --collection hotels --file backend/database/data_hotels.json --jsonArray
-mongoimport --db jcoql_test --collection products --file backend/database/data_products.json --jsonArray
-mongoimport --db jcoql_test --collection users --file backend/database/data_users.json --jsonArray
-mongoimport --db jcoql_test --collection orders --file backend/database/data_orders.json --jsonArray
-mongoimport --db jcoql_test --collection restaurants --file backend/database/data_restaurants.json --jsonArray
+# 5. MongoDB
+# Assicurati che MongoDB sia in esecuzione e che i database/collezioni
+# che intendi usare siano popolati (vedi backend/database/ per gli script
+# di seed, se presenti)
 
-# 6. Load examples in ChromaDB
+# 6. Carica gli esempi in ChromaDB
 python backend/database/load_examples.py
 ```
 
+`load_examples.py` scansiona **tutti** i file `.txt` presenti in `examples/validated/`
+(percorso calcolato rispetto alla posizione dello script, non alla cartella da cui lo
+lanci) e ricrea la collection ChromaDB da zero a ogni esecuzione — dopo averlo lanciato,
+**riavvia il backend**, altrimenti resta collegato al riferimento della collection precedente.
+
 ### Run
 ```bash
-# Terminal 1: Backend
-cd jcoql-nl-interface
+# Terminal 1: Backend (dalla radice del progetto - gli import usano il pacchetto "backend")
 venv\Scripts\activate
 uvicorn main:app --reload
 
@@ -132,7 +133,18 @@ cd frontend
 npm run dev
 ```
 
-Open browser: **http://localhost:5173**
+Apri il browser su: **http://localhost:5173**
+
+### Debug
+
+Il sistema stampa log diagnostici dettagliati (output grezzo del motore Java per i
+comandi diversi da GET COLLECTION, esempi RAG recuperati per ogni richiesta, riepilogo
+dell'esecuzione) solo se richiesto esplicitamente:
+```bash
+set JCOQL_DEBUG=true   # Windows (PowerShell: $env:JCOQL_DEBUG="true")
+# export JCOQL_DEBUG=true   # Linux/Mac
+```
+Di default è spento, per non intasare la console durante un uso normale.
 
 ---
 
@@ -140,502 +152,178 @@ Open browser: **http://localhost:5173**
 
 ### Backend
 - **Framework:** FastAPI
-- **Database:** MongoDB 8.2
-- **Vector DB:** ChromaDB (persistent)
-- **LLM Cloud:** Google Gemini 3.1 Flash Lite
-- **LLM Local:** Ollama (Llama 3.1 8B, Gemma 2 9B)
-- **Embeddings:** sentence-transformers (all-MiniLM-L6-v2)
-- **Parser:** ANTLR 4.9.3 + ANTLR 3.4
-- **Executor:** Python JCoQL Translator + JCO Framework (dual-mode)
+- **Database:** MongoDB
+- **Vector DB:** ChromaDB (persistente, locale)
+- **LLM Cloud:** Google Gemini
+- **LLM Locale:** Ollama (Llama 3.1, Gemma)
+- **Embeddings:** sentence-transformers (all-MiniLM-L6-v2, locali)
+- **Parser:** ANTLR3 (repository ufficiale del progetto J-CO)
+- **Executor:** motore J-CO Framework (Java), lanciato come subprocess
 
 ### Frontend
-- **Framework:** React 19
-- **Build:** Vite 8
-- **Routing:** React Router 7
-- **Styling:** TailwindCSS
+- **Framework:** React
+- **Build:** Vite
+- **Routing:** React Router
 - **HTTP:** Axios
-- **Charts:** Chart.js (dashboard)
 
 ---
 
 ## 🗄️ Database Integration
 
-### MongoDB Setup
-- **Version:** 8.2.6
-- **Collections:** 5 predefinite (hotels, products, users, orders, restaurants)
-- **Sample Data:** 110 documenti con dati realistici italiani
-- **Schema:** Documentato in `backend/database/SCHEMA_README.md`
+### Multi-Database
+- Selezione del database da interfaccia (singolo o multiplo)
+- Scoperta automatica dello schema per il database attivo, inclusi campi annidati
+- Riconoscimento approssimato dei nomi di campo (basato su `difflib`, non su liste di
+  parole chiave scritte a mano) per gestire richieste cross-lingua
 
-### Collections Schema
+### Query Execution — esempi verificati
 
-**hotels** (20 docs)
-```json
-{
-  "location": {"city": "Milano", "country": "Italy", "coordinates": {...}},
-  "rating": 4.5,
-  "price_per_night": 250,
-  "stars": 5,
-  "amenities": ["spa", "wifi", "restaurant"],
-  "parking": true,
-  "wifi": true,
-  "breakfast_included": true
-}
+**Modalità 1: Linguaggio Naturale → JCoQL+**
 ```
-
-**products** (30 docs)
-```json
-{
-  "category": "electronics",
-  "price": 1299.99,
-  "stock": 50,
-  "brand": "Samsung",
-  "discount": 20,
-  "rating": 4.5,
-  "organic": false
-}
-```
-
-**users** (25 docs), **orders** (20 docs), **restaurants** (15 docs)
-
-### Upload Custom Data
-1. Navigate to `/upload` in UI
-2. Upload JSON file (array format: `[{...}, {...}]`)
-3. Collection created automatically with file name
-4. Use immediately in queries
-
-### Query Execution
-
-**Mode 1: Natural Language → JCoQL**
-```
-Input: "Hotel a Milano con rating superiore a 4"
+Input: "Raggruppa gli ordini per stato"
   ↓
-Generated JCoQL: GET COLLECTION hotels; 
-                 FILTER CASE WHERE .location.city = 'Milano' 
-                 AND .rating > 4.0 
-                 KEEP OTHERS;
+Query generata: GET COLLECTION orders;
+                GROUP PARTITION TRUE BY .status INTO .orders_by_status;
   ↓
-Execution: 2 hotels found
+Esecuzione: 5 gruppi, conteggio verificato contro il motore J-CO
 ```
 
-**Mode 2: Direct JCoQL Input**
+**Modalità 2: Query JCoQL+ diretta**
 ```
-Input: GET COLLECTION products; 
-       FILTER CASE WHERE .category = 'electronics' 
-       AND .price IN_RANGE [100, 500] 
-       KEEP OTHERS;
+Input: JOIN OF COLLECTIONS users AS u, orders AS o
+       CASE WHERE .o.user_id = .u._id;
   ↓
-Execution: 6 products found
+Esecuzione: 2 documenti, conteggio identico a quello riportato dal motore
 ```
+
+---
+
+## ⚙️ Comandi JCoQL+ Supportati
+
+Il sistema supporta 9 comandi del linguaggio, tutti eseguiti dal motore J-CO Framework
+reale (non da una reimplementazione Python del linguaggio):
+
+| Comando | Stato | Note |
+|---|---|---|
+| `GET COLLECTION` + `FILTER` | ✅ Completo | Operatori di confronto, `AND`/`OR`, `IN_RANGE`, campi annidati |
+| `JOIN OF COLLECTIONS` | ✅ Stesso database | Cross-database (`@db1`/`@db2`) non funzionante, causa non identificata |
+| `GROUP PARTITION` | ✅ Completo | Condizioni di partizione a singolo confronto |
+| `EXPAND UNPACK` | ✅ Completo | Condizioni a singolo confronto, una sola clausola UNPACK per istruzione |
+| `MERGE COLLECTIONS` | ✅ Completo | Con `REMOVE DUPLICATES` opzionale |
+| `INTERSECT COLLECTIONS` | ⚠️ Verificato solo su dati disgiunti | Mai testato un caso con overlap reale |
+| `SUBTRACT COLLECTIONS` | ⚠️ Verificato solo su dati disgiunti | Come sopra |
+| `SAVE AS coll@db` | ✅ Completo | `@database` sempre obbligatorio, altrimenti non scrive su MongoDB (by design) |
+| `SAVE TO FILE` | ✅ Verificato | Percorsi relativi risolti rispetto alla working directory del processo Java |
+
+**Non implementati, fuori dallo scope attuale:** `GET DICTIONARY`, `LOOKUP FROM WEB`,
+`TRAJECTORY MATCHING`, le 7 varianti di `CREATE FUZZY` (due delle quali,
+`CREATE JAVA/JAVASCRIPT FUNCTION`, permetterebbero l'esecuzione di codice arbitrario
+lato server generato da un prompt in linguaggio naturale — evitate per ragioni di
+sicurezza, non solo di complessità implementativa).
+
+Per ciascun comando diverso da `GET COLLECTION`, il motore J-CO riporta sullo standard
+output solo il **conteggio** dei documenti risultanti, mai il loro contenuto: i risultati
+vengono ricostruiti lato Python re-interrogando MongoDB, e il conteggio ricostruito è
+verificato automaticamente contro quello dichiarato dal motore a ogni esecuzione (un
+disallineamento genera un avviso in log).
+
 ---
 
 ## 🏭 Architecture Patterns
 
-### Factory Pattern Implementation
+Il sistema usa il **Factory Pattern** per due componenti — non per la selezione del
+LLM, che è realizzata con un semplice `if`/`elif` sul provider richiesto, non una vera
+classe Factory:
 
-Il sistema implementa **Factory Pattern** su 3 livelli:
-
-#### 1. LLM Factory
-```python
-# backend/llm_factory.py (future)
-class LLMFactory:
-    @staticmethod
-    def create(llm_type: LLMType):
-        if llm_type == LLMType.GEMINI:
-            return GeminiLLM()
-        elif llm_type == LLMType.LLAMA:
-            return LlamaLLM()
-```
-
-#### 2. Parser Factory
 ```python
 # backend/parsers/parser_factory.py
 class ParserFactory:
     @staticmethod
     def create_parser(parser_type: ParserType):
-        if parser_type == ParserType.ANTLR4_CUSTOM:
-            return ANTLR4CustomParser()
-        elif parser_type == ParserType.ANTLR3_OFFICIAL:
-            return ANTLR3OfficialParser()
-```
+        return ANTLR3OfficialParser()
 
-#### 3. Executor Factory
-```python
 # backend/executors/executor_factory.py
 class ExecutorFactory:
     @staticmethod
     def create_executor(executor_type: ExecutorType):
-        if executor_type == ExecutorType.PYTHON_TRANSLATOR:
-            return PythonTranslator()
-        elif executor_type == ExecutorType.JCO_FRAMEWORK:
-            raise NotImplementedError("See INTEGRATION_ANALYSIS.md")
+        return JcoFrameworkExecutor()
 ```
-
-### JCO Framework Integration (Risolto - luglio 2026)
-
-**Problema iniziale:** 6 approcci testati per integrare JCO Framework avevano limitazioni:
-
-| Approccio | Problema | Soluzione |
-|-----------|----------|-----------|
-| Subprocess CLI | Path hardcoded | ✅ Risolto con path configuration |
-| Invocazione diretta | Classe senza main() | ✅ Wrapper Java creato |
-| Gradle wrapper | Timeout 60+ secondi | ✅ Ottimizzato classpath |
-| WebSocket server | Non reattivo | ✅ Subprocess con proper stdio |
-| Protocolli terminazione | Parser non risponde | ✅ Timeout handling implementato |
-| File .properties | Path relativi falliti | ✅ Path assoluti risolti |
-
-**Soluzione finale (JCO Framework):**
-- ✅ Integrazione completa riuscita
-- ✅ Subprocess JVM con classpath ottimizzato
-- ✅ Parsing .properties files robusto
-- ✅ Filteriraggio applicato direttamente in MongoDB
-- ✅ ObjectId + Decimal128 conversione automatica
-- ✅ Support completo per nested fields
-
-**Dual-Mode Executor:**
-- Python Translator: 90% query, latenza <100ms
-- JCO Framework: Support completo + advanced filtering
-- Switch runtime via .env: `ACTIVE_EXECUTOR=jco_framework`
-
-### Extensibility by Design
-
-L'architettura Factory Pattern rende triviale il deployment di nuovi executor o parser.
-
-1. **Aggiungere nuovo LLM:**
-   - Implementa interfaccia LLM
-   - Aggiungi in Factory
-   - Zero modifiche main.py
-
-2. **Aggiungere nuovo Parser:**
-   - Implementa ParserInterface
-   - Aggiungi in ParserFactory
-   - Switch via UI/API
-
-3. **Aggiungere nuovo Executor:**
-   - Implementa execute() e close()
-   - Aggiungi in ExecutorFactory
-   - Configura via .env
----
-
-## 🎯 Complete Pipeline
-```
-User Input (NL/JCoQL) + Database Selection
-  → RAG Retrieval (ChromaDB top-3 examples)
-    → LLM Generation (with MongoDB schema + JCoQL rules)
-      → Fuzzy Matching Filter Detection (difflib)
-        → Parser Validation (ANTLR syntax check)
-          → JCoQL Execution (Python Translator OR JCO Framework)
-            → Database Execution (PyMongo with MongoDB filtering)
-              → Results Display (React UI - accurate counts)
-```
-
-**Features:**
-- ✅ Schema-aware generation (zero field hallucinations)
-- ✅ Repair loop (max 3 tentativi su errori)
-- ✅ Multi-LLM support (switch runtime)
-- ✅ Multi-Parser support (ANTLR3/ANTLR4)
-- ✅ Dual-Mode Executor (Python Translator + JCO Framework)
-- ✅ Multi-Database support (5 database auto-loaded)
-- ✅ Multi-Database support (5 database auto-loaded)
-- ✅ Fuzzy matching filter detection (cross-language)
-- ✅ Real-time database execution
-- ✅ Accurate document counts (totale matching)
-- ✅ User data upload support
-- ✅ Nested field schema discovery
-
----
-
-## 📊 Performance Metrics
-
-### Accuracy
-- **Benchmark:** 30 query diverse
-- **Gemini 3.1 Flash Lite:** 100% (30/30) - 5.57s avg
-- **Llama 3.1 8B:** 100% (30/30) - 3.55s avg (**36% faster!**)
-- **First try success:** 96.7% (29/30)
-- **Schema-aware:** Zero field hallucinations
-
-### Dataset
-- **Total examples:** 188 validated
-  - 99 generic examples
-  - 89 schema-aligned examples
-- **Validation:** 100% parser-validated
-- **Coverage:** Basic queries + edge cases + IN_RANGE + WITHOUT
-
-### Database
-- **Collections:** 5 predefinite + user uploads
-- **Documents:** 110 sample + unlimited custom
-- **Query types:** GET, FILTER, WHERE, AND, OR, IN_RANGE, WITHOUT
-- **Execution:** Real-time MongoDB via PyMongo
-
----
-
-## 🔧 Configuration
-
-### Environment Variables (.env)
-```env
-# LLM Configuration
-GEMINI_API_KEY=your_api_key_here
-ACTIVE_LLM=gemini  # Options: gemini, llama, gemma
-
-# Parser Configuration
-ACTIVE_PARSER=antlr4_custom  # Options: antlr4_custom, antlr3_official
-
-# Executor Configuration
-ACTIVE_EXECUTOR=python_translator  # Options: python_translator, jco_framework
-
-# MongoDB Configuration
-MONGODB_URI=mongodb://localhost:27017
-MONGODB_DATABASE=jcoql_test
-```
-
-### Runtime Configuration
-
-**Switch LLM:**
-- Via UI: Interfaccia principale → Selettore LLM
-- Via API: `POST /api/set_llm?llm_type=llama`
-
-**Switch Parser:**
-- Via UI: Interfaccia principale → Selettore Parser
-- Via API: `POST /api/set_parser?parser_type=antlr3_official`
-
-**Switch Executor:**
-- Via .env: `ACTIVE_EXECUTOR=python_translator`
-- Richiede riavvio backend
-
-### Factory Pattern Architecture
-
-Il sistema utilizza **Factory Pattern** per tutti i componenti:
-```python
-# LLM Factory
-llm = LLMFactory.create(LLMType.LLAMA)
-
-# Parser Factory
-parser = ParserFactory.create(ParserType.ANTLR3_OFFICIAL)
-
-# Executor Factory
-executor = ExecutorFactory.create(ExecutorType.PYTHON_TRANSLATOR)
-```
-
-**Benefici:**
-- ✅ Switch runtime senza modifiche codice
-- ✅ Dependency injection ready
-- ✅ Testing semplificato
-- ✅ Estendibilità garantita
-```
-
----
-
-## 🧪 Testing
-
-### Run Benchmark
-```bash
-python backend/benchmark_llms.py
-```
-
-Output: `backend/benchmark_results_YYYYMMDD_HHMMSS.json`
-
-### Test Parser Switch
-```bash
-python test_parser_switch.py
-```
-
-### Validate New Examples
-```bash
-python validate_new_examples.py examples/validated/your_file.txt
-```
-
----
-
-## 📁 Project Structure
-```
-jcoql-nl-interface/
-├── main.py                    # FastAPI backend
-├── .env                       # Environment variables
-├── requirements.txt           # Python dependencies
-│
-├── backend/
-│   ├── llm_local.py          # Llama + Gemma via Ollama
-│   ├── llm_cloud.py          # Gemini API (future)
-│   ├── rag_with_validation.py
-│   ├── jcoql_executor.py     # JCoQL→MongoDB translator
-│   ├── jcoql_syntax_official.txt
-│   ├── jcoql_syntax_basic_official.txt
-│   │
-│   ├── parsers/
-│   │   ├── parser_interface.py
-│   │   ├── parser_factory.py
-│   │   ├── antlr4_custom_parser.py
-│   │   ├── antlr3_official_parser.py
-│   │   ├── java_parser_wrapper.py
-│   │   └── jcoql-parser-official.jar
-│   │
-│   └── database/
-│       ├── chroma_setup.py
-│       ├── load_examples.py
-│       ├── mongodb_schema.json
-│       ├── data_hotels.json
-│       ├── data_products.json
-│       └── SCHEMA_README.md
-│
-├── examples/validated/
-│   ├── jcoql_examples.txt
-│   ├── jcoql_examples_EXTENDED.txt
-│   ├── jcoql_examples_INRANGE.txt
-│   ├── jcoql_examples_EDGE_CASES.txt
-│   ├── jcoql_examples_REAL_SYNTAX.txt
-│   └── jcoql_examples_SCHEMA_ALIGNED.txt
-│
-├── frontend/
-│   ├── src/
-│   │   ├── App.jsx
-│   │   ├── QueryExecutor.jsx
-│   │   ├── UploadData.jsx
-│   │   └── Dashboard.jsx
-│   └── package.json
-│
-├── chroma_data/              # ChromaDB persistent storage
-└── resources/input.file      # ANTLR3 parser input
-```
-
----
-
-## 🎓 Requisiti Tesi Completati
-
-### ✅ 1. Migrazione LLM Locali
-- Llama 3.1 8B implementato (Ollama)
-- Gemma 2 9B implementato (Ollama)
-- Benchmark comparativo eseguito
-- Multi-provider architecture con Factory Pattern
-
-### ✅ 2. Regole Sintattiche JCoQL 4.0
-- File ufficiali integrati nel prompt (57KB + 20KB)
-- Zero allucinazioni sintattiche
-- Repair loop su errori parsing
-
-### ✅ 3. Parser Ufficiale Professori
-- Repository clonato: https://github.com/JcoProjectTeam/JcoQL
-- JAR compilato (109 classi)
-- Integrato come ANTLR3 parser
-- Switch runtime ANTLR3 ↔ ANTLR4
-
-### ✅ 4. Portabilità Architetturale
-- Factory Pattern per LLM
-- Factory Pattern per Parser
-- Executor swappable (Python ↔ JCO Framework)
-- Configurazione runtime via .env
-
-### ✅ 5. Database Reale
-- MongoDB 8.2 integrato
-- 5 collections con 110 documenti
-- Upload dati utente funzionante
-- Esecuzione query real-time
-- Schema MongoDB nel prompt LLM
-
-### ✅ 6. Multi-Database Support (luglio 2026)
-- Database switching dinamico frontend → backend
-- Schema discovery con campi nested ricorsivi
-- Fuzzy matching per filter detection (cutoff: 0.4)
-  - Funziona con linguaggi diversi (anno → year, letti → beds)
-  - Basato su difflib, non keyword hardcoded
-- 5 database MongoDB auto-loaded all'avvio:
-  - `jcoql_test` (hotels, restaurants, products, orders, users)
-  - `test_db` (users, orders)
-  - `sample_mflix` (movies 23.539 doc, users, comments, sessions, theaters)
-  - `sample_restaurants` (restaurants 25.359 doc, neighborhoods)
-  - `sample_airbnb` (listingsAndReviews)
-- Accurate document count (numero totale matching, non cap 100)
-- Type conversions: ObjectId → string, Decimal128 → float
-
-### ✅ 7. JCO Framework Integration (luglio 2026)
-- Integrazione completa riuscita dopo 6 approcci di analisi
-- Subprocess JVM con classpath ottimizzato (Gradle cache)
-- File .properties con path assoluti
-- Filtering applicato direttamente in MongoDB
-- Support ObjectId + Decimal128 conversione
-- Dual-mode executor: Python Translator (90%, latenza <100ms) + JCO Framework
-- Switch runtime via .env: `ACTIVE_EXECUTOR=jco_framework`
-- Production-ready per advanced query operations
 
 ---
 
 ## 🚧 Limitazioni Note
 
-### JCoQL Executor - Python Translator
-**Supporta** (90% casi reali):
-- `GET COLLECTION`
-- `FILTER CASE WHERE ... KEEP/DROP OTHERS`
-- Operatori: `=`, `>`, `<`, `>=`, `<=`, `!=`
-- Logici: `AND`, `OR`
-- Range: `IN_RANGE [min, max]`
-- Campi nested: `.location.city`
-- Latenza: <100ms
-
-**NON supporta** (JCO Framework recommended):
-- `JOIN`, `GROUP BY`, `AGGREGATE`
-- `LOOKUP`, `MERGE`, `EXPAND`
-- Query complesse multi-collection
-
-### JCoQL Executor - JCO Framework
-**Supporta:**
-- ✅ Tutte le feature di Python Translator
-- ✅ JCO Native operations (se supportate)
-- ✅ Filtering avanzato con `count_documents()`
-- ✅ Dual-mode execution
-
-**Considerazioni:**
-- Integrazione completata luglio 2026
-- Richiede Java 8+ (subprocess JVM)
-- Classpath ottimizzato con Gradle cache
-- Latenza: 1-2 secondi (JVM startup)
-
-**Quando usare:**
-- Python Translator: Query semplici, latenza critica
-- JCO Framework: Query avanzate, full support
-
-
-### Multi-Database Features (v1.1.0)
-**Database Switching:**
-- Seleziona database dal frontend (dropdown)
-- Backend applica automaticamente il filtro corretto
-- Schema discovery per ogni database
-
-**Fuzzy Matching Filter Detection:**
-- Riconosce campi anche con nomi diversi (anno → year, letti → beds)
-- Cutoff: 0.4 (60% similarità più bassa = cross-language)
-- Basato su difflib (no hardcoded keywords)
-
-**Accurate Document Counts:**
-- Ritorna numero TOTALE di documenti matching
-- Estrae primi 100 per visualizzazione
-- Supporta collection con milioni di documenti
-
-**Tested Databases:**
-- sample_mflix: 23.539 movies
-- sample_restaurants: 25.359 restaurants
-- sample_airbnb: listingsAndReviews con Decimal128
-- jcoql_test: 5 collections italiane
-- test_db: users + orders
-
-### VRAM Limiti
-- **RTX 4060 (8GB):** 1 modello locale alla volta
-- Llama 3.1 8B: ~4.7GB VRAM
-- Gemma 2 9B: ~5.4GB VRAM
-- **Workaround:** Usa Gemini cloud (zero VRAM) o GPU migliore
+- **JOIN cross-database**: la sintassi `collezione@database` per collegare collezioni
+  in database MongoDB diversi fallisce con un errore generico riportato dal motore; la
+  causa non è stata identificata nonostante l'indagine.
+- **Selezione della chiave di JOIN via linguaggio naturale**: quando due collezioni
+  condividono un nome di campo che però si riferisce a entità diverse (es. un campo
+  `user_id` con significati diversi in due collezioni), il modello linguistico può
+  scegliere una chiave di collegamento sintatticamente valida ma semanticamente errata,
+  perché il recupero RAG non sempre individua l'esempio più pertinente quando la
+  richiesta condivide vocabolario superficiale con esempi di natura diversa (limite noto
+  dei modelli di *sentence embedding* di piccole dimensioni). Per questo motivo
+  l'interfaccia mantiene anche un meccanismo di JOIN manuale, dove l'utente specifica
+  direttamente i campi di collegamento.
+- **`INTERSECT`/`SUBTRACT`**: l'uguaglianza fra documenti (basata sul contenuto,
+  esclusa `_id`) è verificata solo su collezioni prive di sovrapposizione reale.
+- **Modelli LLM locali**: nei test comparativi, Llama e Gemma mostrano un tasso di
+  successo sensibilmente inferiore al provider cloud sugli stessi input, oltre a una
+  latenza per chiamata più alta.
+- **Percorsi relativi**: sia lato Java (classpath, file di configurazione del motore)
+  sia lato script Python (`load_examples.py`), diversi bug incontrati durante lo
+  sviluppo sono derivati da percorsi relativi risolti rispetto alla cartella di lancio
+  invece che a un riferimento assoluto — un'indagine approfondita su uno di questi casi
+  (il comando `SAVE AS`) è documentata in un report tecnico separato.
 
 ---
 
-## 📚 Documentazione Aggiuntiva
+## 📁 Project Structure
 
-- **TROUBLESHOOTING.md:** Risoluzione errori comuni
-- **backend/BENCHMARK_REPORT.md:** Report comparativo LLM
-- **backend/database/SCHEMA_README.md:** Schema MongoDB dettagliato
-- **Report_Progressi_Tesi_*.docx:** Report professori
+```
+jcoql-nl-interface/
+├── main.py                        # FastAPI backend (va lanciato dalla radice)
+├── .env
+├── requirements.txt
+│
+├── backend/
+│   ├── query_corrector.py
+│   ├── rag_with_validation.py
+│   ├── rag_examples_extended.txt  # Iniettato SEMPRE in ogni prompt - solo pattern
+│   │                               # sintattici generici, nessun nome di campo legato
+│   │                               # a un database specifico
+│   │
+│   ├── parsers/
+│   │   ├── parser_factory.py
+│   │   └── antlr3_official_parser.py
+│   │
+│   ├── executors/
+│   │   ├── executor_factory.py
+│   │   └── jco_framework_executor_v2.py
+│   │
+│   └── database/
+│       └── load_examples.py       # Scansiona examples/validated/*.txt, percorsi
+│                                    # assoluti rispetto alla posizione dello script
+│
+├── examples/validated/
+│   └── *.txt                       # Esempi RAG, caricati automaticamente tutti
+│
+├── frontend/
+│   ├── src/
+│   │   ├── App.jsx
+│   │   ├── QueryExecutor.jsx
+│   │   ├── DatabaseSelector.jsx    # Include anche il JOIN manuale (fallback)
+│   │   └── Dashboard.jsx
+│   └── package.json
+│
+└── chroma_data/                    # Storage persistente ChromaDB
+```
 
 ---
 
 ## 🤝 Contributors
 
-**Nicholas Iotti** - Università degli Studi di Bergamo  
-Email: nicho23iotti@gmail.com  
+**Nicholas Iotti** - Università degli Studi di Bergamo
 GitHub: [@ionicho](https://github.com/ionicho)
 
 **Relatori:**
@@ -647,24 +335,3 @@ GitHub: [@ionicho](https://github.com/ionicho)
 ## 📄 License
 
 Progetto tesi magistrale - Università degli Studi di Bergamo
-
----
-
-## 🎯 Future Work
-
-- [ ] Support query avanzate (JOIN, GROUP, AGGREGATE) su Python Translator
-- [ ] Extended JCO Framework support (LOOKUP, MERGE, EXPAND)
-- [ ] Multi-database support per Elasticsearch, PostgreSQL
-- [ ] Query optimization suggestions
-- [ ] Export risultati (CSV, Excel, JSON)
-- [ ] Query history e favorites
-- [ ] User authentication (OAuth2)
-- [ ] Cloud deployment (Docker + K8s)
-- [ ] Advanced caching (Redis schema cache)
-- [ ] Query explain plan visualization
-
----
-
-**Stato:** ✅ Completato  
-**Last Update:** 30 Luglio 2026  
-**Version:** 1.1.0 - Multi-Database Edition

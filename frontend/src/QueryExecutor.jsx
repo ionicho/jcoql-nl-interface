@@ -1,14 +1,14 @@
 // ==========================================
 // 1. IMPORTAZIONI
 // ==========================================
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import axios from 'axios';
 import './QueryExecutor.css';
 
 // ==========================================
 // 2. DEFINIZIONE COMPONENTE
 // ==========================================
-export default function QueryExecutor({ selectedDatabases = [], joinConfig = null }) {
+export default function QueryExecutor({ selectedDatabases = [], joinConfig = null, initialQuery = '' }) {
   
   // --- STATI DEL COMPONENTE ---
   const [mode, setMode] = useState('nl'); 
@@ -18,6 +18,16 @@ export default function QueryExecutor({ selectedDatabases = [], joinConfig = nul
   const [isExecuting, setIsExecuting] = useState(false);
   const [results, setResults] = useState(null);
   const [error, setError] = useState('');
+
+  // FIX: quando arriva una nuova query generata dal pannello "Input Linguaggio Naturale"
+  // in App.jsx (prop initialQuery), popola jcoqlQuery e passa alla tab "Query JCoQL Diretta"
+  // cosi' l'utente puo' eseguirla subito, senza doverla ricopiare a mano.
+  useEffect(() => {
+    if (initialQuery) {
+      setJcoqlQuery(initialQuery);
+      setMode('direct');
+    }
+  }, [initialQuery]);
 
   // ==========================================
   // 3. HANDLERS (FUNZIONI LOGICHE)
@@ -205,7 +215,7 @@ export default function QueryExecutor({ selectedDatabases = [], joinConfig = nul
                 value={nlQuery}
                 onChange={(e) => setNlQuery(e.target.value)}
                 onKeyPress={(e) => e.key === 'Enter' && handleGenerate()} 
-                placeholder="Es: Hotel a Milano con rating superiore a 4"
+                placeholder="Es: Prodotti di elettronica con sconto maggiore del 20%"
                 className="flex-1 px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
               />
               <button
@@ -307,6 +317,46 @@ export default function QueryExecutor({ selectedDatabases = [], joinConfig = nul
             </div>
           </div>
 
+          {/* Query JCoQL+ effettivamente eseguita, con il contesto USE DB ricostruito -
+              utile per mostrare la sintassi completa così com'è stata inviata al motore.
+              Caso speciale: il JOIN applicativo (form "Usa JOIN tra database" in sidebar,
+              via join_config) esegue la STESSA query separatamente su due database distinti
+              e unisce i risultati in Python - non è un unico script JCoQL+, quindi va
+              mostrato come due esecuzioni separate invece di un USE DB fittizio con
+              "db1 ⊕ db2" (che non è un nome di database valido). */}
+          {results.jcoql_query && results.join_config ? (
+            <div className="mb-4">
+              <h3 className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-2">
+                📜 Query JCoQL+ Eseguita (JOIN applicativo: stessa query su due database, unita in Python)
+              </h3>
+              <pre className="bg-gray-900 text-green-400 text-xs font-mono p-3 rounded-lg overflow-x-auto whitespace-pre-wrap">
+{`USE DB ${results.join_config.db1 || 'N/A'} ON DEFAULT SERVER;
+${results.jcoql_query}
+
+--- eseguita separatamente anche su ---
+
+USE DB ${results.join_config.db2 || 'N/A'} ON DEFAULT SERVER;
+${results.jcoql_query}`}
+              </pre>
+            </div>
+          ) : results.jcoql_query && (
+            <div className="mb-4">
+              <h3 className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-2">
+                📜 Query JCoQL+ Eseguita
+              </h3>
+              <pre className="bg-gray-900 text-green-400 text-xs font-mono p-3 rounded-lg overflow-x-auto whitespace-pre-wrap">
+{`USE DB ${results.database || selectedDatabases[0] || 'N/A'} ON DEFAULT SERVER;
+${results.jcoql_query}`}
+              </pre>
+            </div>
+          )}
+
+          {results.text && (
+            <div className="mb-4 bg-green-50 border border-green-200 text-green-800 px-4 py-3 rounded-lg text-sm">
+              ✅ {results.text}
+            </div>
+          )}
+
           {results.count === 0 ? (
             <div className="text-center py-8 text-gray-500">
               Nessun risultato trovato
@@ -319,9 +369,11 @@ export default function QueryExecutor({ selectedDatabases = [], joinConfig = nul
                   className="bg-white rounded-lg p-4 border border-gray-200 hover:border-blue-300 transition shadow-sm"
                 >
                   <div className="flex justify-between items-start mb-2">
-                    <span className="text-xs font-mono text-gray-500">
-                      ID: {doc._id}
-                    </span>
+                    {doc._id !== undefined && (
+                      <span className="text-xs font-mono text-gray-500">
+                        ID: {doc._id}
+                      </span>
+                    )}
                     <span className="text-xs bg-blue-100 text-blue-800 px-2 py-1 rounded">
                       Documento #{index + 1}
                     </span>
@@ -362,12 +414,12 @@ export default function QueryExecutor({ selectedDatabases = [], joinConfig = nul
         <h3 className="font-medium text-blue-900 mb-2">💡 Esempi Rapidi:</h3>
         <div className="grid grid-cols-1 md:grid-cols-2 gap-2 text-sm">
           {[
-            'Hotel a Milano con rating superiore a 4',
-            'Prodotti con prezzo tra 100 e 500 euro',
-            'Utenti premium attivi',
-            'Ristoranti aperti a Roma',
-            'Ordini con totale maggiore di 200',
-            'Prodotti in sconto maggiore del 20%'
+            'Prodotti di elettronica con sconto maggiore del 20%',
+            'Ristoranti aperti con cucina giapponese',
+            'Prodotti biologici con rating superiore a 4',
+            'Ordini con priorità urgente',
+            'Raggruppa i prodotti per categoria',
+            'Hotel a Milano'
           ].map((example, i) => (
             <button
               key={i}

@@ -4,6 +4,12 @@ import os, re, json, subprocess
 from pathlib import Path
 from urllib.parse import urlparse
 
+# Interruttore di debug: imposta la variabile d'ambiente JCOQL_DEBUG=true per
+# riattivare i log diagnostici dettagliati (output grezzo di Java per i comandi
+# diversi da GET COLLECTION). Spento di default per non intasare la console durante
+# un uso normale/dimostrativo del sistema.
+JCOQL_DEBUG = os.getenv("JCOQL_DEBUG", "false").lower() == "true"
+
 class JCoFrameworkExecutor:
     def __init__(self, mongo_uri="mongodb://localhost:27017", database="jcoql_test"):
         user_home = Path.home()
@@ -30,12 +36,657 @@ class JCoFrameworkExecutor:
                 return match.group(1)
             return None  # Nessun default
 
-    
+    def _sanitize_bson(self, value):
+        """
+        Converte ricorsivamente i tipi BSON non nativamente serializzabili in JSON
+        (ObjectId -> str, Decimal128 -> float) ovunque compaiano nella struttura,
+        non solo nel campo _id di primo livello. Necessario per JOIN e GROUP, i cui
+        risultati contengono documenti Mongo interi (annidati) recuperati direttamente
+        via pymongo, a differenza del percorso GET COLLECTION che converte solo _id.
+        """
+        try:
+            from bson import ObjectId, Decimal128
+        except ImportError:
+            return value
+
+        if isinstance(value, ObjectId):
+            return str(value)
+        if isinstance(value, Decimal128):
+            return float(value.to_decimal())
+        if isinstance(value, dict):
+            return {k: self._sanitize_bson(v) for k, v in value.items()}
+        if isinstance(value, list):
+            return [self._sanitize_bson(v) for v in value]
+        return value
+
+    def _get_nested(self, doc, dotted_field):
+        """Naviga un campo annidato tipo 'user_id' o 'address.city' dentro un documento dict."""
+        value = doc
+        for part in dotted_field.split('.'):
+            if isinstance(value, dict) and part in value:
+                value = value[part]
+            else:
+                return None
+        return value
+
+    def _parse_simple_condition(self, condition_str):
+        """
+        Analizza una condizione semplice a singolo confronto, es. '.amount > 100' o
+        "(.type = 'movie')", usata in GROUP PARTITION ed EXPAND UNPACK. Restituisce
+        (campo, operatore, valore) oppure None se la condizione e' TRUE o non riconosciuta
+        (in quest'ultimo caso il chiamante deve trattarla come "nessun filtro", non come
+        errore, per non rompere casi non ancora previsti).
+        NON supporta condizioni composte con AND/OR - solo un singolo confronto.
+        """
+        cond = condition_str.strip()
+        if cond.upper() == "TRUE":
+            return None
+        cond = cond.strip('()')
+        m = re.match(
+            r"\.([\w.]+)\s*(=|!=|>=|<=|>|<)\s*(?:'([^']*)'|\"([^\"]*)\"|([\w.\-]+))",
+            cond
+        )
+        if not m:
+            return None
+        field, op, sval1, sval2, sval3 = m.groups()
+        raw_value = sval1 if sval1 is not None else (sval2 if sval2 is not None else sval3)
+        return (field, op, raw_value)
+
+    def _condition_matches_doc(self, doc, condition_str):
+        """Valuta una condizione semplice (vedi _parse_simple_condition) su un documento."""
+        parsed = self._parse_simple_condition(condition_str)
+        if parsed is None:
+            return True  # TRUE o condizione non riconosciuta: nessun filtro (permissivo)
+        field, op, raw_value = parsed
+        try:
+            value = float(raw_value) if any(c.isdigit() for c in raw_value) and \
+                    raw_value.replace('.', '', 1).replace('-', '', 1).isdigit() else raw_value
+        except (ValueError, AttributeError):
+            value = raw_value
+        doc_value = self._get_nested(doc, field)
+        if doc_value is None:
+            return False
+        try:
+            if op == '=':
+                return doc_value == value or str(doc_value) == str(value)
+            elif op == '!=':
+                return doc_value != value
+            elif op == '>':
+                return doc_value > value
+            elif op == '<':
+                return doc_value < value
+            elif op == '>=':
+                return doc_value >= value
+            elif op == '<=':
+                return doc_value <= value
+        except TypeError:
+            return False
+        return True
+
+    def _condition_to_mongo_filter(self, condition_str):
+        """Converte una condizione semplice (vedi _parse_simple_condition) in un filtro
+        MongoDB nativo, per usarla in uno stage $match. Restituisce {} se TRUE o non
+        riconosciuta (nessun filtro applicato)."""
+        parsed = self._parse_simple_condition(condition_str)
+        if parsed is None:
+            return {}
+        field, op, raw_value = parsed
+        try:
+            value = float(raw_value) if any(c.isdigit() for c in raw_value) and \
+                    raw_value.replace('.', '', 1).replace('-', '', 1).isdigit() else raw_value
+        except (ValueError, AttributeError):
+            value = raw_value
+        mongo_op_map = {'=': '$eq', '!=': '$ne', '>': '$gt', '<': '$lt', '>=': '$gte', '<=': '$lte'}
+        mongo_op = mongo_op_map.get(op)
+        if not mongo_op:
+            return {}
+        return {field: {mongo_op: value}}
+
+    def _extract_join_documents(self, jcoql_query):
+        """
+        Estrae ed esegue lato Python un JOIN OF COLLECTIONS nativo JCoQL+, nel caso
+        semplice di equi-join a due collezioni con una singola condizione di uguaglianza
+        (.alias1.campo = .alias2.campo). Necessario perche' il motore J-CO Framework non
+        stampa su stdout il contenuto dei documenti generati dal join (solo il conteggio),
+        quindi il conteggio ufficiale del motore viene usato per validare il risultato,
+        mentre il recupero dei documenti reali avviene qui.
+        Non copre: JOIN geo-spaziali (ON GEOMETRY), condizioni composte con AND/OR,
+        ne' database diversi per le due collezioni (@db).
+        """
+        join_match = re.search(
+            r'JOIN\s+OF\s+COLLECTIONS\s+(\w+)(?:@(\w+))?\s+AS\s+(\w+)\s*,\s*(\w+)(?:@(\w+))?\s+AS\s+(\w+)',
+            jcoql_query, re.IGNORECASE
+        )
+        if not join_match:
+            return None
+
+        coll1, db1, alias1, coll2, db2, alias2 = join_match.groups()
+
+        if re.search(r'KEEP\s+OTHERS', jcoql_query, re.IGNORECASE):
+            print("[JCoFrameworkExecutor] WARNING: JOIN con KEEP OTHERS rilevato - il motore "
+                  "J-CO include anche le coppie che NON soddisfano la condizione di uguaglianza, "
+                  "producendo il prodotto cartesiano completo. Questa estrazione ignora KEEP "
+                  "OTHERS e applica solo la condizione di uguaglianza: il conteggio potrebbe "
+                  "risultare diverso da quello del motore (atteso, non un errore).")
+
+        cond_match = re.search(
+            r'WHERE\s+\.(\w+)\.([\w.]+)\s*=\s*\.(\w+)\.([\w.]+)',
+            jcoql_query, re.IGNORECASE
+        )
+        if not cond_match:
+            # Nessuna condizione riconosciuta: non tentiamo un prodotto cartesiano completo
+            return {'doc_count': 0, 'results': []}
+
+        left_alias, left_field, right_alias, right_field = cond_match.groups()
+
+        alias_to_field = {left_alias: left_field, right_alias: right_field}
+        if alias1 not in alias_to_field or alias2 not in alias_to_field:
+            return {'doc_count': 0, 'results': []}
+
+        field1 = alias_to_field[alias1]
+        field2 = alias_to_field[alias2]
+
+        try:
+            from pymongo import MongoClient
+
+            client = MongoClient(self.mongo_uri)
+            db1_name = db1 or self.database_name
+            db2_name = db2 or self.database_name
+
+            docs1 = list(client[db1_name][coll1].find().limit(1000))
+            docs2 = list(client[db2_name][coll2].find().limit(1000))
+
+            # Indicizza la seconda collezione per valore del campo di join
+            index2 = {}
+            for d2 in docs2:
+                key = self._get_nested(d2, field2)
+                if key is not None:
+                    index2.setdefault(str(key), []).append(d2)
+
+            remove_duplicates = bool(re.search(r'REMOVE\s+DUPLICATES', jcoql_query, re.IGNORECASE))
+
+            if remove_duplicates:
+                # Serve la lista completa (non troncata) per deduplicare correttamente
+                # prima di contare e troncare per la visualizzazione.
+                all_pairs = []
+                for d1 in docs1:
+                    key = self._get_nested(d1, field1)
+                    if key is None:
+                        continue
+                    for d2 in index2.get(str(key), []):
+                        all_pairs.append({alias1: d1, alias2: d2, '_join_key': str(key)})
+
+                seen = set()
+                deduped = []
+                for pair in all_pairs:
+                    canon_key = self._canonical_doc(pair)
+                    if canon_key not in seen:
+                        seen.add(canon_key)
+                        deduped.append(pair)
+
+                total_count = len(deduped)
+                results = deduped[:100]
+            else:
+                results = []
+                total_count = 0
+                for d1 in docs1:
+                    key = self._get_nested(d1, field1)
+                    if key is None:
+                        continue
+                    for d2 in index2.get(str(key), []):
+                        total_count += 1
+                        if len(results) < 100:
+                            results.append({
+                                alias1: d1,
+                                alias2: d2,
+                                '_join_key': str(key)
+                            })
+
+            results = [self._sanitize_bson(r) for r in results]
+            return {'doc_count': total_count, 'results': results}
+        except Exception as e:
+            print(f"[JCoFrameworkExecutor] WARNING estrazione JOIN fallita: {e}")
+            return {'doc_count': 0, 'results': []}
+
+    def _extract_group_documents(self, jcoql_query):
+        """
+        Estrae ed esegue lato Python (via aggregazione MongoDB nativa) un GROUP
+        JCoQL+ nel caso semplice: PARTITION TRUE BY campo1[, campo2...] INTO campoRisultato
+        [DROP GROUPING FIELDS]. Necessario perche' il motore J-CO Framework non stampa su
+        stdout il contenuto dei documenti raggruppati (solo il conteggio dei gruppi).
+        Supporta condizioni di PARTITION con un singolo confronto (es. .campo > 100),
+        tradotte in uno stage $match nativo. Non copre: condizioni composte con AND/OR,
+        ORDER BY, KEEP UNCOMPARABLE,
+        GENERATE SECTION, KEEP/DROP OTHERS.
+        """
+        source_collection = self._extract_collection_name(jcoql_query)
+        if not source_collection:
+            return None
+
+        group_match = re.search(
+            r'GROUP\s+PARTITION\s+(.+?)\s+BY\s+(.+?)\s+INTO\s+\.?([\w.]+)',
+            jcoql_query, re.IGNORECASE | re.DOTALL
+        )
+        if not group_match:
+            return None
+
+        condition, by_fields_raw, into_field = group_match.groups()
+        drop_grouping_fields = bool(re.search(r'DROP\s+GROUPING\s+FIELDS', jcoql_query, re.IGNORECASE))
+
+        # Condizioni diverse da TRUE: convertite in filtro $match nativo (solo singolo
+        # confronto - vedi _parse_simple_condition; condizioni composte con AND/OR non
+        # sono ancora supportate e vengono trattate in modo permissivo, senza filtrare).
+        match_filter = self._condition_to_mongo_filter(condition.strip())
+
+        by_fields = [f.strip().lstrip('.') for f in by_fields_raw.split(',')]
+
+        try:
+            from pymongo import MongoClient
+
+            client = MongoClient(self.mongo_uri)
+            collection = client[self.database_name][source_collection]
+
+            if len(by_fields) == 1:
+                group_id_expr = f"${by_fields[0]}"
+            else:
+                group_id_expr = {f: f"${f}" for f in by_fields}
+
+            pipeline = []
+            if match_filter:
+                pipeline.append({"$match": match_filter})
+            pipeline.append(
+                {"$group": {"_id": group_id_expr, into_field: {"$push": "$$ROOT"}}}
+            )
+            grouped = list(collection.aggregate(pipeline))
+
+            results = []
+            for g in grouped:
+                doc = {}
+                if not drop_grouping_fields:
+                    if len(by_fields) == 1:
+                        doc[by_fields[0]] = g["_id"]
+                    else:
+                        doc.update(g["_id"] or {})
+                # Limita la dimensione dell'array annidato per gruppo (evita payload enormi
+                # se un singolo gruppo contiene molti documenti, es. un anno con migliaia di
+                # film): il conteggio reale del gruppo resta comunque disponibile.
+                full_group = g[into_field]
+                doc[into_field] = full_group[:50]
+                doc['_group_size'] = len(full_group)
+                results.append(doc)
+
+            results = [self._sanitize_bson(r) for r in results]
+            return {'doc_count': len(results), 'results': results}
+        except Exception as e:
+            print(f"[JCoFrameworkExecutor] WARNING estrazione GROUP fallita: {e}")
+            return {'doc_count': 0, 'results': []}
+
+    def _extract_expand_documents(self, jcoql_query):
+        """
+        Estrae ed esegue lato Python un EXPAND UNPACK JCoQL+ nel caso semplice:
+        una singola clausola UNPACK TRUE ARRAY campo TO campoDestinazione, con KEEP OTHERS
+        opzionale (i documenti senza l'array o con condizione non soddisfatta vengono
+        mantenuti invariati se KEEP OTHERS, scartati altrimenti). Come per JOIN/GROUP, il
+        motore J-CO stampa solo il conteggio, non i documenti espansi.
+        Supporta una condizione UNPACK con un singolo confronto (es. (.type = 'movie')),
+        valutata per documento. Non copre: piu' clausole UNPACK nella stessa istruzione,
+        condizioni composte con AND/OR,
+        GENERATE SECTION.
+        """
+        source_collection = self._extract_collection_name(jcoql_query)
+        if not source_collection:
+            return None
+
+        expand_match = re.search(
+            r'EXPAND\s+UNPACK\s+(.+?)\s+ARRAY\s+\.?([\w.]+)\s+TO\s+\.?([\w.]+)',
+            jcoql_query, re.IGNORECASE | re.DOTALL
+        )
+        if not expand_match:
+            return None
+
+        condition, array_field, dest_field = expand_match.groups()
+        keep_others = bool(re.search(r'KEEP\s+OTHERS', jcoql_query, re.IGNORECASE))
+
+        try:
+            from pymongo import MongoClient
+
+            client = MongoClient(self.mongo_uri)
+            collection = client[self.database_name][source_collection]
+            docs = list(collection.find())
+
+            results = []
+            total_count = 0
+            for doc in docs:
+                # La condizione determina se QUESTO documento e' idoneo all'espansione
+                # (vedi expand.md: "if the condition is met..."). Se non lo e', il
+                # documento e' trattato come "array non applicabile", stessa sorte di un
+                # documento senza l'array (governata da KEEP/DROP OTHERS sotto).
+                condition_ok = self._condition_matches_doc(doc, condition.strip())
+                array_value = self._get_nested(doc, array_field) if condition_ok else None
+                if condition_ok and isinstance(array_value, list) and len(array_value) > 0:
+                    for element in array_value:
+                        total_count += 1
+                        if len(results) < 100:
+                            new_doc = dict(doc)
+                            new_doc[dest_field] = element
+                            results.append(new_doc)
+                elif keep_others:
+                    total_count += 1
+                    if len(results) < 100:
+                        results.append(dict(doc))
+                # altrimenti (array assente/vuoto e non KEEP OTHERS): documento scartato
+
+            results = [self._sanitize_bson(r) for r in results]
+            return {'doc_count': total_count, 'results': results}
+        except Exception as e:
+            print(f"[JCoFrameworkExecutor] WARNING estrazione EXPAND fallita: {e}")
+            return {'doc_count': 0, 'results': []}
+
+    def _canonical_doc(self, doc):
+        """
+        Rappresentazione canonica di un documento per confronti di uguaglianza fra
+        collezioni diverse (usata da MERGE/INTERSECT/SUBTRACT): esclude _id, che sara'
+        quasi certamente diverso anche per documenti "logicamente uguali" provenienti da
+        collezioni diverse, e serializza in modo deterministico (chiavi ordinate).
+        Assunzione dichiarata, non confermata sull'handbook: da verificare col conteggio
+        reale del motore.
+        """
+        sanitized = self._sanitize_bson(doc)
+        if isinstance(sanitized, dict):
+            sanitized = {k: v for k, v in sanitized.items() if k != '_id'}
+        return json.dumps(sanitized, sort_keys=True, default=str)
+
+    def _parse_collection_refs(self, refs_text):
+        """Estrae una lista di (nome_collezione, db_opzionale) da un testo tipo
+        'coll1@db1, coll2 AS alias, coll3'."""
+        refs = []
+        for part in refs_text.split(','):
+            m = re.match(r'\s*(\w+)(?:@(\w+))?', part.strip())
+            if m:
+                refs.append((m.group(1), m.group(2)))
+        return refs
+
+    def _extract_merge_documents(self, jcoql_query):
+        """MERGE COLLECTIONS c1[@db1], c2[@db2][, ...] [REMOVE DUPLICATES];
+        Unione dei documenti di piu' collezioni. Con REMOVE DUPLICATES, elimina i
+        duplicati per contenuto (vedi _canonical_doc)."""
+        m = re.search(r'MERGE\s+COLLECTIONS\s+(.+?)\s*;', jcoql_query, re.IGNORECASE | re.DOTALL)
+        if not m:
+            return None
+        refs_text = re.sub(r'REMOVE\s+DUPLICATES', '', m.group(1), flags=re.IGNORECASE)
+        refs = self._parse_collection_refs(refs_text)
+        remove_duplicates = bool(re.search(r'REMOVE\s+DUPLICATES', jcoql_query, re.IGNORECASE))
+
+        try:
+            from pymongo import MongoClient
+            client = MongoClient(self.mongo_uri)
+
+            all_docs = []
+            for coll_name, db_name in refs:
+                db = db_name or self.database_name
+                all_docs.extend(client[db][coll_name].find())
+
+            if remove_duplicates:
+                seen = set()
+                deduped = []
+                for d in all_docs:
+                    key = self._canonical_doc(d)
+                    if key not in seen:
+                        seen.add(key)
+                        deduped.append(d)
+                all_docs = deduped
+
+            total_count = len(all_docs)
+            results = [self._sanitize_bson(d) for d in all_docs[:100]]
+            return {'doc_count': total_count, 'results': results}
+        except Exception as e:
+            print(f"[JCoFrameworkExecutor] WARNING estrazione MERGE fallita: {e}")
+            return {'doc_count': 0, 'results': []}
+
+    def _extract_intersect_documents(self, jcoql_query):
+        """INTERSECT COLLECTIONS c1[@db1], c2[@db2];
+        Documenti presenti in entrambe le collezioni (uguaglianza per contenuto,
+        vedi _canonical_doc - assunzione da verificare)."""
+        m = re.search(r'INTERSECT\s+COLLECTIONS\s+(\w+)(?:@(\w+))?\s*,\s*(\w+)(?:@(\w+))?',
+                       jcoql_query, re.IGNORECASE)
+        if not m:
+            return None
+        coll1, db1, coll2, db2 = m.groups()
+
+        try:
+            from pymongo import MongoClient
+            client = MongoClient(self.mongo_uri)
+
+            docs1 = list(client[db1 or self.database_name][coll1].find())
+            docs2 = list(client[db2 or self.database_name][coll2].find())
+
+            keys2 = {self._canonical_doc(d) for d in docs2}
+            results_all = [d for d in docs1 if self._canonical_doc(d) in keys2]
+
+            total_count = len(results_all)
+            results = [self._sanitize_bson(d) for d in results_all[:100]]
+            return {'doc_count': total_count, 'results': results}
+        except Exception as e:
+            print(f"[JCoFrameworkExecutor] WARNING estrazione INTERSECT fallita: {e}")
+            return {'doc_count': 0, 'results': []}
+
+    def _extract_subtract_documents(self, jcoql_query):
+        """SUBTRACT COLLECTIONS c1[@db1], c2[@db2];
+        Documenti in c1 assenti da c2 (uguaglianza per contenuto, vedi _canonical_doc -
+        assunzione da verificare)."""
+        m = re.search(r'SUBTRACT\s+COLLECTIONS\s+(\w+)(?:@(\w+))?\s*,\s*(\w+)(?:@(\w+))?',
+                       jcoql_query, re.IGNORECASE)
+        if not m:
+            return None
+        coll1, db1, coll2, db2 = m.groups()
+
+        try:
+            from pymongo import MongoClient
+            client = MongoClient(self.mongo_uri)
+
+            docs1 = list(client[db1 or self.database_name][coll1].find())
+            docs2 = list(client[db2 or self.database_name][coll2].find())
+
+            keys2 = {self._canonical_doc(d) for d in docs2}
+            results_all = [d for d in docs1 if self._canonical_doc(d) not in keys2]
+
+            total_count = len(results_all)
+            results = [self._sanitize_bson(d) for d in results_all[:100]]
+            return {'doc_count': total_count, 'results': results}
+        except Exception as e:
+            print(f"[JCoFrameworkExecutor] WARNING estrazione SUBTRACT fallita: {e}")
+            return {'doc_count': 0, 'results': []}
+
+    def _extract_saveas_documents(self, jcoql_query):
+        """
+        SAVE AS nuovaCollezione[@db]; e' una vera scrittura: il motore J-CO calcola il
+        risultato della pipeline precedente (GET COLLECTION + eventuali FILTER/GROUP/...) e lo
+        persiste in una nuova collezione MongoDB. A differenza di JOIN/GROUP/EXPAND/MERGE/
+        INTERSECT/SUBTRACT, qui NON serve ricostruire alcuna logica lato Python: il motore ha
+        gia' scritto il risultato vero, quindi ci limitiamo a rileggerlo da MongoDB come verifica
+        e per restituirlo all'utente. Nota importante: a differenza di tutti gli altri comandi
+        gestiti finora, questo MODIFICA realmente il database (crea una nuova collezione).
+        SAVE TO FILE non e' gestito (scrive su file lato server, non verificabile via pymongo
+        senza conoscere la convenzione di path usata da Java).
+        """
+        m = re.search(r'SAVE\s+AS\s+(\w+)(?:@(\w+))?', jcoql_query, re.IGNORECASE)
+        if not m:
+            return None  # probabilmente SAVE TO FILE, non supportato
+
+        new_collection, target_db = m.groups()
+
+        try:
+            from pymongo import MongoClient
+            client = MongoClient(self.mongo_uri)
+            db = client[target_db or self.database_name]
+            collection = db[new_collection]
+
+            total_count = collection.count_documents({})
+            if total_count == 0:
+                print(f"[JCoFrameworkExecutor] WARNING SAVE AS: la collezione '{new_collection}' "
+                      f"in '{target_db or self.database_name}' risulta vuota o inesistente")
+            results = [self._sanitize_bson(d) for d in collection.find().limit(100)]
+            return {'doc_count': total_count, 'results': results, 'saved_collection': new_collection}
+        except Exception as e:
+            print(f"[JCoFrameworkExecutor] WARNING verifica SAVE AS fallita: {e}")
+            return {'doc_count': 0, 'results': []}
+
     def _parse_output(self, output, jcoql_query):
         """Estrai documenti da MongoDB, applicando il filtro se presente"""
         doc_count = 0
         docs = []
-        
+
+        # JOIN OF COLLECTIONS: il motore J-CO non stampa i documenti generati su
+        # stdout (solo il conteggio), quindi l'estrazione segue un percorso dedicato.
+        if re.search(r'JOIN\s+OF\s+COLLECTIONS', jcoql_query, re.IGNORECASE):
+            join_result = self._extract_join_documents(jcoql_query)
+            if join_result is not None:
+                # Conteggio ufficiale del motore, usato solo per log/validazione incrociata
+                engine_match = re.search(
+                    r'\[Join Of Collections\]\s+executed:\s+(\d+)\s+documents generated',
+                    output, re.IGNORECASE
+                )
+                if engine_match:
+                    engine_count = int(engine_match.group(1))
+                    if engine_count != join_result['doc_count']:
+                        print(f"[JCoFrameworkExecutor] WARNING conteggio motore ({engine_count}) "
+                              f"diverso da conteggio estratto ({join_result['doc_count']})")
+                return {
+                    'doc_count': join_result['doc_count'],
+                    'results': join_result['results'],
+                    'text': ''
+                }
+
+        # GROUP: estrazione dedicata via aggregazione MongoDB (il motore J-CO non
+        # stampa i documenti raggruppati su stdout, solo il conteggio dei gruppi).
+        if re.search(r'GROUP\s+PARTITION', jcoql_query, re.IGNORECASE):
+            group_result = self._extract_group_documents(jcoql_query)
+            if group_result is not None:
+                engine_match = re.search(
+                    r'\[Group\]\s+executed:\s+(\d+)\s+documents grouped',
+                    output, re.IGNORECASE
+                )
+                if engine_match:
+                    engine_count = int(engine_match.group(1))
+                    if engine_count != group_result['doc_count']:
+                        print(f"[JCoFrameworkExecutor] WARNING conteggio motore ({engine_count}) "
+                              f"diverso da conteggio estratto ({group_result['doc_count']})")
+                return {
+                    'doc_count': group_result['doc_count'],
+                    'results': group_result['results'],
+                    'text': ''
+                }
+            return {'doc_count': 0, 'results': [], 'text': ''}
+
+        # SAVE AS: vera scrittura, il motore ha gia' persistito il risultato in MongoDB -
+        # ci limitiamo a rileggerlo come verifica, nessuna logica da replicare in Python.
+        if re.search(r'SAVE\s+AS\s+\w+', jcoql_query, re.IGNORECASE):
+            saveas_result = self._extract_saveas_documents(jcoql_query)
+            if saveas_result is not None:
+                return {
+                    'doc_count': saveas_result['doc_count'],
+                    'results': saveas_result['results'],
+                    'text': f"Salvato in collezione: {saveas_result.get('saved_collection', '?')}"
+                }
+            return {'doc_count': 0, 'results': [], 'text': ''}
+
+        # SAVE TO FILE: scrive su un file lato server (Java), non su MongoDB - non c'e' nulla
+        # da rileggere via pymongo. Ci basiamo sul messaggio che Java stampa direttamente
+        # ("[Save] executed: N documents saved to file <path>"), che include sia il conteggio
+        # sia il percorso. NOTA (lezione dall'indagine SAVE AS): un messaggio di successo di
+        # Java non garantisce che il file sia davvero verificabile da qui - il percorso puo'
+        # essere relativo alla working directory del processo Java (non necessariamente la
+        # stessa del wrapper Python), quindi tentiamo una lettura ma non falliamo se non
+        # riusciamo a trovarlo: mostriamo comunque il percorso dichiarato per la verifica
+        # manuale, come gia' fatto per SAVE AS al primo giro.
+        if re.search(r'SAVE\s+TO\s+FILE', jcoql_query, re.IGNORECASE):
+            file_msg_match = re.search(
+                r'\[Save\]\s+executed:\s+(\d+)\s+documents saved to file\s+(.+)',
+                output
+            )
+            if file_msg_match:
+                declared_count = int(file_msg_match.group(1))
+                declared_path = file_msg_match.group(2).strip()
+
+                file_contents = None
+                for candidate in (
+                    Path(declared_path),
+                    self.jco_base / declared_path,
+                    Path.home() / declared_path,
+                ):
+                    try:
+                        if candidate.is_file():
+                            file_contents = json.loads(candidate.read_text(encoding='utf-8'))
+                            break
+                    except Exception:
+                        continue
+
+                if isinstance(file_contents, list):
+                    results = [self._sanitize_bson(d) for d in file_contents[:100]]
+                    return {
+                        'doc_count': len(file_contents),
+                        'results': results,
+                        'text': f"Salvato su file: {declared_path} ({declared_count} documenti, verificato)"
+                    }
+                return {
+                    'doc_count': declared_count,
+                    'results': [],
+                    'text': f"Il motore dichiara {declared_count} documenti salvati su file: "
+                            f"{declared_path} - percorso non verificabile automaticamente da "
+                            f"qui, controllalo manualmente."
+                }
+            return {'doc_count': 0, 'results': [], 'text': ''}
+
+        # MERGE / INTERSECT / SUBTRACT COLLECTIONS: stesso schema di JOIN/GROUP/EXPAND.
+        # Pattern del conteggio motore non ancora confermati empiricamente (nomi plausibili
+        # per analogia con gli altri comandi: "[Merge Collections]", "[Intersect Collections]",
+        # "[Subtract Collections]" seguiti da "executed:").
+        _set_ops = [
+            ('MERGE\\s+COLLECTIONS', self._extract_merge_documents, r'\[Merge Collections\]\s+executed:\s+(\d+)'),
+            ('INTERSECT\\s+COLLECTIONS', self._extract_intersect_documents, r'\[Intersect Collections\]\s+executed:\s+(\d+)'),
+            ('SUBTRACT\\s+COLLECTIONS', self._extract_subtract_documents, r'\[Subtract Collections\]\s+executed:\s+(\d+)'),
+        ]
+        for keyword_pattern, extract_fn, engine_pattern in _set_ops:
+            if re.search(keyword_pattern, jcoql_query, re.IGNORECASE):
+                set_result = extract_fn(jcoql_query)
+                if set_result is not None:
+                    engine_match = re.search(engine_pattern, output, re.IGNORECASE)
+                    if engine_match:
+                        engine_count = int(engine_match.group(1))
+                        if engine_count != set_result['doc_count']:
+                            print(f"[JCoFrameworkExecutor] WARNING conteggio motore ({engine_count}) "
+                                  f"diverso da conteggio estratto ({set_result['doc_count']}) - "
+                                  f"l'assunzione sull'uguaglianza documenti potrebbe essere errata")
+                    return {
+                        'doc_count': set_result['doc_count'],
+                        'results': set_result['results'],
+                        'text': ''
+                    }
+                return {'doc_count': 0, 'results': [], 'text': ''}
+
+        # EXPAND: estrazione dedicata (il motore J-CO non stampa i documenti espansi
+        # su stdout, solo il conteggio - pattern esatto da confermare empiricamente).
+        if re.search(r'EXPAND\s+UNPACK', jcoql_query, re.IGNORECASE):
+            expand_result = self._extract_expand_documents(jcoql_query)
+            if expand_result is not None:
+                engine_match = re.search(
+                    r'\[Expand\]\s+executed:\s+(\d+)',
+                    output, re.IGNORECASE
+                )
+                if engine_match:
+                    engine_count = int(engine_match.group(1))
+                    if engine_count != expand_result['doc_count']:
+                        print(f"[JCoFrameworkExecutor] WARNING conteggio motore ({engine_count}) "
+                              f"diverso da conteggio estratto ({expand_result['doc_count']}) - "
+                              f"il pattern di riconoscimento del conteggio EXPAND potrebbe "
+                              f"essere impreciso, verificare l'output raw")
+                return {
+                    'doc_count': expand_result['doc_count'],
+                    'results': expand_result['results'],
+                    'text': ''
+                }
+            return {'doc_count': 0, 'results': [], 'text': ''}
+
         # Ricerca del numero di documenti
         try:
             match = re.search(r'Get Collection.*?executed:\s+(\d+)\s+documents', output, re.DOTALL | re.IGNORECASE)
@@ -492,6 +1143,14 @@ class JCoFrameworkExecutor:
             classpath_parts = [
                 str(self.jco_base),
                 str(self.jco_base / "config"),
+                # FIX 2 agosto 2026: mancavano le cartelle "resources" (contengono conf/servers.properties
+                # e altri file di risorse) - solo "classes" era presente. Senza queste, getResourceAsStream
+                # in ParserLauncher.java trovava (nella migliore delle ipotesi) risorse vecchie impacchettate
+                # in un JAR non aggiornato sotto build/libs/*, invece dei file sorgente freschi.
+                # Messe PRIMA dei JAR cosi' le risorse fresche hanno sempre la precedenza.
+                str(self.jco_base / "jcoql-engine/build/resources/main"),
+                str(self.jco_base / "jcoql-engine-mongodb/build/resources/main"),
+                str(self.jco_base / "jcoql-model/build/resources/main"),
                 str(self.jco_base / "jcoql-engine/build/classes/java/main"),
                 str(self.jco_base / "jcoql-model/build/classes/java/main"),
                 str(self.jco_base / "jcoql-engine-mongodb/build/classes/java/main"),
@@ -510,7 +1169,7 @@ class JCoFrameworkExecutor:
                         classpath_parts.append(latest)
             
             classpath = os.pathsep.join(classpath_parts)
-            
+
             cmd = [
                 'java',
                 '-Xmx512m',
@@ -524,7 +1183,25 @@ class JCoFrameworkExecutor:
             
             result = subprocess.run(cmd, cwd=str(self.jco_base), capture_output=True,
                                   text=True, timeout=30, encoding='utf-8', errors='replace')
-            
+
+            # Log diagnostico dell'output grezzo di Java per comandi diversi da GET COLLECTION
+            # (JOIN/GROUP/EXPAND/MERGE/INTERSECT/SUBTRACT/SAVE), attivo solo con
+            # JCOQL_DEBUG=true (vedi interruttore in cima al file).
+            _q_upper = jcoql_query.upper()
+            _needs_raw_debug = (
+                "GROUP PARTITION" in _q_upper or "EXPAND UNPACK" in _q_upper
+                or "SAVE AS" in _q_upper or "SAVE TO FILE" in _q_upper
+                or "MERGE COLLECTIONS" in _q_upper or "INTERSECT COLLECTIONS" in _q_upper
+                or "SUBTRACT COLLECTIONS" in _q_upper
+            )
+            if JCOQL_DEBUG and ("GET COLLECTION" not in _q_upper or _needs_raw_debug):
+                print("=" * 60)
+                print("DEBUG RAW JAVA STDOUT (comando non-GET COLLECTION):")
+                print(f"   returncode: {result.returncode}")
+                print(f"   stdout:\n{result.stdout}")
+                print(f"   stderr:\n{result.stderr}")
+                print("=" * 60)
+
             if result.returncode == 0 and "ECCEZIONE:" not in result.stdout:
                 parsed = self._parse_output(result.stdout, jcoql_query)
                 
@@ -553,9 +1230,24 @@ class JCoFrameworkExecutor:
                     'executor': 'jco_framework'
                 }
             else:
+                # Estrae un messaggio d'errore leggibile dallo stdout Java, invece del
+                # generico "Failed" che non dice nulla di utile all'utente (vedi indagine
+                # SAVE AS: senza questo, ogni fallimento appariva identico e indistinguibile).
+                readable_error = None
+                exc_match = re.search(
+                    r'ECCEZIONE:\s*\n(.+?)(?:\n\*ZUN|\n---|\Z)',
+                    result.stdout, re.DOTALL
+                )
+                if exc_match:
+                    readable_error = exc_match.group(1).strip().split('\n')[0]
+                if not readable_error:
+                    err_line_match = re.search(r'\[.+?\]\s*Error:\s*(.+)', result.stdout)
+                    if err_line_match:
+                        readable_error = err_line_match.group(1).strip()
+                error_message = readable_error or result.stderr or "Errore sconosciuto durante l'esecuzione"
                 return {
                     'success': False,
-                    'error': result.stderr or "Failed",
+                    'error': error_message,
                     'executor': 'jco_framework'
                 }
         except Exception as e:

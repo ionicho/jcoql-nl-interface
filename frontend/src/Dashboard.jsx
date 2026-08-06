@@ -185,9 +185,12 @@ export default function Dashboard() {
               { icon: '⚙️', name: 'JCo Framework', desc: 'Official Java implementation' },
               { icon: '📝', name: 'ANTLR3 Parser', desc: 'Grammar validation' },
               { icon: '🗄️', name: 'Multi-Database', desc: 'Schema discovery per DB' },
-              { icon: '🔗', name: 'JOIN Support', desc: 'INNER/LEFT/RIGHT/FULL' },
+              { icon: '🔗', name: 'JOIN nativo', desc: 'JOIN OF COLLECTIONS (JCoQL+)' },
+              { icon: '📦', name: 'GROUP', desc: 'Raggruppamento nativo' },
+              { icon: '🧩', name: 'EXPAND', desc: 'Espansione array' },
+              { icon: '➕', name: 'MERGE/INTERSECT/SUBTRACT', desc: 'Operazioni insiemistiche' },
+              { icon: '💾', name: 'SAVE AS/TO FILE', desc: 'Persistenza dei risultati' },
               { icon: '🏭', name: 'Factory Pattern', desc: 'Plug-and-play architecture' },
-              { icon: '📊', name: 'Real-time Stats', desc: 'API-driven dashboard' },
             ].map((feature) => (
               <div key={feature.name} className="bg-white rounded-lg p-4 border border-green-200">
                 <div className="text-2xl mb-2">{feature.icon}</div>

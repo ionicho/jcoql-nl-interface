@@ -1,80 +1,58 @@
-=== ESEMPIO: Prezzo Scontato ===
-NL: "Prodotti food con prezzo scontato inferiore a 30 euro"
-SBAGLIATO: FILTER CASE WHERE .price * (1 - .discount / 100) < 30
-GIUSTO: FILTER CASE WHERE .category = 'food' AND .discount > 20
-SPIEGAZIONE: Non usare calcoli in linea. Filtrare su campi reali (.discount) non su risultati (prezzo netto).
+=== ESEMPIO: Filtro su Valore Calcolato ===
+NL: "Elementi con prezzo scontato inferiore a una soglia"
+SBAGLIATO: FILTER CASE WHERE .prezzo * (1 - .sconto / 100) < 30
+GIUSTO: FILTER CASE WHERE .categoria = 'esempio' AND .sconto > 20
+SPIEGAZIONE: Non usare calcoli in linea nel FILTER. Filtra su campi reali dello schema
+(vedi la sezione "SCHEMA MONGODB REALE" per i nomi di campo effettivi del database
+corrente), non su risultati calcolati al volo.
 
-=== ESEMPIO: Prezzo Scontato Alternativa ===
-NL: "Prodotti con buono sconto"
-QUERY: GET COLLECTION products; FILTER CASE WHERE .discount > 15 KEEP OTHERS;
+=== ESEMPIO: Filtro Semplice con KEEP OTHERS ===
+NL: "Elementi con un valore superiore a una soglia"
+QUERY: GET COLLECTION collezione; FILTER CASE WHERE .campo > 15 KEEP OTHERS;
+NOTA: Usa sempre i nomi di campo reali indicati nello schema del database corrente,
+non inventarli.
 
-=== ESEMPIO: Raggruppamento Corretto ===
-NL: "Conta prodotti per categoria"
-SBAGLIATO: GROUP PARTITION true BY .category
-GIUSTO: GROUP PARTITION TRUE BY .category INTO category_groups
-SPIEGAZIONE: TRUE deve essere maiuscolo. Usa alias chiaro per il risultato.
+=== ESEMPIO: Raggruppamento - SINTASSI CORRETTA ===
+NL: "Raggruppa per una categoria"
+SBAGLIATO: GROUP PARTITION true BY .campo INTO gruppo
+GIUSTO: GROUP PARTITION TRUE BY .campo INTO .gruppo
+SPIEGAZIONE: TRUE deve essere maiuscolo. Il nome dopo INTO deve SEMPRE iniziare con
+un punto (.) - è un campo del documento risultante, non un identificatore libero.
+QUERY: GET COLLECTION collezione; GROUP PARTITION TRUE BY .campo INTO .gruppo;
 
-=== ESEMPIO: Raggruppamento Ordini ===
-NL: "Raggruppa ordini per stato"
-QUERY: GET COLLECTION orders; GROUP PARTITION TRUE BY .status INTO orders_by_status;
+=== ESEMPIO: Raggruppamento su Campo Annidato ===
+NL: "Raggruppa per un sotto-campo (es. città dentro un indirizzo)"
+QUERY: GET COLLECTION collezione; GROUP PARTITION TRUE BY .indirizzo.citta INTO .gruppi_per_citta;
+NOTA: I campi annidati si scrivono come sequenza di segmenti puntati
+(.campoEsterno.campoInterno), esattamente come appaiono nello schema del database.
 
-=== ESEMPIO: Array Fields - Amenità ===
-NL: "Hotel con piscina nelle amenità"
-DATASET: hotels.amenities è un ARRAY: ["wifi", "parking", "pool", "restaurant"]
-SBAGLIATO: FILTER CASE WHERE .swimming_pool = true
-GIUSTO: Non supportato in JCoQL base. Alternativa: filtra per hotel quality
-QUERY: GET COLLECTION hotels; FILTER CASE WHERE .stars >= 4 KEEP OTHERS;
+=== ESEMPIO: Negazione su Valore ===
+NL: "Elementi diversi da un certo valore"
+QUERY: GET COLLECTION collezione; FILTER CASE WHERE .campo != 'valore' KEEP OTHERS;
 
-=== ESEMPIO: Array Fields - Tags ===
-NL: "Prodotti bestseller"
-DATASET: products.tags è un ARRAY: ["new", "bestseller", "discount"]
-SBAGLIATO: FILTER CASE WHERE .tag = 'bestseller'
-GIUSTO: Non è supportato il controllo array diretti in JCoQL
-QUERY: GET COLLECTION products; FILTER CASE WHERE .rating >= 4.5 KEEP OTHERS;
-NOTA: Per array, usa un campo correlato (rating, discount, etc.)
+=== ESEMPIO: Negazione su Booleano ===
+NL: "Elementi senza una certa caratteristica"
+QUERY: GET COLLECTION collezione; FILTER CASE WHERE .campo_booleano = false KEEP OTHERS;
 
-=== ESEMPIO: Negazione ===
-NL: "Prodotti NON food"
-QUERY: GET COLLECTION products; FILTER CASE WHERE .category != 'food' KEEP OTHERS;
+=== ESEMPIO: Valori Numerici con Simboli di Valuta ===
+NL: "Elementi con prezzo superiore a un importo in euro/dollari/sterline"
+QUERY: GET COLLECTION collezione; FILTER CASE WHERE .prezzo > 1000 KEEP OTHERS;
+NOTA: Ignora i simboli di valuta (£, $, €) nella richiesta dell'utente. Estrai solo
+il valore numerico.
 
-=== ESEMPIO: Negazione Booleano ===
-NL: "Hotel senza parking"
-QUERY: GET COLLECTION hotels; FILTER CASE WHERE .parking = false KEEP OTHERS;
+=== ESEMPIO: Verifica Presenza Campo ===
+NL: "Elementi dove un certo campo è presente/valorizzato (non nullo)"
+QUERY: GET COLLECTION collezione; FILTER CASE WHERE FIELD .campo ISNOTNULL KEEP OTHERS;
+NOTA: Molti campi opzionali possono avere valore null per una parte dei documenti -
+usa questo pattern quando l'utente chiede esplicitamente "presente"/"registrato"/
+"assegnato" su un campo.
 
-=== ESEMPIO: Input Valuta ===
-NL: "Prodotti over £1000"
-QUERY: GET COLLECTION products; FILTER CASE WHERE .price > 1000 KEEP OTHERS;
-NOTA: Ignora i simboli £, $, €. Estrai solo il numero.
-
-=== ESEMPIO: GROUP PARTITION - SINTASSI CORRETTA ===
-NL: "Raggruppa prodotti per categoria"
-SBAGLIATO: GROUP PARTITION TRUE BY .category INTO category_groups
-GIUSTO: GROUP PARTITION TRUE BY .category INTO .category_groups
-SPIEGAZIONE: Il nome dopo INTO DEVE iniziare con punto (.). È un campo.
-QUERY: GET COLLECTION products; GROUP PARTITION TRUE BY .category INTO .category_groups;
-
-=== ESEMPIO: GROUP PARTITION ORDINI ===
-NL: "Raggruppa ordini per stato"
-QUERY: GET COLLECTION orders; GROUP PARTITION TRUE BY .status INTO .orders_by_status;
-NOTA: INTO .orders_by_status - il punto è OBBLIGATORIO!
-
-=== ESEMPIO: GROUP PARTITION CONTEGGIO ===
-NL: "Conta hotel per città"
-QUERY: GET COLLECTION hotels; GROUP PARTITION TRUE BY .location.city INTO .hotel_city_groups;
-NOTA: INTO .hotel_city_groups - SEMPRE con punto!
-
-=== ESEMPIO: Ordini con Totale Registrato ===
-NL: "Filtra ordini dove il campo totale è presente"
-QUERY: GET COLLECTION orders; FILTER CASE WHERE FIELD .total ISNOTNULL KEEP OTHERS;
-
-=== ESEMPIO: Prodotti con Nome Valido ===
-NL: "Filtra prodotti dove il nome è presente (non null)"
-QUERY: GET COLLECTION products; FILTER CASE WHERE FIELD .name ISNOTNULL KEEP OTHERS;
-
-=== ESEMPIO: Hotel con Rating Presente ===
-NL: "Cerca hotel dove il rating è stato registrato"
-QUERY: GET COLLECTION hotels; FILTER CASE WHERE FIELD .rating ISNOTNULL KEEP OTHERS;
-
-=== ESEMPIO: Utenti con Email Registrata ===
-NL: "Filtra utenti che hanno un'email valida"
-QUERY: GET COLLECTION users; FILTER CASE WHERE FIELD .email ISNOTNULL KEEP OTHERS;
+=== ESEMPIO: JOIN - Sintassi Corretta ===
+NL: "Unisci due collezioni in base a un campo in comune"
+QUERY: JOIN OF COLLECTIONS collezione1 AS a, collezione2 AS b CASE WHERE .a.campo = .b.campo;
+SPIEGAZIONE: La condizione di uguaglianza va SEMPRE in CASE WHERE, MAI in ON (riservato
+a ON GEOMETRY per casi spaziali). Non aggiungere MAI "KEEP OTHERS" a un JOIN a meno che
+l'utente non lo chieda esplicitamente: trasformerebbe il collegamento filtrato in un
+prodotto cartesiano completo. Verifica sempre, dallo schema del database corrente, quale
+campo di una collezione corrisponde realmente a quale campo dell'altra prima di scegliere
+la condizione - non assumere che campi con lo stesso nome siano automaticamente collegati.
