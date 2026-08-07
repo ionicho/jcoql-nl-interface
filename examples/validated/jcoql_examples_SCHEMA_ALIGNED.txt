@@ -1,82 +1,14 @@
+Titolo: Hotel a Roma
+Descrizione: Hotel nella città di Roma
+Query: GET COLLECTION hotels; FILTER CASE WHERE .location.city = 'Roma' KEEP OTHERS;
+
+Titolo: Utenti con un certo user_id
+Descrizione: Utente con identificativo numerico specifico
+Query: GET COLLECTION users; FILTER CASE WHERE .user_id = 1 KEEP OTHERS;
+
 Titolo: Hotel a Milano
 Descrizione: Hotel nella città di Milano
 Query: GET COLLECTION hotels; FILTER CASE WHERE .location.city = 'Milano' KEEP OTHERS;
-
-Titolo: Hotel rating alto
-Descrizione: Hotel con rating superiore a 4
-Query: GET COLLECTION hotels; FILTER CASE WHERE .rating > 4.0 KEEP OTHERS;
-
-Titolo: Hotel economici
-Descrizione: Hotel con prezzo inferiore a 150 euro
-Query: GET COLLECTION hotels; FILTER CASE WHERE .price_per_night < 150 KEEP OTHERS;
-
-Titolo: Hotel Milano rating alto
-Descrizione: Hotel a Milano con rating maggiore di 4
-Query: GET COLLECTION hotels; FILTER CASE WHERE .location.city = 'Milano' AND .rating > 4.0 KEEP OTHERS;
-
-Titolo: Hotel con parcheggio
-Descrizione: Hotel che hanno parcheggio disponibile
-Query: GET COLLECTION hotels; FILTER CASE WHERE .parking = true KEEP OTHERS;
-
-Titolo: Hotel 5 stelle
-Descrizione: Hotel con classificazione 5 stelle
-Query: GET COLLECTION hotels; FILTER CASE WHERE .stars = 5 KEEP OTHERS;
-
-Titolo: Hotel con wifi
-Descrizione: Hotel con connessione wifi
-Query: GET COLLECTION hotels; FILTER CASE WHERE .wifi = true KEEP OTHERS;
-
-Titolo: Hotel fascia media
-Descrizione: Hotel con prezzo tra 100 e 200 euro
-Query: GET COLLECTION hotels; FILTER CASE WHERE .price_per_night IN_RANGE [100, 200] KEEP OTHERS;
-
-Titolo: Hotel Roma disponibili
-Descrizione: Hotel a Roma con disponibilità
-Query: GET COLLECTION hotels; FILTER CASE WHERE .location.city = 'Roma' AND .available = true KEEP OTHERS;
-
-Titolo: Hotel con colazione
-Descrizione: Hotel che includono colazione
-Query: GET COLLECTION hotels; FILTER CASE WHERE .breakfast_included = true KEEP OTHERS;
-
-Titolo: Hotel Firenze 4 stelle
-Descrizione: Hotel a Firenze con 4 stelle
-Query: GET COLLECTION hotels; FILTER CASE WHERE .location.city = 'Firenze' AND .stars = 4 KEEP OTHERS;
-
-Titolo: Hotel grandi
-Descrizione: Hotel con più di 100 camere
-Query: GET COLLECTION hotels; FILTER CASE WHERE .rooms > 100 KEEP OTHERS;
-
-Titolo: Hotel Venezia prezzo alto
-Descrizione: Hotel a Venezia con prezzo maggiore di 200
-Query: GET COLLECTION hotels; FILTER CASE WHERE .location.city = 'Venezia' AND .price_per_night > 200 KEEP OTHERS;
-
-Titolo: Hotel rating ottimo
-Descrizione: Hotel con rating maggiore o uguale a 4.5
-Query: GET COLLECTION hotels; FILTER CASE WHERE .rating >= 4.5 KEEP OTHERS;
-
-Titolo: Hotel senza parcheggio
-Descrizione: Hotel che non hanno parcheggio
-Query: GET COLLECTION hotels; FILTER CASE WHERE .parking = false KEEP OTHERS;
-
-Titolo: Hotel 3 o 4 stelle
-Descrizione: Hotel con 3 o 4 stelle
-Query: GET COLLECTION hotels; FILTER CASE WHERE .stars = 3 OR .stars = 4 KEEP OTHERS;
-
-Titolo: Hotel Napoli economici
-Descrizione: Hotel a Napoli sotto i 120 euro
-Query: GET COLLECTION hotels; FILTER CASE WHERE .location.city = 'Napoli' AND .price_per_night < 120 KEEP OTHERS;
-
-Titolo: Hotel con servizi completi
-Descrizione: Hotel con parcheggio e wifi
-Query: GET COLLECTION hotels; FILTER CASE WHERE .parking = true AND .wifi = true KEEP OTHERS;
-
-Titolo: Hotel Italia rating medio
-Descrizione: Hotel in Italia con rating tra 3.5 e 4.5
-Query: GET COLLECTION hotels; FILTER CASE WHERE .location.country = 'Italy' AND .rating IN_RANGE [3.5, 4.5] KEEP OTHERS;
-
-Titolo: Hotel Bologna disponibili
-Descrizione: Hotel disponibili a Bologna
-Query: GET COLLECTION hotels; FILTER CASE WHERE .location.city = 'Bologna' AND .available = true KEEP OTHERS;
 
 Titolo: Prodotti elettronica
 Descrizione: Prodotti della categoria elettronica
@@ -146,10 +78,6 @@ Titolo: Elettronica rating ottimo
 Descrizione: Elettronica con rating maggiore di 4.5
 Query: GET COLLECTION products; FILTER CASE WHERE .category = 'electronics' AND .rating > 4.5 KEEP OTHERS;
 
-Titolo: Prodotti senza descrizione
-Descrizione: Prodotti che mancano di descrizione
-Query: GET COLLECTION products; FILTER CASE WHERE WITHOUT .description KEEP OTHERS;
-
 Titolo: Food biologico
 Descrizione: Prodotti food con certificazione bio
 Query: GET COLLECTION products; FILTER CASE WHERE .category = 'food' AND .organic = true KEEP OTHERS;
@@ -177,86 +105,6 @@ Query: GET COLLECTION products; FILTER CASE WHERE .price < 50 AND .discount > 0 
 Titolo: Clothing rating alto
 Descrizione: Abbigliamento con rating sopra 4
 Query: GET COLLECTION products; FILTER CASE WHERE .category = 'clothing' AND .rating > 4.0 KEEP OTHERS;
-
-Titolo: Utenti maggiorenni
-Descrizione: Utenti con età maggiore o uguale a 18
-Query: GET COLLECTION users; FILTER CASE WHERE .age >= 18 KEEP OTHERS;
-
-Titolo: Utenti premium
-Descrizione: Utenti con account premium
-Query: GET COLLECTION users; FILTER CASE WHERE .premium = true KEEP OTHERS;
-
-Titolo: Utenti attivi
-Descrizione: Utenti con status attivo
-Query: GET COLLECTION users; FILTER CASE WHERE .active = true KEEP OTHERS;
-
-Titolo: Utenti Milano
-Descrizione: Utenti residenti a Milano
-Query: GET COLLECTION users; FILTER CASE WHERE .city = 'Milano' KEEP OTHERS;
-
-Titolo: Utenti email verificata
-Descrizione: Utenti con email verificata
-Query: GET COLLECTION users; FILTER CASE WHERE .email_verified = true KEEP OTHERS;
-
-Titolo: Utenti giovani
-Descrizione: Utenti con età inferiore a 30
-Query: GET COLLECTION users; FILTER CASE WHERE .age < 30 KEEP OTHERS;
-
-Titolo: Utenti premium attivi
-Descrizione: Utenti premium e attivi
-Query: GET COLLECTION users; FILTER CASE WHERE .premium = true AND .active = true KEEP OTHERS;
-
-Titolo: Utenti senza email
-Descrizione: Utenti che non hanno email registrata
-Query: GET COLLECTION users; FILTER CASE WHERE WITHOUT .email KEEP OTHERS;
-
-Titolo: Utenti Roma o Milano
-Descrizione: Utenti da Roma o Milano
-Query: GET COLLECTION users; FILTER CASE WHERE .city = 'Roma' OR .city = 'Milano' KEEP OTHERS;
-
-Titolo: Utenti con ordini
-Descrizione: Utenti con almeno un ordine
-Query: GET COLLECTION users; FILTER CASE WHERE SIZE(.orders) > 0 KEEP OTHERS;
-
-Titolo: Utenti adulti
-Descrizione: Utenti con età maggiore di 30
-Query: GET COLLECTION users; FILTER CASE WHERE .age > 30 KEEP OTHERS;
-
-Titolo: Utenti fascia età
-Descrizione: Utenti con età tra 25 e 45
-Query: GET COLLECTION users; FILTER CASE WHERE .age IN_RANGE [25, 45] KEEP OTHERS;
-
-Titolo: Utenti senza telefono
-Descrizione: Utenti senza numero telefono
-Query: GET COLLECTION users; FILTER CASE WHERE WITHOUT .phone KEEP OTHERS;
-
-Titolo: Utenti Firenze premium
-Descrizione: Utenti premium di Firenze
-Query: GET COLLECTION users; FILTER CASE WHERE .city = 'Firenze' AND .premium = true KEEP OTHERS;
-
-Titolo: Utenti molti ordini
-Descrizione: Utenti con più di 5 ordini
-Query: GET COLLECTION users; FILTER CASE WHERE SIZE(.orders) > 5 KEEP OTHERS;
-
-Titolo: Utenti inattivi
-Descrizione: Utenti non attivi
-Query: GET COLLECTION users; FILTER CASE WHERE .active = false DROP OTHERS;
-
-Titolo: Utenti Italia
-Descrizione: Utenti del paese Italia
-Query: GET COLLECTION users; FILTER CASE WHERE .country = 'Italy' KEEP OTHERS;
-
-Titolo: Utenti senior
-Descrizione: Utenti con età maggiore o uguale a 60
-Query: GET COLLECTION users; FILTER CASE WHERE .age >= 60 KEEP OTHERS;
-
-Titolo: Utenti email o telefono
-Descrizione: Utenti con email o telefono presente
-Query: GET COLLECTION users; FILTER CASE WHERE .email IS NOT NULL OR .phone IS NOT NULL KEEP OTHERS;
-
-Titolo: Utenti Napoli attivi
-Descrizione: Utenti attivi di Napoli
-Query: GET COLLECTION users; FILTER CASE WHERE .city = 'Napoli' AND .active = true KEEP OTHERS;
 
 Titolo: Ordini spediti
 Descrizione: Ordini con status spedito
@@ -353,4 +201,3 @@ Query: GET COLLECTION restaurants; FILTER CASE WHERE .city = 'Firenze' AND .stat
 Titolo: Ristoranti rating ottimo
 Descrizione: Ristoranti con rating maggiore o uguale a 4.5
 Query: GET COLLECTION restaurants; FILTER CASE WHERE .rating >= 4.5 KEEP OTHERS;
-

@@ -411,10 +411,27 @@ Usa ESATTAMENTE i nomi campi dello schema. NESSUN testo aggiuntivo.
 """
 
         try:
+            # Promemoria extra SOLO per i modelli locali (Llama/Gemma), che nei test si
+            # sono dimostrati più propensi a usare solo l'ultimo segmento di un campo
+            # annidato (es. .rating invece di .imdb.rating) invece di leggere il percorso
+            # completo dallo schema. Regola generica su come leggere lo schema, non legata
+            # a nessun database specifico - si applica a qualunque campo annidato di
+            # qualunque database connesso.
+            local_model_prompt = prompt
+            if ACTIVE_LLM in ("llama", "gemma"):
+                local_model_prompt = prompt + (
+                    "\n\nATTENZIONE - CAMPI ANNIDATI: nello SCHEMA MONGODB REALE sopra, se un "
+                    "campo appare con un punto nel nome (es. 'imdb.rating', 'location.city'), "
+                    "quello è un campo ANNIDATO: DEVI usare il percorso completo con il punto "
+                    "nella query (es. .imdb.rating, .location.city), MAI solo l'ultimo segmento "
+                    "(MAI .rating da solo se lo schema mostra imdb.rating). Controlla sempre lo "
+                    "schema prima di scegliere un nome di campo."
+                )
+
             if ACTIVE_LLM == "llama":
-                current_query = generate_with_llama(prompt)
+                current_query = generate_with_llama(local_model_prompt)
             elif ACTIVE_LLM == "gemma":
-                current_query = generate_with_gemma(prompt)
+                current_query = generate_with_gemma(local_model_prompt)
             else:
                 response = model.generate_content(prompt)
                 current_query = response.text.strip()
@@ -425,7 +442,6 @@ Usa ESATTAMENTE i nomi campi dello schema. NESSUN testo aggiuntivo.
             # omessa del tutto. Qui correggiamo (a) e rileviamo esplicitamente (b).
             if ACTIVE_LLM in ("llama", "gemma"):
                 from difflib import get_close_matches
-                import re
 
                 match = re.search(r'GET COLLECTION\s+(\w+)', current_query, re.IGNORECASE)
                 if match:
@@ -500,13 +516,50 @@ Usa ESATTAMENTE i nomi campi dello schema. NESSUN testo aggiuntivo.
                 if collection_match:
                     current_query = collection_match.group(0) + ";"
 
-            # Estrarre blocchi di codice markdown
-            if "```" in current_query:
-                match = re.search(r'```(?:jcoql|sql)?\s*\n?(.*?)\n?```', current_query, re.DOTALL)
-                if match:
-                    current_query = match.group(1).strip()
+            # Estrazione robusta della query JCoQL+ dal testo grezzo del LLM. Sostituisce
+            # una logica precedente basata su filtro riga-per-riga, che falliva quando il
+            # LLM avvolgeva la query in backtick SINGOLI (` query `): il carattere backtick
+            # rompeva sia il controllo "la riga inizia con una parola chiave" sia "la riga
+            # finisce con ;", lasciando la lista di righe valide vuota e la query grezza
+            # (incluso testo conversazionale tipo "Ecco la query...") intatta, con
+            # conseguente errore di parsing sul primo token estraneo.
+            def _extract_jcoql_query(raw_text):
+                text = raw_text.strip()
 
-            # Pulizia linee non relative a JCoQL
+                # 1. Preferisci il contenuto di un blocco markdown, tripli o singoli backtick
+                triple = re.search(r'```(?:jcoql|sql)?\s*\n?(.*?)\n?```', text, re.DOTALL)
+                if triple:
+                    text = triple.group(1).strip()
+                else:
+                    single = re.search(r'`([^`]*;[^`]*)`', text, re.DOTALL)
+                    if single:
+                        text = single.group(1).strip()
+
+                # 2. Rimuovi eventuali backtick residui isolati (non in coppia, o rimasti
+                #    da un markdown malformato)
+                text = text.replace('`', '')
+
+                # 3. Ancora sul punto in cui inizia davvero la sintassi JCoQL+, scartando
+                #    qualunque preambolo conversazionale prima di quel punto
+                start_kw = (r'(?:GET COLLECTION|JOIN OF COLLECTIONS|MERGE COLLECTIONS|'
+                            r'INTERSECT COLLECTIONS|SUBTRACT COLLECTIONS|USE DB)')
+                m = re.search(start_kw, text, re.IGNORECASE)
+                if m:
+                    text = text[m.start():]
+
+                # 4. Scarta qualunque testo dopo l'ultimo ';' (spiegazioni post-query tipo
+                #    "Nota che ho sostituito...")
+                last_semicolon = text.rfind(';')
+                if last_semicolon != -1:
+                    text = text[:last_semicolon + 1]
+
+                return text.strip()
+
+            current_query = _extract_jcoql_query(current_query)
+
+            # Filtro riga-per-riga mantenuto come rete di sicurezza aggiuntiva (ora
+            # innocuo se non trova nulla da scartare, dato che l'estrazione sopra ha
+            # già ripulito la maggior parte del rumore)
             jcoql_keywords = [
                 'GET', 'FILTER', 'WHERE', 'KEEP', 'DROP', 'WITHOUT', 
                 'IN_RANGE', 'INTERSECT', 'EXPAND', 'LOOKUP', 'MERGE', 
@@ -524,6 +577,33 @@ Usa ESATTAMENTE i nomi campi dello schema. NESSUN testo aggiuntivo.
             if clean_lines:
                 current_query = '\n'.join(clean_lines).strip()
 
+            # Rilevamento di "leakage" del template di prompt: capita che un modello più
+            # debole (osservato con Gemma) non generi una query nuova per la richiesta,
+            # ma copi letteralmente pezzi del prompt stesso (marcatori come "USER QUERY:",
+            # "ESEMPI SIMILI", lo schema, o intere query degli esempi RAG concatenate senza
+            # punti e virgola tra loro). In questo caso il parser produce una lunga lista di
+            # errori "missing SC" poco utili per il repair loop - qui diamo invece un
+            # messaggio esplicito e azionabile.
+            prompt_leakage_hint = None
+            leakage_markers = ["USER QUERY", "ESEMPI SIMILI", "SCHEMA MONGODB REALE", "REGOLA CRITICA"]
+            found_marker = next((m for m in leakage_markers if m in current_query.upper()), None)
+            if found_marker:
+                query_logger.warning(
+                    f"⚠️ {ACTIVE_LLM.capitalize()} ha copiato parte del prompt nell'output "
+                    f"(marcatore rilevato: '{found_marker}') invece di generare una query nuova"
+                )
+                prompt_leakage_hint = (
+                    "Il tentativo precedente conteneva testo copiato dal prompt stesso "
+                    f"(es. '{found_marker}') o dagli esempi di riferimento concatenati insieme, "
+                    "invece di una query JCoQL+ nuova per la richiesta dell'utente. Genera "
+                    "UNA SOLA query JCoQL+ valida che risponda esattamente alla richiesta "
+                    f"'{request.nl_query}', senza copiare gli esempi forniti come riferimento."
+                )
+                # Taglia comunque tutto da quel marcatore in poi, così quello che resta
+                # (se qualcosa di valido c'è prima) può ancora essere tentato dal parser
+                cut_idx = current_query.upper().find(found_marker)
+                current_query = current_query[:cut_idx].strip()
+
             # Auto-correzione sintattica
             if current_query and not current_query.startswith("QUERY:"):
                 current_query, _ = correct_query(current_query)
@@ -533,8 +613,12 @@ Usa ESATTAMENTE i nomi campi dello schema. NESSUN testo aggiuntivo.
             
             if not is_valid:
                 error_messages = [err.message for err in errors] if errors else ["Errore sintattico"]
-                # Se avevamo rilevato l'assenza di GET COLLECTION, questo suggerimento
-                # esplicito va in testa: è più utile al LLM del solo errore ANTLR generico.
+                # Se avevamo rilevato leakage del prompt o l'assenza di GET COLLECTION,
+                # questi suggerimenti espliciti vanno in testa: sono più utili al LLM del
+                # solo errore ANTLR generico (che nel caso del leakage può arrivare a
+                # dozzine di "missing SC" quasi identici e poco azionabili).
+                if prompt_leakage_hint:
+                    error_messages = [prompt_leakage_hint] + error_messages
                 if missing_get_collection_hint:
                     error_messages = [missing_get_collection_hint] + error_messages
                 all_errors.append(f"Tentativo {attempts}: {', '.join(error_messages)}")

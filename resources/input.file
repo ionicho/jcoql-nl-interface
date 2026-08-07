@@ -1,1 +1,1 @@
-GET COLLECTION restaurants;
+GET COLLECTION movies; FILTER CASE WHERE .imdb.rating > 8 KEEP OTHERS;
