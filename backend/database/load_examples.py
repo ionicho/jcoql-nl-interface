@@ -21,7 +21,24 @@ EXAMPLES_DIR = PROJECT_ROOT / "examples" / "validated"
 CHROMA_PATH = PROJECT_ROOT / "chroma_data"
 
 def parse_examples_file(filepath):
-    """Parse esempi da file .txt (supporta entrambi i formati)"""
+    """
+    Parse esempi da file .txt (supporta entrambi i formati).
+
+    NOTA: due formati coesistono per compatibilità con file di esempio
+    scritti in momenti diversi del progetto:
+    - Formato 1 "ESEMPIO N:" — usato dai file di esempio più vecchi.
+    - Formato 2 "Titolo: / Descrizione: / Query:" — quello usato da tutti
+      i file attualmente attivi in examples/validated/ (full, operators,
+      REAL_SYNTAX, SCHEMA_ALIGNED). Se scrivi un nuovo file di esempi,
+      usa questo formato per coerenza con gli altri.
+    Il parser sceglie il ramo in base alla presenza della stringa
+    'ESEMPIO' nel contenuto del file (riga "if 'ESEMPIO' in content:"
+    sotto) — non è un parametro esplicito, quindi se un file nel formato
+    2 contenesse per caso la parola "ESEMPIO" in una descrizione, verrebbe
+    interpretato (erroneamente) come formato 1. Caso limite improbabile,
+    ma se un giorno un file smette di essere caricato correttamente, è il
+    primo posto da controllare.
+    """
     
     if not os.path.exists(filepath):
         return []
@@ -97,7 +114,25 @@ def parse_examples_file(filepath):
     return examples
 
 def load_examples_to_chromadb():
-    """Load all examples into ChromaDB with LOCAL embeddings"""
+    """
+    Load all examples into ChromaDB with LOCAL embeddings
+
+    NOTA IMPORTANTE PER IL SETUP DEL PROGETTO: questo script va lanciato
+    ALMENO UNA VOLTA prima del primo avvio di main.py (es. `python
+    backend/database/load_examples.py` dalla root del progetto). main.py
+    si aspetta che la collection "jcoql_examples" esista già — usa
+    chroma_client.get_collection(...) (non get_or_create_collection),
+    quindi se questo script non è mai stato eseguito, l'app crasha
+    all'avvio non trovando la collection. Se cloni il progetto da zero,
+    questo è il primo script da lanciare.
+
+    NOTA: ogni esecuzione fa un RESET completo — cancella la collection
+    esistente (client.delete_collection) e la ricrea da zero con tutti i
+    file .txt trovati in examples/validated/. Non è un caricamento
+    incrementale/append: rilanciarlo ricostruisce l'intero corpus RAG da
+    capo, quindi è sicuro rilanciarlo dopo aver modificato/aggiunto un
+    file di esempi.
+    """
     
     print("=" * 60)
     print("CARICAMENTO ESEMPI JCOQL+ IN CHROMADB")
@@ -122,6 +157,12 @@ def load_examples_to_chromadb():
         pass
     
     # Create collection
+    # NOTA: qui non viene specificato metadata={"hnsw:space": "cosine"}
+    # come in chroma_setup.py (deprecato) — questa collection usa quindi
+    # la metrica di distanza di default di ChromaDB (L2/squared-L2), non
+    # cosine similarity. Dato che questo è lo script che crea davvero la
+    # collection usata in produzione, se in futuro vuoi cambiare metrica
+    # è qui che va specificata, non in chroma_setup.py.
     collection = client.create_collection(
         name="jcoql_examples",
         metadata={"description": "JCoQL+ query examples for RAG"}

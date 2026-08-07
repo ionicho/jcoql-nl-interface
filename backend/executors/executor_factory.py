@@ -87,10 +87,10 @@ class ExecutorFactory:
             {
                 'type': 'jco_framework',
                 'name': 'JCO Framework Official',
-                'status': 'not_implemented',
-                'latency': '60+ seconds (Gradle)',
-                'coverage': '100% theoretical',
-                'note': 'Integration ready via Factory Pattern. See INTEGRATION_ANALYSIS.md'
+                'status': 'active',
+                'latency': '~1-3s (subprocess Java, invocazione mirata)',
+                'coverage': '100% (9 comandi nativi JCoQL+: GET, FILTER, JOIN, GROUP, EXPAND, MERGE, INTERSECT, SUBTRACT, SAVE AS/TO FILE)',
+                'note': 'Executor di produzione, attivo di default (ACTIVE_EXECUTOR). Vedere jco_framework_executor_v2.py. Aggiornato dopo che l\'integrazione diretta è stata raggiunta con successo — non più "not_implemented" come nei primi tentativi documentati in INTEGRATION_ANALYSIS.md'
             }
         ]
 

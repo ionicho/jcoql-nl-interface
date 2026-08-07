@@ -1,7 +1,33 @@
+"""
+Script di test manuale per interrogare direttamente il corpus RAG in
+ChromaDB, senza passare da un LLM — utile per verificare rapidamente se
+il retrieval recupera esempi pertinenti per una data domanda, quando si
+sta debuggando "perché l'LLM ha generato una query strana" (se gli
+esempi recuperati sono già sbagliati/non pertinenti, il problema è nel
+retrieval, non nel prompt o nel modello).
+
+PREREQUISITI:
+- Va lanciato dalla ROOT del progetto (usa il path relativo
+  "./chroma_data", coerente con dove main.py se lo aspetta).
+- Il corpus deve essere già stato caricato con
+  backend/database/load_examples.py almeno una volta, altrimenti
+  client.get_collection(...) fallisce perché la collection non esiste.
+
+Lancio: `python backend/database/test_retrieval.py` — esegue due ricerche
+di esempio hardcoded in fondo al file (righe "Test 1"/"Test 2").
+"""
 import chromadb
 from dotenv import load_dotenv
 
 def test_search(query_text):
+    """
+    Cerca i 2 esempi più simili a query_text nel corpus RAG e li stampa.
+
+    NOTA sul campo "Distanza" stampato sotto: è una distanza (più basso =
+    più simile), non un punteggio di affinità (più alto = meglio) come
+    potrebbe suggerire il nome "score" nella variabile locale — occhio a
+    non leggerlo al contrario confrontando risultati di ricerche diverse.
+    """
     print(f"\n🔍 Domanda Utente: '{query_text}'")
     
     # Connessione al DB

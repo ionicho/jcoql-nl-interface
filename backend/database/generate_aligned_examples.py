@@ -2,6 +2,17 @@
 """
 Genera esempi JCoQL allineati allo schema MongoDB reale
 Sostituisce esempi generici con esempi basati su campi effettivi
+
+Script one-shot: produce examples/validated/jcoql_examples_SCHEMA_ALIGNED.txt
+(89 esempi: 20 hotels, 25 products, 20 users, 12 orders, 12 restaurants),
+uno dei file di esempio caricati da load_examples.py nel corpus RAG di
+ChromaDB. Ogni query qui sotto è scritta a mano per usare solo campi che
+esistono davvero nei dataset di sample_data.py (es. .location.city per
+hotels, non nomi di campo inventati) — da qui il nome "SCHEMA_ALIGNED".
+
+quasi tutto un lungo elenco di dizionari {title, description, query} organizzati per collection.
+Alla fine del file, save_examples() scrive tutto su disco nel formato 
+"Titolo: / Descrizione: / Query:" letto da load_examples.py (parse_examples_file, FORMATO 2).
 """
 
 examples = []

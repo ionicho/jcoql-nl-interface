@@ -27,7 +27,14 @@ class ANTLR4CustomParser(ParserInterface):
         return result['is_valid'], errors
     
     def get_parse_tree(self, query: str) -> str:
-        """Restituisce parse tree"""
+        """
+        Restituisce parse tree
+
+        Richiama validate_jcoql_query() una seconda volta (già chiamata
+        dentro validate()) — se validate() e get_parse_tree() vengono
+        invocati in sequenza sulla stessa query, il parsing avviene due
+        volte invece di una.
+        """
         result = validate_jcoql_query(query)
         return result.get('parse_tree', '')
     

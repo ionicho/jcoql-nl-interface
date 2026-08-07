@@ -8,13 +8,39 @@ from backend.logging_config import get_db_logger
 db_logger = get_db_logger()
 
 class DatabaseRegistry:
-    """Registra e gestisce multiple connessioni MongoDB"""
+    """
+    Registra e gestisce multiple connessioni MongoDB.
+
+    NOTA: self.databases NON è {nome: connessione_mongo}, ma
+    {nome: dict_con_metadati} — ogni valore è un dizionario con le chiavi
+    "uri", "database_name", "schema", "client" (qui sì c'è il vero
+    pymongo.MongoClient) e "collections" (conteggio già calcolato in
+    add_database, vedi sotto). Chi consuma self.databases altrove nel
+    progetto deve tenerne conto: db_registry.databases[nome] non ha
+    metodi come .list_collection_names(), solo db_registry.databases[nome]["client"]
+    li ha. (Nota per chi legge: main.py, nell'endpoint /api/stats, ha
+    proprio questo problema — chiama .list_collection_names() sul dict
+    invece che su ["client"], l'eccezione viene silenziosamente ignorata
+    e "Collezioni Totali" nella Dashboard risulta sempre 0. Bug scoperto
+    rileggendo questo file, da correggere in main.py.)
+    """
     
     def __init__(self):
         self.databases: Dict[str, dict] = {}
         self.current_database: Optional[str] = None
     
     def add_database(self, db_name: str, mongo_uri: str, database_name: str):
+        """
+        Connette un nuovo database MongoDB e ne scopre subito lo schema.
+
+        NOTA: la schema discovery (sample_size=100 documenti per
+        collection, vedi schema_discovery.py) avviene qui in modo
+        SINCRONO/bloccante — questa chiamata non ritorna finché non ha
+        ispezionato tutte le collection del database. Per un database
+        con molte collection o irraggiungibile, add_database può
+        impiegare diversi secondi o bloccarsi sul timeout di connessione
+        di pymongo prima di fallire nel blocco except sotto.
+        """
         db_logger.info(f"🔗 Tentativo connessione database '{db_name}'...")
         db_logger.debug(f"   URI: {mongo_uri}")
         db_logger.debug(f"   Database: {database_name}")
@@ -47,11 +73,11 @@ class DatabaseRegistry:
     def set_current_database(self, db_name: str) -> bool:
         """Seleziona il database attualmente in uso"""
         if db_name not in self.databases:
-            print(f"❌ Database '{db_name}' non trovato")
+            db_logger.warning(f"❌ Database '{db_name}' non trovato")
             return False
         
         self.current_database = db_name
-        print(f"✅ Database corrente: '{db_name}'")
+        db_logger.info(f"✅ Database corrente: '{db_name}'")
         return True
     
     def get_current_schema(self) -> dict:
@@ -94,13 +120,16 @@ class DatabaseRegistry:
         }
     
     def close_all(self):
-        """Chiudi tutte le connessioni"""
+        """
+        Chiude tutte le connessioni MongoDB aperte. Chiamata da main.py
+        nell'evento "shutdown" di FastAPI — non serve richiamarla a mano.
+        """
         for db_name, info in self.databases.items():
             try:
                 info["client"].close()
-                print(f"✅ Connessione '{db_name}' chiusa")
+                db_logger.info(f"✅ Connessione '{db_name}' chiusa")
             except Exception as e:
-                print(f"⚠️ Errore chiusura '{db_name}': {e}")
+                db_logger.warning(f"⚠️ Errore chiusura '{db_name}': {e}")
 
 
     def get_schema_for_all_databases(self) -> dict:
@@ -125,5 +154,7 @@ class DatabaseRegistry:
             return all_schemas
 
 
-# Istanza globale
+# Istanza globale — un solo registry condiviso da tutto il processo
+# FastAPI (importato così com'è da main.py e dagli altri moduli che ne
+# hanno bisogno, invece di istanziare DatabaseRegistry() più volte).
 db_registry = DatabaseRegistry()

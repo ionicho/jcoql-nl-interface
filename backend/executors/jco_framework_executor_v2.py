@@ -1,5 +1,25 @@
 #!/usr/bin/env python3
-"""JCO Framework Executor - Multi-Database Support"""
+"""
+JCO Framework Executor - Multi-Database Support
+
+Implementazione di ExecutorType.JCO_FRAMEWORK (vedi executor_factory.py),
+l'executor di default (ACTIVE_EXECUTOR="jco_framework" in main.py).
+Esegue le query JCoQL+ invocando il motore Java reale (J-CO Framework,
+progetto separato jco-framework) in subprocess, scrivendo i file .jcoql/
+.properties che il motore si aspetta di leggere e interpretando il suo
+output testuale su stdout.
+
+Per i comandi diversi da GET COLLECTION (JOIN, GROUP, EXPAND, MERGE,
+INTERSECT, SUBTRACT, SAVE AS), il motore stampa su stdout solo il
+conteggio dei documenti generati, non il loro contenuto — questo file
+ricostruisce quindi i documenti veri interrogando MongoDB direttamente
+via pymongo (uno o due metodi _extract_*_documents dedicati per
+ciascun comando), usando il conteggio del motore solo come validazione
+incrociata. SAVE AS è un caso a parte: essendo una scrittura reale già
+eseguita dal motore, qui ci si limita a rileggerla da MongoDB per
+conferma. SAVE TO FILE non è gestito (scrive su file lato server con
+una convenzione di path non nota lato Python).
+"""
 import os, re, json, subprocess
 from pathlib import Path
 from urllib.parse import urlparse
@@ -12,6 +32,17 @@ JCOQL_DEBUG = os.getenv("JCOQL_DEBUG", "false").lower() == "true"
 
 class JCoFrameworkExecutor:
     def __init__(self, mongo_uri="mongodb://localhost:27017", database="jcoql_test"):
+        # Nota: questa classe non tiene una connessione MongoDB persistente
+        # in un attributo (a differenza di python_translator.py, che ha
+        # self.db) — ogni metodo che deve interrogare Mongo apre la sua
+        # connessione con "with MongoClient(...) as client:" e la chiude
+        # da sé. Di conseguenza questa classe non ha un metodo close():
+        # main.py, nell'evento di shutdown, chiama comunque
+        # "executor.close()" su qualunque tipo di executor sia attivo —
+        # con questo (jco_framework, il default) quella chiamata solleva
+        # AttributeError, ma è avvolta in un try/except che la ignora in
+        # silenzio (vedi main.py), e non c'è comunque nulla da chiudere
+        # qui, quindi nella pratica non causa perdite di risorse.
         user_home = Path.home()
         self.jco_base = user_home / "jcoql-project" / "jco-framework"
         self.data_path = user_home / ".data" / ".zunTestScripts"
@@ -189,61 +220,68 @@ class JCoFrameworkExecutor:
         try:
             from pymongo import MongoClient
 
-            client = MongoClient(self.mongo_uri)
-            db1_name = db1 or self.database_name
-            db2_name = db2 or self.database_name
+            # FIX: prima "client = MongoClient(...)" senza mai chiudere
+            # la connessione (verificato: nessun client.close() in tutto
+            # il file, su 8 punti diversi che aprono una MongoClient) —
+            # ogni JOIN/GROUP/EXPAND/ecc. apriva una connessione Mongo in
+            # più che restava aperta per sempre, fino alla chiusura del
+            # processo. Con "with" la connessione si chiude sempre
+            # all'uscita dal blocco, anche in caso di eccezione.
+            with MongoClient(self.mongo_uri) as client:
+                db1_name = db1 or self.database_name
+                db2_name = db2 or self.database_name
 
-            docs1 = list(client[db1_name][coll1].find().limit(1000))
-            docs2 = list(client[db2_name][coll2].find().limit(1000))
+                docs1 = list(client[db1_name][coll1].find().limit(1000))
+                docs2 = list(client[db2_name][coll2].find().limit(1000))
 
-            # Indicizza la seconda collezione per valore del campo di join
-            index2 = {}
-            for d2 in docs2:
-                key = self._get_nested(d2, field2)
-                if key is not None:
-                    index2.setdefault(str(key), []).append(d2)
+                # Indicizza la seconda collezione per valore del campo di join
+                index2 = {}
+                for d2 in docs2:
+                    key = self._get_nested(d2, field2)
+                    if key is not None:
+                        index2.setdefault(str(key), []).append(d2)
 
-            remove_duplicates = bool(re.search(r'REMOVE\s+DUPLICATES', jcoql_query, re.IGNORECASE))
+                remove_duplicates = bool(re.search(r'REMOVE\s+DUPLICATES', jcoql_query, re.IGNORECASE))
 
-            if remove_duplicates:
-                # Serve la lista completa (non troncata) per deduplicare correttamente
-                # prima di contare e troncare per la visualizzazione.
-                all_pairs = []
-                for d1 in docs1:
-                    key = self._get_nested(d1, field1)
-                    if key is None:
-                        continue
-                    for d2 in index2.get(str(key), []):
-                        all_pairs.append({alias1: d1, alias2: d2, '_join_key': str(key)})
+                if remove_duplicates:
+                    # Serve la lista completa (non troncata) per deduplicare correttamente
+                    # prima di contare e troncare per la visualizzazione.
+                    all_pairs = []
+                    for d1 in docs1:
+                        key = self._get_nested(d1, field1)
+                        if key is None:
+                            continue
+                        for d2 in index2.get(str(key), []):
+                            all_pairs.append({alias1: d1, alias2: d2, '_join_key': str(key)})
 
-                seen = set()
-                deduped = []
-                for pair in all_pairs:
-                    canon_key = self._canonical_doc(pair)
-                    if canon_key not in seen:
-                        seen.add(canon_key)
-                        deduped.append(pair)
+                    seen = set()
+                    deduped = []
+                    for pair in all_pairs:
+                        canon_key = self._canonical_doc(pair)
+                        if canon_key not in seen:
+                            seen.add(canon_key)
+                            deduped.append(pair)
 
-                total_count = len(deduped)
-                results = deduped[:100]
-            else:
-                results = []
-                total_count = 0
-                for d1 in docs1:
-                    key = self._get_nested(d1, field1)
-                    if key is None:
-                        continue
-                    for d2 in index2.get(str(key), []):
-                        total_count += 1
-                        if len(results) < 100:
-                            results.append({
-                                alias1: d1,
-                                alias2: d2,
-                                '_join_key': str(key)
-                            })
+                    total_count = len(deduped)
+                    results = deduped[:100]
+                else:
+                    results = []
+                    total_count = 0
+                    for d1 in docs1:
+                        key = self._get_nested(d1, field1)
+                        if key is None:
+                            continue
+                        for d2 in index2.get(str(key), []):
+                            total_count += 1
+                            if len(results) < 100:
+                                results.append({
+                                    alias1: d1,
+                                    alias2: d2,
+                                    '_join_key': str(key)
+                                })
 
-            results = [self._sanitize_bson(r) for r in results]
-            return {'doc_count': total_count, 'results': results}
+                results = [self._sanitize_bson(r) for r in results]
+                return {'doc_count': total_count, 'results': results}
         except Exception as e:
             print(f"[JCoFrameworkExecutor] WARNING estrazione JOIN fallita: {e}")
             return {'doc_count': 0, 'results': []}
@@ -283,40 +321,40 @@ class JCoFrameworkExecutor:
         try:
             from pymongo import MongoClient
 
-            client = MongoClient(self.mongo_uri)
-            collection = client[self.database_name][source_collection]
+            with MongoClient(self.mongo_uri) as client:
+                collection = client[self.database_name][source_collection]
 
-            if len(by_fields) == 1:
-                group_id_expr = f"${by_fields[0]}"
-            else:
-                group_id_expr = {f: f"${f}" for f in by_fields}
+                if len(by_fields) == 1:
+                    group_id_expr = f"${by_fields[0]}"
+                else:
+                    group_id_expr = {f: f"${f}" for f in by_fields}
 
-            pipeline = []
-            if match_filter:
-                pipeline.append({"$match": match_filter})
-            pipeline.append(
-                {"$group": {"_id": group_id_expr, into_field: {"$push": "$$ROOT"}}}
-            )
-            grouped = list(collection.aggregate(pipeline))
+                pipeline = []
+                if match_filter:
+                    pipeline.append({"$match": match_filter})
+                pipeline.append(
+                    {"$group": {"_id": group_id_expr, into_field: {"$push": "$$ROOT"}}}
+                )
+                grouped = list(collection.aggregate(pipeline))
 
-            results = []
-            for g in grouped:
-                doc = {}
-                if not drop_grouping_fields:
-                    if len(by_fields) == 1:
-                        doc[by_fields[0]] = g["_id"]
-                    else:
-                        doc.update(g["_id"] or {})
-                # Limita la dimensione dell'array annidato per gruppo (evita payload enormi
-                # se un singolo gruppo contiene molti documenti, es. un anno con migliaia di
-                # film): il conteggio reale del gruppo resta comunque disponibile.
-                full_group = g[into_field]
-                doc[into_field] = full_group[:50]
-                doc['_group_size'] = len(full_group)
-                results.append(doc)
+                results = []
+                for g in grouped:
+                    doc = {}
+                    if not drop_grouping_fields:
+                        if len(by_fields) == 1:
+                            doc[by_fields[0]] = g["_id"]
+                        else:
+                            doc.update(g["_id"] or {})
+                    # Limita la dimensione dell'array annidato per gruppo (evita payload enormi
+                    # se un singolo gruppo contiene molti documenti, es. un anno con migliaia di
+                    # film): il conteggio reale del gruppo resta comunque disponibile.
+                    full_group = g[into_field]
+                    doc[into_field] = full_group[:50]
+                    doc['_group_size'] = len(full_group)
+                    results.append(doc)
 
-            results = [self._sanitize_bson(r) for r in results]
-            return {'doc_count': len(results), 'results': results}
+                results = [self._sanitize_bson(r) for r in results]
+                return {'doc_count': len(results), 'results': results}
         except Exception as e:
             print(f"[JCoFrameworkExecutor] WARNING estrazione GROUP fallita: {e}")
             return {'doc_count': 0, 'results': []}
@@ -350,34 +388,34 @@ class JCoFrameworkExecutor:
         try:
             from pymongo import MongoClient
 
-            client = MongoClient(self.mongo_uri)
-            collection = client[self.database_name][source_collection]
-            docs = list(collection.find())
+            with MongoClient(self.mongo_uri) as client:
+                collection = client[self.database_name][source_collection]
+                docs = list(collection.find())
 
-            results = []
-            total_count = 0
-            for doc in docs:
-                # La condizione determina se QUESTO documento e' idoneo all'espansione
-                # (vedi expand.md: "if the condition is met..."). Se non lo e', il
-                # documento e' trattato come "array non applicabile", stessa sorte di un
-                # documento senza l'array (governata da KEEP/DROP OTHERS sotto).
-                condition_ok = self._condition_matches_doc(doc, condition.strip())
-                array_value = self._get_nested(doc, array_field) if condition_ok else None
-                if condition_ok and isinstance(array_value, list) and len(array_value) > 0:
-                    for element in array_value:
+                results = []
+                total_count = 0
+                for doc in docs:
+                    # La condizione determina se QUESTO documento e' idoneo all'espansione
+                    # (vedi expand.md: "if the condition is met..."). Se non lo e', il
+                    # documento e' trattato come "array non applicabile", stessa sorte di un
+                    # documento senza l'array (governata da KEEP/DROP OTHERS sotto).
+                    condition_ok = self._condition_matches_doc(doc, condition.strip())
+                    array_value = self._get_nested(doc, array_field) if condition_ok else None
+                    if condition_ok and isinstance(array_value, list) and len(array_value) > 0:
+                        for element in array_value:
+                            total_count += 1
+                            if len(results) < 100:
+                                new_doc = dict(doc)
+                                new_doc[dest_field] = element
+                                results.append(new_doc)
+                    elif keep_others:
                         total_count += 1
                         if len(results) < 100:
-                            new_doc = dict(doc)
-                            new_doc[dest_field] = element
-                            results.append(new_doc)
-                elif keep_others:
-                    total_count += 1
-                    if len(results) < 100:
-                        results.append(dict(doc))
-                # altrimenti (array assente/vuoto e non KEEP OTHERS): documento scartato
+                            results.append(dict(doc))
+                    # altrimenti (array assente/vuoto e non KEEP OTHERS): documento scartato
 
-            results = [self._sanitize_bson(r) for r in results]
-            return {'doc_count': total_count, 'results': results}
+                results = [self._sanitize_bson(r) for r in results]
+                return {'doc_count': total_count, 'results': results}
         except Exception as e:
             print(f"[JCoFrameworkExecutor] WARNING estrazione EXPAND fallita: {e}")
             return {'doc_count': 0, 'results': []}
@@ -419,26 +457,25 @@ class JCoFrameworkExecutor:
 
         try:
             from pymongo import MongoClient
-            client = MongoClient(self.mongo_uri)
+            with MongoClient(self.mongo_uri) as client:
+                all_docs = []
+                for coll_name, db_name in refs:
+                    db = db_name or self.database_name
+                    all_docs.extend(client[db][coll_name].find())
 
-            all_docs = []
-            for coll_name, db_name in refs:
-                db = db_name or self.database_name
-                all_docs.extend(client[db][coll_name].find())
+                if remove_duplicates:
+                    seen = set()
+                    deduped = []
+                    for d in all_docs:
+                        key = self._canonical_doc(d)
+                        if key not in seen:
+                            seen.add(key)
+                            deduped.append(d)
+                    all_docs = deduped
 
-            if remove_duplicates:
-                seen = set()
-                deduped = []
-                for d in all_docs:
-                    key = self._canonical_doc(d)
-                    if key not in seen:
-                        seen.add(key)
-                        deduped.append(d)
-                all_docs = deduped
-
-            total_count = len(all_docs)
-            results = [self._sanitize_bson(d) for d in all_docs[:100]]
-            return {'doc_count': total_count, 'results': results}
+                total_count = len(all_docs)
+                results = [self._sanitize_bson(d) for d in all_docs[:100]]
+                return {'doc_count': total_count, 'results': results}
         except Exception as e:
             print(f"[JCoFrameworkExecutor] WARNING estrazione MERGE fallita: {e}")
             return {'doc_count': 0, 'results': []}
@@ -455,17 +492,16 @@ class JCoFrameworkExecutor:
 
         try:
             from pymongo import MongoClient
-            client = MongoClient(self.mongo_uri)
+            with MongoClient(self.mongo_uri) as client:
+                docs1 = list(client[db1 or self.database_name][coll1].find())
+                docs2 = list(client[db2 or self.database_name][coll2].find())
 
-            docs1 = list(client[db1 or self.database_name][coll1].find())
-            docs2 = list(client[db2 or self.database_name][coll2].find())
+                keys2 = {self._canonical_doc(d) for d in docs2}
+                results_all = [d for d in docs1 if self._canonical_doc(d) in keys2]
 
-            keys2 = {self._canonical_doc(d) for d in docs2}
-            results_all = [d for d in docs1 if self._canonical_doc(d) in keys2]
-
-            total_count = len(results_all)
-            results = [self._sanitize_bson(d) for d in results_all[:100]]
-            return {'doc_count': total_count, 'results': results}
+                total_count = len(results_all)
+                results = [self._sanitize_bson(d) for d in results_all[:100]]
+                return {'doc_count': total_count, 'results': results}
         except Exception as e:
             print(f"[JCoFrameworkExecutor] WARNING estrazione INTERSECT fallita: {e}")
             return {'doc_count': 0, 'results': []}
@@ -482,17 +518,16 @@ class JCoFrameworkExecutor:
 
         try:
             from pymongo import MongoClient
-            client = MongoClient(self.mongo_uri)
+            with MongoClient(self.mongo_uri) as client:
+                docs1 = list(client[db1 or self.database_name][coll1].find())
+                docs2 = list(client[db2 or self.database_name][coll2].find())
 
-            docs1 = list(client[db1 or self.database_name][coll1].find())
-            docs2 = list(client[db2 or self.database_name][coll2].find())
+                keys2 = {self._canonical_doc(d) for d in docs2}
+                results_all = [d for d in docs1 if self._canonical_doc(d) not in keys2]
 
-            keys2 = {self._canonical_doc(d) for d in docs2}
-            results_all = [d for d in docs1 if self._canonical_doc(d) not in keys2]
-
-            total_count = len(results_all)
-            results = [self._sanitize_bson(d) for d in results_all[:100]]
-            return {'doc_count': total_count, 'results': results}
+                total_count = len(results_all)
+                results = [self._sanitize_bson(d) for d in results_all[:100]]
+                return {'doc_count': total_count, 'results': results}
         except Exception as e:
             print(f"[JCoFrameworkExecutor] WARNING estrazione SUBTRACT fallita: {e}")
             return {'doc_count': 0, 'results': []}
@@ -517,22 +552,34 @@ class JCoFrameworkExecutor:
 
         try:
             from pymongo import MongoClient
-            client = MongoClient(self.mongo_uri)
-            db = client[target_db or self.database_name]
-            collection = db[new_collection]
+            with MongoClient(self.mongo_uri) as client:
+                db = client[target_db or self.database_name]
+                collection = db[new_collection]
 
-            total_count = collection.count_documents({})
-            if total_count == 0:
-                print(f"[JCoFrameworkExecutor] WARNING SAVE AS: la collezione '{new_collection}' "
-                      f"in '{target_db or self.database_name}' risulta vuota o inesistente")
-            results = [self._sanitize_bson(d) for d in collection.find().limit(100)]
-            return {'doc_count': total_count, 'results': results, 'saved_collection': new_collection}
+                total_count = collection.count_documents({})
+                if total_count == 0:
+                    print(f"[JCoFrameworkExecutor] WARNING SAVE AS: la collezione '{new_collection}' "
+                          f"in '{target_db or self.database_name}' risulta vuota o inesistente")
+                results = [self._sanitize_bson(d) for d in collection.find().limit(100)]
+                return {'doc_count': total_count, 'results': results, 'saved_collection': new_collection}
         except Exception as e:
             print(f"[JCoFrameworkExecutor] WARNING verifica SAVE AS fallita: {e}")
             return {'doc_count': 0, 'results': []}
 
     def _parse_output(self, output, jcoql_query):
-        """Estrai documenti da MongoDB, applicando il filtro se presente"""
+        """
+        Ricostruisce i documenti del risultato leggendoli direttamente da
+        MongoDB via pymongo, invece che dall'output testuale del motore
+        Java (`output`). Necessario perché, per i comandi diversi da
+        GET COLLECTION, il motore J-CO stampa su stdout solo il conteggio
+        dei documenti generati, non il loro contenuto (vedi i commenti
+        nei singoli metodi _extract_*_documents più sopra, uno per ogni
+        comando avanzato). Il conteggio letto da `output` (quando
+        presente) viene comunque usato come riferimento/validazione
+        incrociata rispetto a quanto trovato interrogando Mongo
+        direttamente — se i due numeri divergono, viene loggato un
+        warning ma il risultato calcolato qui prevale comunque.
+        """
         doc_count = 0
         docs = []
 
@@ -701,48 +748,48 @@ class JCoFrameworkExecutor:
                 from pymongo import MongoClient
                 from bson import ObjectId, Decimal128
                 
-                client = MongoClient(self.mongo_uri)
-                db = client[self.database_name]
-                collection = db[collection_name]
-                
-                # Estrai il filtro dalla query JCoQL
-                mongo_filter = self._extract_mongo_filter(jcoql_query)
-                
-                # ✅ Conta TUTTI i documenti che matchano
-                if mongo_filter:
-                    total_matching = collection.count_documents(mongo_filter)
-                else:
-                    total_matching = collection.count_documents({})
-                
-                # ✅ Estrai i primi 100
-                if mongo_filter:
-                    docs = list(collection.find(mongo_filter).limit(100))
-                else:
-                    docs = list(collection.find().limit(100))
-                
-                # Converti ObjectId e Decimal128
-                for doc in docs:
-                    if '_id' in doc and isinstance(doc['_id'], ObjectId):
-                        doc['_id'] = str(doc['_id'])
+                with MongoClient(self.mongo_uri) as client:
+                    db = client[self.database_name]
+                    collection = db[collection_name]
                     
-                    def convert_decimal(obj):
-                        if isinstance(obj, dict):
-                            for key, val in obj.items():
-                                if isinstance(val, Decimal128):
-                                    obj[key] = float(val.to_decimal())
-                                elif isinstance(val, (dict, list)):
-                                    convert_decimal(val)
-                        elif isinstance(obj, list):
-                            for i, val in enumerate(obj):
-                                if isinstance(val, Decimal128):
-                                    obj[i] = float(val.to_decimal())
-                                elif isinstance(val, (dict, list)):
-                                    convert_decimal(val)
+                    # Estrai il filtro dalla query JCoQL
+                    mongo_filter = self._extract_mongo_filter(jcoql_query)
                     
-                    convert_decimal(doc)
-                
-                # ✅ Ritorna il numero VERO
-                doc_count = total_matching
+                    # ✅ Conta TUTTI i documenti che matchano
+                    if mongo_filter:
+                        total_matching = collection.count_documents(mongo_filter)
+                    else:
+                        total_matching = collection.count_documents({})
+                    
+                    # ✅ Estrai i primi 100
+                    if mongo_filter:
+                        docs = list(collection.find(mongo_filter).limit(100))
+                    else:
+                        docs = list(collection.find().limit(100))
+                    
+                    # Converti ObjectId e Decimal128
+                    for doc in docs:
+                        if '_id' in doc and isinstance(doc['_id'], ObjectId):
+                            doc['_id'] = str(doc['_id'])
+                        
+                        def convert_decimal(obj):
+                            if isinstance(obj, dict):
+                                for key, val in obj.items():
+                                    if isinstance(val, Decimal128):
+                                        obj[key] = float(val.to_decimal())
+                                    elif isinstance(val, (dict, list)):
+                                        convert_decimal(val)
+                            elif isinstance(obj, list):
+                                for i, val in enumerate(obj):
+                                    if isinstance(val, Decimal128):
+                                        obj[i] = float(val.to_decimal())
+                                    elif isinstance(val, (dict, list)):
+                                        convert_decimal(val)
+                        
+                        convert_decimal(doc)
+                    
+                    # ✅ Ritorna il numero VERO
+                    doc_count = total_matching
                 
             except Exception as e:
                 print(f"[JCoFrameworkExecutor] ❌ MongoDB fallito: {e}")
@@ -819,35 +866,48 @@ class JCoFrameworkExecutor:
 
 
     def _get_documents_from_mongodb(self, collection_name, limit=100):
-        """Fallback: estrai documenti direttamente da MongoDB se il parsing fallisce"""
+        """
+        Fallback: estrai documenti direttamente da MongoDB se il parsing fallisce
+
+        Nota: questo metodo non risulta chiamato da nessun punto del
+        file (verificato con una ricerca su tutta la classe) — è un
+        fallback scritto ma mai agganciato al flusso principale.
+        """
         try:
             from pymongo import MongoClient
             from datetime import datetime
             
-            client = MongoClient("mongodb://localhost:27017")
-            db = client[self.database_name]
-            collection = db[collection_name]
-            
-            # Estrai i primi 'limit' documenti
-            docs = list(collection.find().limit(limit))
-            
-            # CONVERTI TUTTI I CAMPI NON SERIALIZZABILI
-            for doc in docs:
-                # Converti ObjectId a stringa
-                if '_id' in doc:
-                    doc['_id'] = str(doc['_id'])
+            # FIX: usava un URI hardcoded ("mongodb://localhost:27017")
+            # invece di self.mongo_uri (l'URI passato all'executor alla
+            # creazione) — se un giorno questo metodo venisse richiamato
+            # con un database non locale, si sarebbe connesso comunque a
+            # localhost invece che all'host giusto. Corretto anche il
+            # mancato client.close() (stesso problema visto negli altri
+            # 8 punti del file che aprono una MongoClient).
+            with MongoClient(self.mongo_uri) as client:
+                db = client[self.database_name]
+                collection = db[collection_name]
                 
-                # Converti tutti i datetime a ISO format
-                for key, value in doc.items():
-                    if isinstance(value, datetime):
-                        doc[key] = value.isoformat()
-                    elif isinstance(value, dict):
-                        # Se è un dict annidato, converti anche i datetime dentro
-                        for k, v in value.items():
-                            if isinstance(v, datetime):
-                                value[k] = v.isoformat()
-            
-            return docs
+                # Estrai i primi 'limit' documenti
+                docs = list(collection.find().limit(limit))
+                
+                # CONVERTI TUTTI I CAMPI NON SERIALIZZABILI
+                for doc in docs:
+                    # Converti ObjectId a stringa
+                    if '_id' in doc:
+                        doc['_id'] = str(doc['_id'])
+                    
+                    # Converti tutti i datetime a ISO format
+                    for key, value in doc.items():
+                        if isinstance(value, datetime):
+                            doc[key] = value.isoformat()
+                        elif isinstance(value, dict):
+                            # Se è un dict annidato, converti anche i datetime dentro
+                            for k, v in value.items():
+                                if isinstance(v, datetime):
+                                    value[k] = v.isoformat()
+                
+                return docs
         except Exception as e:
             return []
 
@@ -1034,6 +1094,22 @@ class JCoFrameworkExecutor:
             conn_props = self.data_path / "mongodb_connection.properties"
             main_props = self.data_path / "mongodb_test.properties"
             
+            # NOTA: questo primo blocco (File 1) scrive due file che, un
+            # po' più sotto (File 2, "conn_props"/"main_props"), vengono
+            # RISCRITTI DA CAPO con contenuto equivalente ma dinamico e
+            # portabile. "properties_file" e "connection_file" qui sotto
+            # risolvono esattamente agli stessi percorsi di "main_props" e
+            # "conn_props" (stessa self.data_path, stesso nome file) — la
+            # scrittura qui è quindi sempre sovrascritta prima che il
+            # subprocess Java venga lanciato, e resta innocua nella
+            # pratica. Ma "properties_content" sotto contiene un percorso
+            # Windows ASSOLUTO hardcoded (C:/Users/nicho/...) — se in
+            # futuro questo primo blocco diventasse l'unico a scrivere il
+            # file (es. rimuovendo per errore la riscrittura successiva),
+            # il subprocess fallirebbe silenziosamente su qualunque
+            # macchina diversa da quella con quell'esatto nome utente
+            # Windows. Il blocco try/except sotto ingoia comunque
+            # qualunque errore di scrittura senza loggarlo.
             # File 1: mongodb_test.properties
             properties_file = os.path.join(os.path.expanduser("~"), ".data", ".zunTestScripts", "mongodb_test.properties")
             properties_content = f"""fileInProlog=C:/Users/nicho/.data/.zunTestScripts/prolog.jcoql
@@ -1208,7 +1284,7 @@ class JCoFrameworkExecutor:
                 # FALLBACK: Se il FilterExecutor del JCo non ha filtrato (ritorna TUTTI),
                 # applica il filtro manualmente in Python
                 # Se il filtro ha AND/OR, non applicare il fallback Python
-# (MongoDB lo ha già fatto correttamente)
+                # (MongoDB lo ha già fatto correttamente)
                 if "FILTER CASE WHERE" in jcoql_query.upper() and " AND " not in jcoql_query.upper() and " OR " not in jcoql_query.upper():
                     # Estrai la condizione dal filtro
                     filter_match = re.search(r'WHERE\s+(.+?)\s+KEEP\s+OTHERS', jcoql_query, re.IGNORECASE)

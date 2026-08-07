@@ -39,7 +39,15 @@ def setup_logging():
     """
     Configura il logger principale (root) destinando l'output sia alla console
     che al file fisico di log.
-    
+
+    IMPORTANTE PER CHI TOCCA QUESTO FILE: va chiamata UNA SOLA VOLTA per
+    processo (oggi succede a livello di modulo in main.py, riga 99, quando
+    main.py viene importato). Ogni chiamata aggiunge un nuovo handler al
+    logger root con logger.addHandler(...) — chiamarla di nuovo altrove
+    (es. dentro un endpoint, o reimportando il modulo in un contesto che
+    lo rieseguisse) duplicherebbe gli handler e ogni riga di log
+    apparirebbe ripetuta N volte in console/file.
+
     Returns:
         tuple: (logger root configurato, percorso assoluto del file di log)
     """

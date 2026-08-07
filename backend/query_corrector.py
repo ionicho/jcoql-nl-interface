@@ -3,6 +3,20 @@ Query Corrector - Corregge errori comuni di sintassi JCoQL
 
 Questo modulo fix automaticamente errori comuni che il LLM genera,
 come "IS NOT NULL" invece di "ISNOTNULL".
+
+STATO ATTUALE (per chi legge questo file aspettandosi più correttori):
+nonostante il nome e il docstring parlino di "errori comuni" al plurale,
+oggi è implementato UN solo correttore (ISNOTNULL, sotto). L'architettura
+è però pensata per essere estesa: correct_query() applica in sequenza
+"tutti i corrector" registrati — se in futuro l'LLM genera altri errori
+sistematici (es. un altro operatore scritto con spazi quando il parser
+vuole una parola unica), il pattern da seguire è:
+  1. scrivere una nuova funzione correct_<nome>_syntax(query) -> (str, bool)
+     sul modello di correct_isnotnull_syntax qui sotto
+  2. richiamarla dentro correct_query(), aggiungendo una entry alla
+     lista `corrections` se ha modificato qualcosa
+Così il chiamante (main.py) continua a ricevere una singola lista di
+correzioni applicate, senza dover sapere quanti/quali correttori esistono.
 """
 import logging
 import re
@@ -33,7 +47,9 @@ def correct_isnotnull_syntax(query: str) -> tuple[str, bool]:
     original_query = query
     
     # Pattern 1: ".field IS NOT NULL" → "FIELD .field ISNOTNULL"
-    # Cerca pattern come "WHERE .fieldname IS NOT NULL"
+    # Caso in cui l'LLM ha OMESSO del tutto la keyword "FIELD" richiesta
+    # dalla grammatica JCoQL+ (genera "WHERE .campo IS NOT NULL" invece
+    # di "WHERE FIELD .campo ISNOTNULL") — qui la aggiungiamo noi.
     pattern1 = r'WHERE\s+(\.\w+)\s+IS\s+NOT\s+NULL'
     if re.search(pattern1, query):
         corrector_logger.info(f"Correzione 1: Converto '.field IS NOT NULL' → 'FIELD .field ISNOTNULL'")
@@ -45,7 +61,14 @@ def correct_isnotnull_syntax(query: str) -> tuple[str, bool]:
         modified = True
     
     # Pattern 2: "IS NOT NULL" nel contesto FIELD → "ISNOTNULL"
-    # Cerca pattern come "FIELD .fieldname IS NOT NULL"
+    # Caso diverso dal precedente: qui la keyword "FIELD" c'è già (l'LLM
+    # l'ha generata correttamente), sbaglia solo la spaziatura di
+    # ISNOTNULL. Applicato DOPO il pattern 1: a quel punto, se il
+    # pattern 1 ha già agito, la query non contiene più il testo
+    # "IS NOT NULL" (l'ha già trasformato in ISNOTNULL), quindi qui non
+    # scatta di nuovo per errore sullo stesso pezzo di query — i due
+    # pattern intercettano due varianti di errore diverse e non si
+    # sovrappongono mai sullo stesso frammento di testo.
     pattern2 = r'FIELD\s+(\.\w+)\s+IS\s+NOT\s+NULL'
     if re.search(pattern2, query):
         corrector_logger.info(f"Correzione 2: Converto 'FIELD .field IS NOT NULL' → 'FIELD .field ISNOTNULL'")
@@ -84,6 +107,15 @@ def correct_query(query: str) -> tuple[str, list]:
     
     # Se la query è un messaggio di errore (non JCoQL), non correggerla
     # Il LLM a volte genera messaggi descrittivi invece di query
+    # NOTA: il prefisso "QUERY:" è controllato anche a monte, in main.py
+    # (prima ancora di chiamare correct_query) — qui è un controllo
+    # ridondante/difensivo, utile se in futuro correct_query() viene
+    # richiamata da un altro punto del codice che non fa già quel check.
+    # Il prefisso "Operazione" invece non risulta più generato da nessuna
+    # parte del codice attuale (verificato con una ricerca nel progetto):
+    # probabilmente un residuo difensivo di un formato di risposta LLM
+    # precedente. Lasciato per sicurezza, ma se non scatta mai in pratica
+    # potrebbe essere rimosso in futuro.
     if query.startswith("QUERY:") or query.startswith("Operazione"):
         corrector_logger.info("Query è un messaggio del sistema - nessuna correzione")
         return query, []

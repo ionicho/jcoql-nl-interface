@@ -1,6 +1,15 @@
 #!/usr/bin/env python3
 """
 Valida nuovi esempi JCoQL
+
+Usa il validatore ANTLR4 custom (backend/parsers/validator.py), non il
+parser ANTLR3 ufficiale — un esempio segnato valido qui potrebbe in
+teoria comportarsi diversamente se validato con l'altro parser (vedi la
+nota in validator.py sulle due grammatiche separate).
+
+Il parsing del file di esempi (sotto, validate_file) riconosce solo le
+righe "Titolo:" e "Query:", ignorando "Descrizione:" — non gli serve per
+validare la sintassi.
 """
 import sys
 sys.path.append('backend/parsers')
@@ -41,6 +50,8 @@ def validate_file(filepath):
             print(f"   Errori: {result.get('errors', [])}")
             invalid += 1
     
+    # Se examples è vuoto (file non trovato/vuoto/senza righe "Titolo:"),
+    # la divisione sotto solleva ZeroDivisionError.
     print(f"\n{'='*70}")
     print(f"RISULTATO: {valid}/{len(examples)} validi ({valid/len(examples)*100:.1f}%)")
     print(f"{'='*70}")
@@ -49,4 +60,9 @@ if __name__ == "__main__":
     if len(sys.argv) > 1:
         validate_file(sys.argv[1])
     else:
+        # Percorso di default: examples/validated/jcoql_examples_ADVANCED_V2.txt
+        # non esiste nel progetto (i file attuali in examples/validated/
+        # hanno altri nomi: jcoql_examples_full.txt, _operators.txt,
+        # _REAL_SYNTAX.txt, _SCHEMA_ALIGNED.txt) — lanciato senza
+        # argomenti, questo ramo fallisce con FileNotFoundError.
         validate_file('examples/validated/jcoql_examples_ADVANCED_V2.txt')

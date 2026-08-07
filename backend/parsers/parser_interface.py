@@ -8,9 +8,9 @@ from typing import Tuple, List, Dict
 from enum import Enum
 
 class ParserType(Enum):
-    ANTLR4_CUSTOM = "antlr4_custom"
-    ANTLR3_OFFICIAL = "antlr3_official"
-    # Futuri parser
+    ANTLR4_CUSTOM = "antlr4_custom"    # implementato in antlr4_custom_parser.py
+    ANTLR3_OFFICIAL = "antlr3_official" # implementato in antlr3_official_parser.py, è il default (ACTIVE_PARSER in main.py)
+    # Futuri parser (mai implementati)
     # ANTLR4_OFFICIAL = "antlr4_official"
     # TREE_SITTER = "tree_sitter"
 

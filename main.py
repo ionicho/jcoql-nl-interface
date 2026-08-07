@@ -60,8 +60,17 @@ from executor_factory import ExecutorFactory, ExecutorType
 # ==============================================================================
 load_dotenv()
 
+# Timestamp di avvio del processo, usato da /api/stats per calcolare
+# l'uptime reale (vedi sotto) invece di un valore fisso.
+APP_START_TIME = time.time()
+
 # Caricamento regole sintattiche
 def load_file_content(path: str) -> str:
+    # In caso di errore (es. file mancante) ritorna una stringa vuota
+    # invece di sollevare l'eccezione — l'app continua ad avviarsi anche
+    # se uno di questi file manca, ma il prompt inviato all'LLM perde
+    # silenziosamente quella parte di contesto, senza nessun log o
+    # avviso visibile che lo segnali.
     try:
         with open(path, 'r', encoding='utf-8') as f:
             return f.read()
@@ -71,8 +80,21 @@ def load_file_content(path: str) -> str:
 JCOQL_SYNTAX_FULL = load_file_content('backend/jcoql_syntax_official.txt')
 JCOQL_SYNTAX_BASIC = load_file_content('backend/jcoql_syntax_basic_official.txt')
 EXTENDED_EXAMPLES = load_file_content('backend/rag_examples_extended.txt')
+# Nota: JCOQL_SYNTAX_FULL viene caricato qui ma non è mai inserito in
+# nessun prompt più avanti nel file — solo JCOQL_SYNTAX_BASIC ed
+# EXTENDED_EXAMPLES vengono effettivamente usati (vedi la costruzione del
+# prompt più sotto, verso la riga 397-399). Il caricamento di
+# jcoql_syntax_official.txt (1633 righe) avviene comunque ad ogni avvio,
+# senza che il contenuto raggiunga mai l'LLM.
 
 # Selezione LLM, Parser ed Executor attivi
+# Nota sulla mutabilità di queste tre variabili a runtime: ACTIVE_LLM può
+# cambiare dopo l'avvio (l'endpoint /api/set_llm sotto fa "global
+# ACTIVE_LLM" e la riassegna). ACTIVE_PARSER e ACTIVE_EXECUTOR invece non
+# hanno un endpoint equivalente — restano fissate al valore letto da
+# variabile d'ambiente al momento dell'avvio per tutta la vita del
+# processo; cambiarle richiede riavviare il server con una diversa
+# variabile d'ambiente.
 ACTIVE_LLM = os.getenv("ACTIVE_LLM", "gemini")
 ACTIVE_PARSER = os.getenv("ACTIVE_PARSER", "antlr3_official")
 ACTIVE_EXECUTOR = os.getenv("ACTIVE_EXECUTOR", "jco_framework")
@@ -81,7 +103,9 @@ ACTIVE_EXECUTOR = os.getenv("ACTIVE_EXECUTOR", "jco_framework")
 # dettagliati (esempi RAG recuperati, riepilogo execution_result). Spento di default.
 JCOQL_DEBUG = os.getenv("JCOQL_DEBUG", "false").lower() == "true"
 
-# Istanzia il parser sintattico
+# Istanzia il parser sintattico (singleton di modulo — stessa istanza
+# riusata per tutte le richieste, coerente con ACTIVE_PARSER fissato
+# all'avvio descritto sopra)
 parser = ParserFactory.create_parser(ParserType(ACTIVE_PARSER))
 
 # Configurazione Google Gemini
@@ -89,6 +113,11 @@ genai.configure(api_key=os.getenv("GEMINI_API_KEY"))
 model = genai.GenerativeModel("gemini-3.1-flash-lite-preview")
 
 # Inizializzazione ChromaDB
+# Nota: get_collection (non get_or_create_collection) solleva
+# un'eccezione se la collection "jcoql_examples" non esiste ancora —
+# catturata qui sotto e trasformata in collection=None, quindi l'app
+# comunque si avvia. Perché la collection esista è necessario aver
+# lanciato almeno una volta backend/database/load_examples.py.
 chroma_client = chromadb.PersistentClient(path="./chroma_data")
 try:
     collection = chroma_client.get_collection(name="jcoql_examples")
@@ -105,6 +134,9 @@ startup_logger.info("📦 Caricamento configurazione completato.")
 
 executor = None
 GLOBAL_SCHEMA = {}
+# Entrambe sono variabili globali di modulo, valorizzate qui solo come
+# placeholder — vengono assegnate per davvero dentro startup_event() più
+# sotto (con "global executor, GLOBAL_SCHEMA"), non qui.
 
 from bson import ObjectId
 from json import JSONEncoder
@@ -120,6 +152,20 @@ class MongoDBJSONEncoder(JSONEncoder):
 # ==============================================================================
 # FASTAPI APP & MIDDLEWARE
 # ==============================================================================
+# Nota: json_encoder=MongoDBJSONEncoder qui sotto NON ha alcun effetto.
+# FastAPI (0.141.1, verificato) non espone un parametro "json_encoder" nel
+# costruttore — la classe FastAPI accetta comunque la chiamata perché
+# **extra assorbe silenziosamente qualunque kwargs non riconosciuto,
+# senza sollevare errori né fare nulla con esso. MongoDBJSONEncoder,
+# definito subito sopra proprio per gestire la serializzazione di
+# ObjectId, non viene quindi mai usato dalla serializzazione delle
+# risposte FastAPI. Il progetto evita comunque il problema perché ogni
+# executor converte _id in stringa manualmente prima di restituire i
+# risultati (es. python_translator.py, riga "doc['_id'] = str(doc['_id'])"),
+# quindi in pratica ObjectId grezzi non arrivano fin qui — ma se in
+# futuro un endpoint restituisse un documento Mongo senza quella
+# conversione manuale, questo encoder non lo salverebbe da un errore di
+# serializzazione, contrariamente a quanto il codice lascia intendere.
 app = FastAPI(title="JCoQL+ Multi-Parser API", json_encoder=MongoDBJSONEncoder)
 
 app.add_middleware(
@@ -129,6 +175,15 @@ app.add_middleware(
     allow_methods=["GET", "POST", "PUT", "DELETE", "OPTIONS"],
     allow_headers=["*"],
 )
+# Nota: allow_origins=["*"] insieme a allow_credentials=True è una
+# combinazione che i browser rifiutano per le richieste che includono
+# credenziali (cookie, header Authorization con withCredentials) — la
+# specifica CORS non permette un wildcard quando le credenziali sono
+# abilitate. Non causa problemi allo stato attuale perché nessuna
+# chiamata del frontend (axios/fetch, verificato nei componenti React)
+# imposta withCredentials, quindi non sono mai richieste credenziali
+# realmente — ma se in futuro si aggiungesse autenticazione via cookie,
+# questa configurazione andrebbe rivista (origine esplicita invece di "*").
 
 class GenerateRequest(BaseModel):
     nl_query: str
@@ -151,6 +206,13 @@ async def startup_event():
     startup_logger.info("🔧 Inizializzazione Database Registry...")
     try:
         db_logger.info("📡 Connessione al database 'jcoql_test'...")
+        # Connette sempre "jcoql_test" hardcoded, indipendentemente da
+        # cosa contiene connected_databases.json — se "jcoql_test" era
+        # già salvato lì (caso comune, essendo il database di default),
+        # load_databases_from_file() poche righe sotto lo riconnette una
+        # seconda volta (add_database sovrascrive senza controllare
+        # duplicati). Nessun errore visibile, solo una doppia
+        # connessione/schema-discovery ad ogni avvio per questo database.
         db_registry.add_database(
             db_name="jcoql_test",
             mongo_uri="mongodb://localhost:27017",
@@ -175,6 +237,17 @@ async def startup_event():
         # Recupera il database corrente impostato nel registry
         current_db = db_registry.get_current_database_name() or "jcoql_test"
 
+        # Questo "executor" globale, creato qui la prima volta, è lo
+        # stesso oggetto usato dagli endpoint /api/collections,
+        # /api/upload-collection e affini più sotto. Viene poi ricreato
+        # anche più avanti (in /api/execute e /api/databases/select)
+        # quando il database target cambia — quindi NON resta fissato
+        # per sempre al database di questo avvio. Il problema reale di
+        # quegli endpoint (vedi commento dettagliato sopra la sezione
+        # "GESTIONE COLLEZIONI MONGODB") è un altro: presuppongono un
+        # attributo .db che jco_framework_executor_v2.py (l'executor di
+        # default) non ha, indipendentemente da quale database sia
+        # legato all'istanza corrente.
         executor = ExecutorFactory.create_executor(
             ExecutorType(ACTIVE_EXECUTOR),
             mongo_uri="mongodb://localhost:27017",
@@ -188,6 +261,10 @@ async def startup_event():
 
 @app.on_event("shutdown")
 def shutdown():
+    # Entrambi i blocchi ingoiano qualunque eccezione senza nemmeno
+    # loggarla (a differenza del resto del file, che di solito logga
+    # almeno un warning) — se la chiusura delle connessioni fallisce, non
+    # se ne ha traccia da nessuna parte.
     try:
         if executor:
             executor.close()
@@ -207,6 +284,13 @@ async def generate_query(request: GenerateRequest):
     """
     Riceve un prompt in Linguaggio Naturale e genera una query JCoQL valida
     """
+    # Nota di concorrenza: db_registry.current_database è uno stato
+    # GLOBALE condiviso da tutto il processo (vedi database_registry.py),
+    # non uno stato per-richiesta. Impostarlo qui in base a
+    # request.database significa che, con più richieste concorrenti su
+    # database diversi, una potrebbe leggere/agire sul database impostato
+    # da un'altra richiesta arrivata nel frattempo — non c'è isolamento
+    # tra richieste su questo stato.
     if request.database:
         db_registry.set_current_database(request.database)   
     
@@ -280,9 +364,16 @@ async def generate_query(request: GenerateRequest):
         missing_get_collection_hint = None
         current_db = db_registry.current_database or "nessuno"
         available_collections = []
+        # FIX (stesso bug di /api/stats, vedi commento lì): prima si
+        # chiamava db_registry.databases[current_db].list_collection_names(),
+        # ma quel valore è un dizionario di metadati, non una connessione
+        # MongoDB — l'AttributeError veniva ingoiato in silenzio e
+        # available_collections restava sempre vuoto. Le collection sono
+        # già note dallo schema scoperto alla connessione (le chiavi di
+        # get_current_schema()), senza bisogno di richiamare Mongo qui.
         if current_db and current_db in db_registry.databases:
             try:
-                available_collections = db_registry.databases[current_db].list_collection_names()
+                available_collections = list(db_registry.get_current_schema().keys())
             except Exception:
                 available_collections = []
 
@@ -511,6 +602,13 @@ Usa ESATTAMENTE i nomi campi dello schema. NESSUN testo aggiuntivo.
                 generic_keywords = ['dove', 'con', 'che', '>', '<', '>=', '<=', '=', '!=']
                 has_filter_request = any(kw in user_query_lower for kw in generic_keywords)
             
+            # Applicazione lato codice della REGOLA CRITICA #1 del prompt
+            # (niente FILTER se l'utente non ha chiesto una condizione):
+            # se il fuzzy match sopra non ha trovato nessun indizio di
+            # filtro nella richiesta utente, ma il modello ha comunque
+            # generato un FILTER CASE WHERE, lo tronca via tenendo solo
+            # la GET COLLECTION — rete di sicurezza per quando il prompt
+            # da solo non basta a farsi seguire dal modello.
             if not has_filter_request and 'FILTER CASE WHERE' in current_query.upper():
                 collection_match = re.search(r'GET\s+COLLECTION\s+\w+', current_query, re.IGNORECASE)
                 if collection_match:
@@ -605,6 +703,11 @@ Usa ESATTAMENTE i nomi campi dello schema. NESSUN testo aggiuntivo.
                 current_query = current_query[:cut_idx].strip()
 
             # Auto-correzione sintattica
+            # Nota: qui si controlla solo il prefisso "QUERY:", non anche
+            # "Operazione" come fa invece query_corrector.correct_query()
+            # al suo interno (vedi query_corrector.py) — controllo un po'
+            # più permissivo qui, la doppia rete di sicurezza dentro
+            # correct_query() copre comunque anche quel caso.
             if current_query and not current_query.startswith("QUERY:"):
                 current_query, _ = correct_query(current_query)
 
@@ -705,6 +808,13 @@ async def execute_query(request: QueryRequest):
             join_executor = JoinExecutor(ExecutorFactory, parser, db_registry)
             actual_results = join_executor.execute_join(jcoql_query, join_config)
             actual_count = len(actual_results)
+            # Stringa solo descrittiva per il campo "database" della
+            # risposta (usata per il testo mostrato in UI) — "db1 ⊕ db2"
+            # non è un nome di database Mongo valido, è per questo che
+            # QueryExecutor.jsx (frontend) tratta il caso join_config
+            # presente separatamente, mostrando le due USE DB reali
+            # invece di usare questo valore come se fosse un database
+            # singolo (vedi il commento in quel file).
             target_db = f"{join_config.get('db1', '')} ⊕ {join_config.get('db2', '')}"
             
             return {
@@ -721,6 +831,17 @@ async def execute_query(request: QueryRequest):
         target_db = database_name or db_registry.get_current_database_name() or "jcoql_test"
 
         # Ricrea l'executor se il database è diverso
+        # Nota: questo controllo funziona solo con l'executor
+        # jco_framework_executor_v2.py, che imposta self.database_name
+        # nel proprio __init__ (verificato). L'executor alternativo
+        # python_translator.py (ExecutorType.PYTHON_TRANSLATOR) non
+        # imposta questo attributo — se ACTIVE_EXECUTOR è impostato su
+        # "python_translator", hasattr(executor, 'database_name') è
+        # sempre False dopo la prima creazione, quindi l'executor non
+        # viene mai ricreato al cambio di database target: le richieste
+        # successive continuerebbero a interrogare il primo database con
+        # cui l'executor è stato creato, indipendentemente da target_db.
+        # Con l'executor di default (jco_framework) questo non succede.
         if not executor or (hasattr(executor, 'database_name') and executor.database_name != target_db):
             query_logger.info(f"🔄 Ricreazione executor per database: {target_db}")
             executor = ExecutorFactory.create_executor(
@@ -760,6 +881,13 @@ async def execute_query(request: QueryRequest):
         actual_count = 0
         actual_results = []
 
+        # Normalizzazione della forma di execution_result: i due executor
+        # (jco_framework_executor_v2.py e python_translator.py) non
+        # restituiscono esattamente la stessa struttura dati (uno passa
+        # da un motore Java esterno con un formato di risposta più
+        # articolato, l'altro è puro Python/pymongo con un dict più
+        # semplice) — i rami sotto gestiscono le diverse combinazioni
+        # osservate invece di assumerne una sola.
         if isinstance(execution_result, dict):
             if execution_result.get('success'):
                 # Controlla se 'count' esiste direttamente in execution_result
@@ -800,6 +928,21 @@ async def execute_query(request: QueryRequest):
 # ==============================================================================
 # ENDPOINT: GESTIONE COLLEZIONI MONGODB
 # ==============================================================================
+# 🔴 Attenzione — i 4 endpoint di questa sezione presuppongono che
+# l'"executor" globale abbia un attributo .db (un oggetto pymongo
+# Database). Questo è vero SOLO per python_translator.py
+# (self.db = self.client[database], verificato), ma NON per
+# jco_framework_executor_v2.py (verificato: nessun self.db, nessuna
+# property "db" in tutto il file — la classe tiene solo mongo_uri e
+# database_name come stringhe, senza una connessione pymongo persistente
+# in un attributo con questo nome). Dato che ACTIVE_EXECUTOR di default è
+# "jco_framework" (riga ~90), nella configurazione standard del progetto
+# questi 4 endpoint sollevano AttributeError ad ogni chiamata — catturato
+# dal blocco try/except di ciascuno e restituito come errore 500, quindi
+# l'app non si blocca, ma questi endpoint non funzionano nella
+# configurazione di default. È la stessa causa per cui il componente
+# frontend UploadData.jsx, che li usa, è stato scollegato dal router
+# (vedi il commento in cima a quel file).
 @app.get("/api/collections")
 async def list_collections():
     try:
@@ -880,6 +1023,10 @@ async def list_databases():
         return {
             "databases": databases_list,
             "current": db_registry.get_current_database_name(),
+            # Chiave presente nella risposta ma sempre vuota: nessun
+            # codice la valorizza, e nessun componente del frontend la
+            # legge (verificato) — campo vestigiale, non collegato a
+            # nulla.
             "schemas": {}
         }
     except Exception as e:
@@ -893,7 +1040,13 @@ async def list_databases():
 
 @app.post("/api/databases/select")
 async def select_database(database_name: str = Query(None), request: Request = None):
-    """Seleziona un database"""
+    """
+    Seleziona un database
+
+    Accetta il nome sia come query parameter (?database_name=...) sia nel
+    body JSON (chiave "database_name" o "database") — il fallback al
+    body scatta solo se il query parameter non è stato fornito.
+    """
     try:
         if not database_name and request:
             try:
@@ -912,6 +1065,9 @@ async def select_database(database_name: str = Query(None), request: Request = N
             
             GLOBAL_SCHEMA = db_registry.get_current_schema()
             
+            # Ricrea l'executor solo se ne esisteva già uno (executor
+            # era rimasto None, es. per un errore all'avvio, questa
+            # selezione non lo ripara).
             if executor:
                 executor = ExecutorFactory.create_executor(
                     ExecutorType(ACTIVE_EXECUTOR), 
@@ -932,8 +1088,20 @@ async def select_database(database_name: str = Query(None), request: Request = N
 
 @app.post("/api/databases/connect")
 async def connect_database(db_name: str, mongo_uri: str, database_name: str):
-    """Connetti a un database MongoDB"""
+    """
+    Connetti a un database MongoDB
+
+    I tre parametri arrivano come query string (non un body JSON) — il
+    form "Connetti Nuovo Database" di DatabaseSelector.jsx (frontend) li
+    concatena con fetch() senza encodeURIComponent, quindi un valore con
+    caratteri speciali (spazio, '&', '@' in mongo_uri) altererebbe la
+    query string prima ancora di arrivare qui (vedi il commento in
+    DatabaseSelector.jsx, handleAddDatabase).
+    """
     try:
+        # add_database (vedi database_registry.py) esegue qui la schema
+        # discovery in modo sincrono/bloccante — questa richiesta HTTP
+        # non risponde finché la scoperta schema non è completata.
         db_registry.add_database(
             db_name=db_name,
             mongo_uri=mongo_uri,
@@ -960,8 +1128,32 @@ async def disconnect_database(db_name: str):
                 "message": f"Database '{db_name}' non trovato"
             }
         
+        # FIX: chiude la connessione MongoDB prima di scartare la entry
+        # (altrimenti il client resta aperto in memoria senza che nulla
+        # lo referenzi più — piccola perdita di risorse ad ogni disconnect).
+        try:
+            db_registry.databases[db_name]["client"].close()
+        except Exception:
+            pass
+
+        was_current = (db_name == db_registry.current_database)
         db_registry.databases.pop(db_name)
         db_logger.info(f"✅ Database '{db_name}' scollegato")
+
+        # FIX: se il database appena scollegato era quello "corrente",
+        # db_registry.current_database restava un nome non più presente
+        # in db_registry.databases. La prossima chiamata a
+        # get_current_schema() (es. dentro /api/generate) faceva
+        # self.databases[self.current_database]["schema"] su una chiave
+        # inesistente, sollevando KeyError non gestito — quindi la
+        # generazione della query successiva falliva con un errore 500
+        # generico, apparentemente scollegato dall'azione di disconnect
+        # appena fatta. Ora si riassegna current_database a un database
+        # ancora connesso rimasto (se ce n'è uno), altrimenti a None.
+        if was_current:
+            remaining = list(db_registry.databases.keys())
+            db_registry.current_database = remaining[0] if remaining else None
+
         save_databases_to_file(db_registry)
         
         return {
@@ -986,10 +1178,21 @@ async def get_stats():
         collections_count = 0
         
         try:
-            for db_name, db_conn in db_registry.databases.items():
+            for db_name, db_info in db_registry.databases.items():
                 db_list.append(db_name)
+                # FIX: db_info è il dizionario di metadati salvato da
+                # DatabaseRegistry.add_database() (uri, database_name,
+                # schema, client, collections) — non una connessione
+                # MongoDB. Prima qui si chiamava db_conn.list_collection_names()
+                # su questo stesso dizionario, che non ha quel metodo:
+                # l'AttributeError veniva ingoiato dal except sotto e
+                # collections_count restava sempre a 0. Il conteggio
+                # corretto è già calcolato e salvato in add_database
+                # come db_info["collections"] (len(schema) al momento
+                # della connessione) — lo si usa direttamente, senza
+                # bisogno di richiamare Mongo.
                 try:
-                    collections_count += len(db_conn.list_collection_names())
+                    collections_count += db_info.get("collections", 0)
                 except Exception:
                     pass
         except Exception as db_err:
@@ -1013,7 +1216,12 @@ async def get_stats():
                 "current": ACTIVE_LLM
             },
             "system": {
-                "uptime_seconds": 3600,
+                # FIX: prima era un valore fisso (3600 = sempre "1h" in
+                # Dashboard.jsx, indipendentemente da quanto il server
+                # fosse realmente attivo). Calcolato ora dal timestamp di
+                # avvio del processo (APP_START_TIME, impostato
+                # all'inizio del file).
+                "uptime_seconds": int(time.time() - APP_START_TIME),
                 "version": "1.0.0-production"
             }
         }

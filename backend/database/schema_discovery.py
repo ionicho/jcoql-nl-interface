@@ -116,6 +116,13 @@ class MongoSchemaDiscoverer:
                 self._extract_fields(doc, fields_info)
             
             # Converti nel formato finale dict
+            # NOTA: 'frequency' è relativa al CAMPIONE (len(samples)), non
+            # al totale dei documenti della collection. Se sample_size
+            # (default 100) è minore di total_documents, la frequenza è
+            # una stima statistica, non un valore esatto — accettabile
+            # per dare all'LLM un'idea di "quanto è comune questo campo",
+            # ma da non trattare come dato certo su collection molto
+            # grandi o eterogenee.
             fields = {}
             for field_path, info in fields_info.items():
                 fields[field_path] = {
@@ -170,7 +177,16 @@ class MongoSchemaDiscoverer:
                 self._extract_fields(value[0], fields_info, field_path)
 
     def _get_type(self, value) -> str:
-        """Mappa il tipo Python al tipo MongoDB in stringa."""
+        """
+        Mappa il tipo Python al tipo MongoDB in stringa.
+
+        NOTA: l'ordine dei controlli non è arbitrario. In Python `bool` è
+        una sottoclasse di `int` (isinstance(True, int) vale True), quindi
+        il controllo `isinstance(value, bool)` deve stare PRIMA di
+        `isinstance(value, int)` — altrimenti ogni valore booleano
+        verrebbe classificato come 'integer' invece che 'boolean'. Se
+        aggiungi altri tipi in futuro, tieni a mente questa gerarchia.
+        """
         if isinstance(value, bool):
             return 'boolean'
         elif isinstance(value, int):
@@ -189,7 +205,19 @@ class MongoSchemaDiscoverer:
             return 'unknown'
     
     def close(self):
-        """Chiude la connessione a MongoDB"""
+        """
+        Chiude la connessione a MongoDB di QUESTA istanza.
+
+        NOTA: nel flusso reale dell'app (DatabaseRegistry.add_database,
+        vedi database_registry.py) questo metodo non viene mai chiamato:
+        il discoverer viene creato, usato una volta per scoprire lo
+        schema, poi solo il suo .client viene estratto e conservato dentro
+        db_registry.databases[nome]["client"] — l'oggetto discoverer in
+        sé viene scartato, ma la connessione (il client) resta viva e
+        verrà chiusa più avanti da DatabaseRegistry.close_all(). Questo
+        metodo resta utile se usi MongoSchemaDiscoverer da solo (script,
+        test manuali) senza passare dal registry.
+        """
         if self.client:
             self.client.close()
             discovery_logger.info(f"✅ Connessione chiusa a {self.database_name}")

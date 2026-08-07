@@ -1,3 +1,18 @@
+// [DISCONNESSO DAL ROUTER — 07/08/2026]
+// Questo componente non è raggiungibile da nessuna route in App.jsx (di
+// proposito, per ora). Motivo: è stato scritto quando il progetto aveva
+// un'architettura a singolo database. I 4 endpoint backend che chiama
+// (/api/collections, /api/upload-collection, DELETE /api/collections/{name},
+// /api/collections/{name}/count) usano ancora un oggetto `executor` globale
+// fissato al database attivo all'avvio del server — NON tengono conto del
+// database correntemente selezionato in sidebar (db_registry). Ricollegarlo
+// senza sistemare anche il backend farebbe caricare/cancellare collection nel
+// database sbagliato in modo silenzioso.
+// Per ripristinarlo in futuro: (1) aggiungere un parametro `database` a
+// quei 4 endpoint in main.py, facendoli passare da db_registry invece che
+// dal vecchio `executor` globale; (2) far ricevere a questo componente il
+// database correntemente selezionato come prop da App.jsx; (3) riaggiungere
+// l'import e la <Route path="/upload"> in App.jsx.
 import { useState, useEffect } from 'react';
 import axios from 'axios';
 import { Link } from 'react-router-dom';
@@ -116,10 +131,10 @@ export default function UploadData() {
             </p>
           </div>
           <Link
-            to="/executor"
+            to="/"
             className="px-4 py-2 bg-white text-green-600 hover:bg-gray-100 rounded-lg font-medium transition"
           >
-            🔍 Query Executor →
+            🔍 Vai al Query Executor →
           </Link>
         </div>
       </div>
@@ -215,8 +230,13 @@ export default function UploadData() {
                 <p className="text-sm text-gray-600">
                   📊 {collectionStats[col] || '...'} documenti
                 </p>
+                {/* NOTA: porta alla pagina principale ("/"), dove vive il
+                    Query Executor. Il parametro ?collection= non è (ancora)
+                    letto da nessuno: oggi il link riporta solo alla pagina,
+                    non preseleziona la collection. Per farlo, servirebbe
+                    leggere useSearchParams in App.jsx/QueryExecutor.jsx. */}
                 <Link
-                  to={`/executor?collection=${col}`}
+                  to="/"
                   className="mt-2 inline-block text-sm text-green-600 hover:text-green-700"
                 >
                   → Usa in query

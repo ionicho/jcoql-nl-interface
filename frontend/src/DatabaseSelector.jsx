@@ -5,7 +5,7 @@
  * 1. DatabaseManager (singolo database)
  * 2. MultiDatabaseSelector (multipli + JOIN)
  * 
- * In UN unico componente sidebar-friendly
+ * In un unico componente sidebar-friendly
  */
 
 import React, { useState, useEffect } from 'react';
@@ -47,6 +47,13 @@ export default function DatabaseSelector({ onDatabasesChange, selectedDatabases 
 
   /**
    * Aggiunge un nuovo database
+
+   * Nota: i tre parametri (dbName, mongoUri, databaseName) sono
+   * concatenati direttamente nella query string senza
+   * encodeURIComponent — un valore con caratteri speciali (es. uno
+   * spazio, una '@' in mongoUri se contiene credenziali, una '&') altera
+   * la query string risultante invece di essere passato come valore
+   * letterale del parametro.
    */
   const handleAddDatabase = async () => {
     if (!newDbForm.dbName || !newDbForm.databaseName) {
@@ -117,6 +124,17 @@ export default function DatabaseSelector({ onDatabasesChange, selectedDatabases 
 
   /**
    * Carica la lista di database dal server
+
+   * Nota: questo componente usa fetch() con host "127.0.0.1", mentre
+   * App.jsx/QueryExecutor.jsx/Dashboard.jsx usano axios con host
+   * "localhost" — stesso backend, due modi diversi di raggiungerlo,
+   * senza una costante URL condivisa tra i componenti.
+
+   * Nota: ogni chiamata a questa funzione (al mount, dopo add/remove
+   * database, o dal pulsante "Ricarica Database") reimposta
+   * currentDatabase e multiSelected al solo primo database della lista
+   * (dbNames[0]) — una selezione multipla già fatta dall'utente non
+   * viene preservata attraverso un reload della lista.
    */
   const loadAvailableDatabases = async () => {
     try {
@@ -149,6 +167,10 @@ export default function DatabaseSelector({ onDatabasesChange, selectedDatabases 
 
   /**
    * Cambia database singolo
+
+   * I console.log sotto sono rimasti attivi incondizionatamente (non
+   * dietro un flag di debug) — ad ogni cambio di database nella tendina
+   * "Singolo", scrivono in console ad ogni interazione dell'utente.
    */
   const handleSingleDatabaseChange = (dbName) => {
     console.log('🔄 handleSingleDatabaseChange CHIAMATO con:', dbName);

@@ -43,6 +43,11 @@ export default function QueryExecutor({ selectedDatabases = [], joinConfig = nul
     setError('');
     setResults(null); 
 
+    // Nota: a differenza di handleExecute/handleExecuteDirect sotto,
+    // questa chiamata a /api/generate non invia joinConfig — la
+    // generazione riguarda solo la traduzione NL→JCoQL per il database
+    // selectedDatabases[0], il join tra due database avviene solo in
+    // fase di esecuzione (handleExecute), non di generazione.
     try {
       const response = await axios.post('http://localhost:8000/api/generate', {
         nl_query: nlQuery,
@@ -71,6 +76,11 @@ export default function QueryExecutor({ selectedDatabases = [], joinConfig = nul
     setIsExecuting(true);
     setError('');
 
+    // handleExecute e handleExecuteDirect (sotto) costruiscono lo stesso
+    // identico payload e fanno lo stesso parsing della risposta —
+    // restano due funzioni distinte perché richiamate da due punti
+    // diversi della UI (tab "Linguaggio Naturale" vs tab "Query JCoQL
+    // Diretta"), pur non avendo logica diversa tra loro.
     try {
       const response = await axios.post('http://localhost:8000/api/execute', {
         jcoql_query: jcoqlQuery,

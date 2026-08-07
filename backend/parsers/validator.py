@@ -30,6 +30,13 @@ class JCoQLErrorListener(ErrorListener):
 def validate_jcoql_query(query_text):
     """
     Validate a JCoQL+ query using ANTLR parser
+
+    Valida usando la grammatica ANTLR4 generata da JCoQL.g4 (JCoQLLexer/
+    JCoQLParser in questa stessa cartella), un percorso di validazione
+    completamente separato da java_parser_wrapper.py, che invece invoca
+    il parser Java ufficiale (ANTLR3) in subprocess. Le due grammatiche
+    sono state scritte/convertite indipendentemente, quindi su casi limite
+    potrebbero non dare esattamente lo stesso verdetto di validità.
     
     Args:
         query_text (str): JCoQL+ query to validate

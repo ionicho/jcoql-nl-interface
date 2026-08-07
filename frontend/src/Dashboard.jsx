@@ -3,6 +3,8 @@ import axios from 'axios';
 import { Link } from 'react-router-dom';
 import './Dashboard.css';
 
+// Dashboard sola lettura: polling di /api/stats ogni 10s, nessuna azione
+// possibile da qui (solo il link "Torna all'Interfaccia").
 export default function Dashboard() {
   const [stats, setStats] = useState(null);
   const [loading, setLoading] = useState(true);
@@ -83,8 +85,8 @@ export default function Dashboard() {
             <div className="flex items-start justify-between">
               <div>
                 <p className="text-xs font-bold text-gray-500 uppercase tracking-widest">Parser</p>
-                <p className="text-3xl font-bold text-gray-900 mt-2">ANTLR3</p>
-                <p className="text-xs text-gray-600 mt-2">Official • 100% Coverage</p>
+                <p className="text-3xl font-bold text-gray-900 mt-2">{stats.executor?.parser || 'N/A'}</p>
+                <p className="text-xs text-gray-600 mt-2">Attivo su questo server</p>
               </div>
               <span className="text-3xl">📝</span>
             </div>
@@ -174,6 +176,15 @@ export default function Dashboard() {
         </div>
 
         {/* ════════════════ FEATURES ════════════════ */}
+        {/* Lista statica, non derivata da stats — se una
+            feature viene rimossa o smette di funzionare, questa lista
+            non se ne accorge da sola, va aggiornata a mano qui.
+            "JOIN nativo" descrive il comando JCoQL+ nativo "JOIN OF
+            COLLECTIONS", ma il join realmente eseguito da questa app
+            passa da join_executor.py lato backend, che lo calcola in
+            Python fondendo i risultati di due query separate (vedi
+            commento in cima a quel file) — il comando nativo esiste
+            nella grammatica JCoQL+ ma non è la via presa qui. */}
         <div className="bg-gradient-to-br from-green-50 to-emerald-50 rounded-lg p-8 border border-green-300">
           <div className="flex items-center gap-3 mb-6">
             <span className="text-3xl">✅</span>

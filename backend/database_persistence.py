@@ -2,6 +2,28 @@
 Database Persistence - Salva i database connessi su disco
 
 Così quando il server si riavvia, i database rimangono connessi
+
+NOTA — cosa NON fa questo modulo:
+salva/ricarica solo l'ELENCO dei database connessi (nome, mongo_uri,
+database_name). Non ha niente a che fare con "quale database è
+attualmente selezionato" (l'ultimo su cui hai lavorato) — quello è uno
+stato diverso: vive solo in memoria come attributo
+db_registry.current_database (vedi backend/database/database_registry.py,
+metodo set_current_database) e NON viene persistito su disco. Quindi ad
+ogni riavvio del server, l'elenco dei database connessi torna come prima
+(grazie a load_databases_from_file), ma il database "corrente" si
+resetta e va riselezionato. Diverso dal motore Java J-CO Framework
+(jco-framework, progetto separato), che invece la persiste su file
+(current_database.txt) perché lì ogni comando gira in un processo JVM
+nuovo — qui invece il processo FastAPI resta lo stesso, quindi la memoria
+basta finché il server non si riavvia.
+
+NOTA DI SICUREZZA: mongo_uri può contenere credenziali (utente/password)
+se il database è protetto da autenticazione. Qui viene salvato in chiaro
+in connected_databases.json. Accettabile per un progetto di tesi che
+gira in locale, ma da NON portare così com'è in un contesto con dati
+sensibili o server esposti — andrebbe quantomeno escluso da git (verifica
+che sia nel .gitignore) o cifrato.
 """
 import json
 import os
@@ -9,12 +31,24 @@ import logging
 
 persistence_logger = logging.getLogger('persistence')
 
+# NOTA: path relativo, non assoluto — il file viene creato/letto nella
+# cartella da cui il processo Python viene avviato (la working directory),
+# non necessariamente nella root del progetto. Funziona perché in pratica
+# il server si avvia sempre da lì (uvicorn main:app dalla root), ma è
+# un'assunzione implicita: se in futuro lanci main.py da un'altra cartella
+# (es. un cron job, un altro script, un test), il file salterebbe fuori
+# altrove o non verrebbe trovato.
 PERSISTENCE_FILE = 'connected_databases.json'
 
 
 def save_databases_to_file(registry):
     """
-    Salva i database connessi su file JSON
+    Salva su connected_databases.json l'elenco dei database attualmente
+    connessi nel registry (registry.databases), uno per uno: nome logico,
+    URI Mongo e nome del database fisico. Viene chiamata ogni volta che
+    un database viene aggiunto/rimosso, così il file resta sempre
+    allineato allo stato in memoria (nessuna chiamata esplicita di "save"
+    richiesta al chiamante).
     """
     try:
         databases_data = {}
@@ -37,7 +71,17 @@ def save_databases_to_file(registry):
 
 def load_databases_from_file(registry):
     """
-    Carica i database salvati dal file JSON
+    Da chiamare una volta sola all'avvio del server (in main.py, evento
+    "startup"): rilegge connected_databases.json e per ognuno richiama
+    registry.add_database(...), che si occupa di ristabilire davvero la
+    connessione MongoDB. Se il file non esiste (prima esecuzione, o è
+    stato cancellato) non è un errore: semplicemente si parte senza
+    database extra già connessi.
+
+    NOTA: se uno dei database salvati non è più raggiungibile (es. era su
+    un URI che nel frattempo non risponde più), l'errore di connessione
+    finisce loggato qui sotto ma non blocca il caricamento degli altri
+    database nel file — ognuno viene tentato indipendentemente dal loop.
     """
     if not os.path.exists(PERSISTENCE_FILE):
         persistence_logger.info("Nessun file di salvataggio database trovato")

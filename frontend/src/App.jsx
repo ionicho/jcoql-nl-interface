@@ -16,6 +16,10 @@ import './App.css'
 // 2. CONFIGURAZIONE INIZIALE & COSTANTI
 // ==========================================
 const queryClient = new QueryClient()
+// URL hardcoded, ripetuto identico (o quasi: DatabaseSelector.jsx usa
+// 127.0.0.1 invece di localhost) in più componenti — QueryExecutor.jsx,
+// Dashboard.jsx, DatabaseSelector.jsx non importano questa costante, ne
+// hanno ciascuno una propria copia.
 const API_BASE_URL = 'http://localhost:8000'
 
 // ==========================================
@@ -31,6 +35,16 @@ function MainInterface() {
   const [selectedDatabases, setSelectedDatabases] = useState(['jcoql_test'])
   const [joinConfig, setJoinConfig] = useState(null)
 
+  // --- STATO PARSER ATTIVO (letto dal backend, non più hardcoded) ---
+  const [activeParser, setActiveParser] = useState(null)
+
+  // --- EFFECT: CARICAMENTO PARSER ATTIVO DAL BACKEND ---
+  useEffect(() => {
+    axios.get(`${API_BASE_URL}/api/parsers`)
+      .then(res => setActiveParser(res.data.current_name || res.data.current))
+      .catch(err => console.error('Errore caricamento parser attivo:', err))
+  }, [])
+
   // --- EFFECT: CARICAMENTO INIZIALE DA LOCAL STORAGE ---
   useEffect(() => {
     try {
@@ -45,6 +59,10 @@ function MainInterface() {
   }, [])
 
   // --- HANDLER: CAMBIO LLM ---
+  // Nota: se response.data.success è false (senza che axios sollevi
+  // un'eccezione), il catch sotto non scatta e selectedLlm non viene
+  // aggiornato — ma non c'è nemmeno un messaggio per l'utente in quel
+  // caso specifico (l'alert scatta solo nel branch catch).
   const handleLlmChange = async (e) => {
     const newLlm = e.target.value
     try {
@@ -79,6 +97,13 @@ function MainInterface() {
   }
 
   // --- MUTATION REACT QUERY: GENERAZIONE QUERY JCoQL ---
+  // Nota: parser_type è passato come stringa fissa 'antlr3_official' —
+  // il campo "Parser" nell'header (activeParser, sopra) mostra quello
+  // realmente attivo sul backend, ma la richiesta effettiva continua a
+  // dichiarare sempre antlr3_official indipendentemente da cosa
+  // risponde /api/parsers. Coincide col default lato server, quindi non
+  // causa un mismatch nella situazione attuale, ma i due valori non sono
+  // collegati fra loro nel codice.
   const generateMutation = useMutation({
     mutationFn: async (query) => {
       const response = await axios.post(`${API_BASE_URL}/api/generate`, {
@@ -121,7 +146,7 @@ function MainInterface() {
           
           <div className="header-info">
             <span className="info-item">
-              <strong>Parser:</strong> ANTLR3 Official
+              <strong>Parser:</strong> {activeParser || 'Caricamento...'}
             </span>
             <span className="info-item">
               <strong>LLM:</strong>
@@ -138,15 +163,17 @@ function MainInterface() {
             </span>
           </div>
 
-          <Link to="/dashboard" className="dashboard-btn">
-            📊 Dashboard
-          </Link>
+          <div className="header-actions">
+            <Link to="/dashboard" className="dashboard-btn">
+              📊 Dashboard
+            </Link>
+          </div>
         </div>
 
         {selectedLlm === 'llama' && (
           <div style={{ marginTop: '12px', padding: '10px', background: 'rgba(255, 204, 0, 0.2)', border: '1px solid rgba(255, 204, 0, 0.5)', borderRadius: '6px', fontSize: '13px' }}>
             <strong>⚠️ Nota VRAM:</strong> Llama richiede 4.7GB. 
-            Se hai appena usato Gemma e hai , riavvia Gemma per liberare memoria: 
+            Se hai appena usato Gemma, riavvia Ollama per liberare memoria: 
             <code style={{ background: 'rgba(0,0,0,0.3)', padding: '2px 6px', borderRadius: '4px', marginLeft: '6px' }}>ollama stop gemma</code>
           </div>
         )}

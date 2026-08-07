@@ -1,5 +1,27 @@
 # JCO Framework Integration Analysis
 
+> **⚠️ AGGIORNAMENTO (agosto 2026) — leggere prima del resto del documento**
+>
+> Questa analisi descrive la situazione **al momento in cui è stata scritta**
+> (i primi tentativi di integrazione diretta con JCO Framework, tutti falliti).
+> Da allora l'integrazione è stata **raggiunta con successo**, con un
+> approccio diverso da quelli documentati sotto: vedere
+> `jco_framework_executor_v2.py`, che oggi è l'**executor di produzione,
+> attivo di default** (`ACTIVE_EXECUTOR=jco_framework`), non più il Python
+> Translator descritto come "soluzione ottimale" più sotto.
+>
+> Il documento resta comunque utile così com'è — sia come cronologia reale
+> del percorso di problem-solving (buon materiale per il capitolo di
+> metodologia della tesi), sia perché il Python Translator descritto qui
+> **esiste ancora** ed è tuttora selezionabile come executor alternativo
+> più leggero (`ExecutorType.PYTHON_TRANSLATOR`). Solo le sue conclusioni
+> su "JCO non è production-ready" non sono più valide.
+>
+> Il file `jco_framework_executor_NOTWORKING.py` citato al punto 1 sotto è
+> stato nel frattempo rinominato internamente (classe `JCoFrameworkExecutor`
+> → `JCoFrameworkExecutorFailedAttempt`) per lo stesso motivo: evitare che
+> venga confuso con la classe realmente in uso in `jco_framework_executor_v2.py`.
+
 ## Executive Summary
 
 Dopo analisi sistematica di 6 approcci diversi per integrare JCO Framework,

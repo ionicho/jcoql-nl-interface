@@ -339,9 +339,6 @@ class JCoQLCommandTester:
             "SELECT nome e prezzo dai prodotti"
         )
 
-        # Genera e RITORNA il report finale
-        return self.generate_report()
-        
         # ==================== CATEGORIA 6: EXPAND ====================
         # EXPAND espande campi array
         test_logger.info("\n" + "─"*70)
@@ -354,8 +351,11 @@ class JCoQLCommandTester:
             "Espandi i servizi degli hotel"
         )
         
-        # Genera il report finale
-        self.generate_report()
+        # Genera e RITORNA il report finale
+        # FIX: il return era prima del blocco EXPAND, quindi la categoria 6
+        # non veniva mai eseguita (codice irraggiungibile). Spostato qui, in
+        # fondo, dopo l'ultimo test.
+        return self.generate_report()
     
     def generate_report(self):
         """

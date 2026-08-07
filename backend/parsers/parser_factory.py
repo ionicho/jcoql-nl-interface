@@ -1,6 +1,13 @@
 #!/usr/bin/env python3
 """
 Parser Factory - Crea il parser richiesto
+
+Usa import relativi (".parser_interface", ecc.), a differenza di
+executor_factory.py che manipola sys.path per supportare anche import
+"nudi" dei moduli fratelli. Di conseguenza questo modulo funziona solo se
+importato come parte del package backend.parsers (es.
+"from backend.parsers.parser_factory import ParserFactory", come fa
+main.py) — un import diretto eseguendo questo file da solo fallirebbe.
 """
 from typing import List
 from .parser_interface import ParserInterface, ParserType

@@ -46,6 +46,9 @@ class ANTLR3OfficialParser(ParserInterface):
             column = 0
             
             # Prova estrarre da "at [line, col]"
+            # (import re ridondante: il modulo re è già importato in cima
+            # al file, riga 6 — questa seconda import locale è innocua ma
+            # superflua)
             import re
             match = re.search(r'at \[(\d+), (\d+)\]', err_msg)
             if match:
@@ -69,7 +72,7 @@ class ANTLR3OfficialParser(ParserInterface):
     
     @property
     def parser_name(self) -> str:
-        return "ANTLR3 Official Parser (Prof JCoProjectTeam)"
+        return "ANTLR3 Official Parser"
     
     @property
     def parser_version(self) -> str:

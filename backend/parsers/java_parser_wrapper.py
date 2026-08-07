@@ -1,6 +1,17 @@
 import subprocess
 import os
 import re
+import threading
+
+# FIX CONCORRENZA: il parser Java ufficiale (jco.ql.parser.test.ParserTester,
+# jar compilato, non modificabile) legge sempre e solo da un percorso fisso
+# relativo (resources/input.file) — non accetta un nome file a scelta.
+# Quindi non possiamo usare un file temporaneo univoco per richiesta come si
+# farebbe di solito. Per evitare che due richieste concorrenti (es. FastAPI
+# che gestisce due utenti insieme) si sovrascrivano a vicenda il file prima
+# che Java lo legga, serializziamo scrittura+esecuzione+lettura con un lock:
+# le richieste in arrivo mettono in coda invece di correre sullo stesso file.
+_validation_lock = threading.Lock()
 
 def validate_with_java_parser(query: str) -> dict:
     base_dir = os.path.dirname(__file__)
@@ -13,28 +24,31 @@ def validate_with_java_parser(query: str) -> dict:
     
     os.makedirs(resources_dir, exist_ok=True)
     
-    with open(input_file, 'w', encoding='utf-8') as f:
-        f.write(query)
-    
     # Classpath portabile (Windows: ';', Linux/macOS: ':')
     classpath = os.pathsep.join([parser_jar, antlr_jar])
     
     try:
-        result = subprocess.run(
-            [
-                'java',
-                '-cp',
-                classpath,
-                'jco.ql.parser.test.ParserTester'
-            ],
-            capture_output=True,
-            text=True,
-            timeout=10,
-            cwd=project_root,
-            encoding='utf-8'
-        )
-        
-        output = result.stdout
+        # Sezione critica: nessun'altra richiesta può scrivere in input_file
+        # o lanciare il parser finché questa non ha letto il suo output.
+        with _validation_lock:
+            with open(input_file, 'w', encoding='utf-8') as f:
+                f.write(query)
+
+            result = subprocess.run(
+                [
+                    'java',
+                    '-cp',
+                    classpath,
+                    'jco.ql.parser.test.ParserTester'
+                ],
+                capture_output=True,
+                text=True,
+                timeout=10,
+                cwd=project_root,
+                encoding='utf-8'
+            )
+
+            output = result.stdout
         
         errors = []
         warnings = []
