@@ -1,13 +1,9 @@
-// ==========================================
-// 1. IMPORTAZIONI
-// ==========================================
+// 1. IMPORTS
 import { useState, useEffect } from 'react';
 import axios from 'axios';
 import './QueryExecutor.css';
 
-// ==========================================
 // 2. DEFINIZIONE COMPONENTE
-// ==========================================
 export default function QueryExecutor({ selectedDatabases = [], joinConfig = null, initialQuery = '' }) {
   
   // --- STATI DEL COMPONENTE ---
@@ -29,9 +25,8 @@ export default function QueryExecutor({ selectedDatabases = [], joinConfig = nul
     }
   }, [initialQuery]);
 
-  // ==========================================
+
   // 3. HANDLERS (FUNZIONI LOGICHE)
-  // ==========================================
 
   const handleGenerate = async () => {
     if (!nlQuery.trim()) {
@@ -168,9 +163,8 @@ export default function QueryExecutor({ selectedDatabases = [], joinConfig = nul
     }
   };
 
-  // ==========================================
+
   // 4. RENDER DELL'INTERFACCIA (JSX)
-  // ==========================================
   return (
     <div className="max-w-6xl mx-auto p-6 space-y-6">
       

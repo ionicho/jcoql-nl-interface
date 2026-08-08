@@ -2,7 +2,7 @@
 Test suite - Verifica comandi JCoQL via API
 Questo test invia query reali al server e verifica se vengono accettate o rifiutate.
 
-IMPORTANTE: Il server deve essere running (uvicorn main:app --reload)
+IMPORTANTE: Il server deve essere in running (uvicorn main:app --reload)
 """
 import logging
 import requests
@@ -10,7 +10,7 @@ import json
 import time
 from datetime import datetime
 
-# ==================== SETUP LOGGING ====================
+#SETUP LOGGING
 # Configura il logger per questo modulo
 test_logger = logging.getLogger('command_test')
 test_logger.setLevel(logging.DEBUG)

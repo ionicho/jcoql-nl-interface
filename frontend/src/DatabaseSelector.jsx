@@ -12,7 +12,7 @@ import React, { useState, useEffect } from 'react';
 import './DatabaseSelector.css';
 
 export default function DatabaseSelector({ onDatabasesChange, selectedDatabases }) {
-  // ================== STATE ==================
+  // STATE
 
   const [availableDatabases, setAvailableDatabases] = useState([]);
   const [currentDatabase, setCurrentDatabase] = useState('jcoql_test');
@@ -252,7 +252,7 @@ export default function DatabaseSelector({ onDatabasesChange, selectedDatabases 
     );
   };
 
-  // ================== RENDER ==================
+  // RENDER
 
   if (loading) {
     return (

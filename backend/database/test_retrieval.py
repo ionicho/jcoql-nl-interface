@@ -2,9 +2,8 @@
 Script di test manuale per interrogare direttamente il corpus RAG in
 ChromaDB, senza passare da un LLM — utile per verificare rapidamente se
 il retrieval recupera esempi pertinenti per una data domanda, quando si
-sta debuggando "perché l'LLM ha generato una query strana" (se gli
-esempi recuperati sono già sbagliati/non pertinenti, il problema è nel
-retrieval, non nel prompt o nel modello).
+sta debuggando (se gli esempi recuperati sono già sbagliati/non pertinenti, 
+il problema è nel retrieval, non nel prompt o nel modello).
 
 PREREQUISITI:
 - Va lanciato dalla ROOT del progetto (usa il path relativo
@@ -25,8 +24,7 @@ def test_search(query_text):
 
     NOTA sul campo "Distanza" stampato sotto: è una distanza (più basso =
     più simile), non un punteggio di affinità (più alto = meglio) come
-    potrebbe suggerire il nome "score" nella variabile locale — occhio a
-    non leggerlo al contrario confrontando risultati di ricerche diverse.
+    potrebbe suggerire il nome "score" nella variabile locale.
     """
     print(f"\n🔍 Domanda Utente: '{query_text}'")
     

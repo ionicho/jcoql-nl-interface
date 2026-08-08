@@ -15,11 +15,15 @@ invece di esempi di JOIN). La soluzione adottata qui aggira il problema:
 la STESSA query JCoQL+ (tipicamente un semplice GET COLLECTION + FILTER)
 viene eseguita separatamente su due database diversi tramite il motore
 JCo Framework reale, e il join vero e proprio (INNER/LEFT/RIGHT/FULL)
-viene calcolato qui in Python confrontando le chiavi. Costo: perdiamo la
-possibilità di ottimizzazioni lato motore; guadagno: il join funziona in
-modo affidabile e prevedibile, senza dipendere dalla capacità dell'LLM di
-generare sintassi JOIN corretta. Vedi anche il commento in
-QueryExecutor.jsx (frontend) che spiega la stessa scelta lato UI.
+viene calcolato qui in Python confrontando le chiavi. 
+
+Costo: perdiamo la possibilità di ottimizzazioni lato motore;
+Guadagno: il join funziona in modo affidabile e prevedibile, 
+senza dipendere dalla capacità dell'LLM di generare sintassi JOIN 
+corretta. 
+
+Vedi anche il commento in QueryExecutor.jsx (frontend) 
+che spiega la stessa scelta lato UI.
 """
 
 import logging
@@ -75,7 +79,7 @@ class JoinExecutor:
         join_logger.info(f"   DB2: {db2_name} (key: {join_key_db2})")
         
         try:
-            # ✅ STEP 1: Esegui su Database 1
+            # STEP 1: Esegui su Database 1
             join_logger.info(f"⚡ Esecuzione su {db1_name}...")
             self.db_registry.set_current_database(db1_name)
             
@@ -83,8 +87,7 @@ class JoinExecutor:
             # NOTA: "jco_framework" è passato come stringa letterale invece
             # che come ExecutorType.JCO_FRAMEWORK — funziona comunque perché
             # ExecutorFactory.create_executor() accetta anche stringhe e le
-            # converte da sé, ma se vuoi coerenza di stile con il resto del
-            # progetto puoi usare l'enum direttamente.
+            # converte da sé.
             # NOTA 2: mongo_uri è hardcoded a localhost:27017 — se un giorno
             # ti serve fare JOIN con un database MongoDB non locale, questo
             # andrebbe reso configurabile (es. letto da db_registry, che
@@ -116,7 +119,7 @@ class JoinExecutor:
 
             join_logger.info(f"   ✅ DB1 risultati: {len(results_db1)}")
             
-            # ✅ STEP 2: Esegui su Database 2
+            # STEP 2: Esegui su Database 2
             join_logger.info(f"⚡ Esecuzione su {db2_name}...")
             self.db_registry.set_current_database(db2_name)
             
@@ -148,7 +151,7 @@ class JoinExecutor:
 
             join_logger.info(f"   ✅ DB2 risultati: {len(results_db2)}")
             
-            # 🔍 DEBUG: Stampa i primi record
+            # DEBUG: Stampa i primi record
             if results_db1:
                 join_logger.info(f"🔍 SAMPLE DB1 doc: {results_db1[0]}")
                 join_logger.info(f"🔍 SAMPLE DB1 key ('{join_key_db1}'): {self._extract_join_key(results_db1[0], join_key_db1)}")
@@ -157,7 +160,7 @@ class JoinExecutor:
                 join_logger.info(f"🔍 SAMPLE DB2 doc: {results_db2[0]}")
                 join_logger.info(f"🔍 SAMPLE DB2 key ('{join_key_db2}'): {self._extract_join_key(results_db2[0], join_key_db2)}")
 
-            # ✅ STEP 3: Merge basato su join key
+            # STEP 3: Merge basato su join key
             merged = self._merge_results(
                 results_db1, results_db2,
                 join_key_db1, join_key_db2,
@@ -184,8 +187,6 @@ class JoinExecutor:
         chiamato in modo diverso a seconda della collection — questo
         fallback permette di fare JOIN tra collection con schema/naming
         leggermente diverso senza dover normalizzare i dati a monte.
-        Se in futuro estendi i join ad altre collection con naming ancora
-        diverso, qui è il punto giusto dove aggiungere altri fallback.
         """
         if not isinstance(doc, dict):
             return None

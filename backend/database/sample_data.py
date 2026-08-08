@@ -4,17 +4,14 @@ Genera dati sample per MongoDB basati su schema
 
 Script one-shot: genera 5 dataset di prova (hotels, products, users,
 orders, restaurants, per un totale di ~110 documenti) e li salva come
-file JSON in backend/database/data_*.json. Da lì vanno importati a mano
+file JSON in backend/database/data_*.json. Da lì vanno importati
 in MongoDB (es. con `mongoimport` o MongoDB Compass) — questo script non
 si collega a nessun database, si limita a generare i file.
 
 NOTA: nessun random.seed() viene fissato, quindi ogni esecuzione genera
 dati DIVERSI dalla precedente (nomi, città, prezzi, rating cambiano ad
-ogni run). Se rilanci questo script, i data_*.json già committati nel
-repository verranno sovrascritti con dati diversi — non è un problema se
-ti serve solo "un po' di dati di prova plausibili", ma se vuoi
-riprodurre esattamente lo stesso dataset di un run precedente, questo
-script così com'è non lo permette (andrebbe aggiunto un seed fisso).
+ogni run). Se si rilancia questo script, i data_*.json già committati nel
+repository verranno sovrascritti con dati diversi.
 
 NOTA: save_collection() sotto scrive su un percorso RELATIVO
 ("backend/database/data_...json") — questo script va quindi lanciato
@@ -57,9 +54,8 @@ for i in range(1, 21):
         "breakfast_included": random.choice([True, False])
     })
 
-# ========================================
+
 # PRODUCTS (30 documenti)
-# ========================================
 categories = ["electronics", "clothing", "books", "food", "sports"]
 brands = ["Samsung", "Apple", "Sony", "Dell", "HP", "Nike", "Adidas"]
 
@@ -83,9 +79,8 @@ for i in range(1, 31):
         ]
     })
 
-# ========================================
+
 # USERS (25 documenti)
-# ========================================
 users = []
 for i in range(1, 26):
     city = random.choice(cities_italy)
@@ -106,9 +101,8 @@ for i in range(1, 26):
         "orders": [f"order_{j:03d}" for j in range(random.randint(0, 10))]
     })
 
-# ========================================
+
 # ORDERS (20 documenti)
-# ========================================
 statuses = ["pending", "confirmed", "shipped", "delivered", "cancelled"]
 priorities = ["low", "normal", "high", "urgent"]
 
@@ -131,9 +125,8 @@ for i in range(1, 21):
         "priority": random.choice(priorities)
     })
 
-# ========================================
+
 # RESTAURANTS (15 documenti)
-# ========================================
 cuisines = ["Italian", "Japanese", "Chinese", "French", "Mexican"]
 price_ranges = ["$", "$$", "$$$", "$$$$"]
 
@@ -152,9 +145,8 @@ for i in range(1, 16):
         "gluten_free_menu": random.choice([True, False])
     })
 
-# ========================================
+
 # SALVA FILE JSON
-# ========================================
 def save_collection(name, data):
     filename = f"backend/database/data_{name}.json"
     with open(filename, 'w', encoding='utf-8') as f:

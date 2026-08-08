@@ -7,9 +7,7 @@ import os
 import sys  # Importato per rilevare il sistema operativo e configurare sys.stdout / sys.stderr
 from datetime import datetime
 
-# ==============================================================================
 # FIX UTF-8 PER WINDOWS
-# ==============================================================================
 # Su Windows la console usa spesso codifiche legacy (es. CP1252) che non supportano
 # le emoji (come 🚀, 📦, 🔧, ✅). Questa reconfigurazione forza l'output a usare UTF-8,
 # evitando il crash per UnicodeEncodeError.
@@ -19,9 +17,8 @@ if sys.platform == "win32":
     if hasattr(sys.stderr, 'reconfigure'):
         sys.stderr.reconfigure(encoding="utf-8")
 
-# ==============================================================================
+
 # CREAZIONE DIRECTORY E FILE DI LOG
-# ==============================================================================
 # Definizione della cartella 'logs' all'interno della directory di lavoro corrente
 LOG_DIR = os.path.join(os.getcwd(), 'logs')
 
@@ -32,21 +29,18 @@ os.makedirs(LOG_DIR, exist_ok=True)
 LOG_FILE = os.path.join(LOG_DIR, f'jcoql_engine_{datetime.now().strftime("%Y%m%d_%H%M%S")}.log')
 
 
-# ==============================================================================
 # INIZIALIZZAZIONE LOGGING
-# ==============================================================================
 def setup_logging():
     """
     Configura il logger principale (root) destinando l'output sia alla console
     che al file fisico di log.
 
     IMPORTANTE PER CHI TOCCA QUESTO FILE: va chiamata UNA SOLA VOLTA per
-    processo (oggi succede a livello di modulo in main.py, riga 99, quando
+    processo (oggi succede a livello di modulo in main.py, quando
     main.py viene importato). Ogni chiamata aggiunge un nuovo handler al
     logger root con logger.addHandler(...) — chiamarla di nuovo altrove
-    (es. dentro un endpoint, o reimportando il modulo in un contesto che
-    lo rieseguisse) duplicherebbe gli handler e ogni riga di log
-    apparirebbe ripetuta N volte in console/file.
+    duplicherebbe gli handler e ogni riga di log apparirebbe ripetuta N
+    volte in console/file.
 
     Returns:
         tuple: (logger root configurato, percorso assoluto del file di log)
@@ -58,7 +52,7 @@ def setup_logging():
     # Imposta il livello di cattura minimo globale a DEBUG (cattura qualsiasi tipo di log)
     logger.setLevel(logging.DEBUG)
 
-    # 🤫 Silenzia i log rumorosi di PyMongo (heartbeat ogni 10s)
+    # Silenzia i log rumorosi di PyMongo (heartbeat ogni 10s)
     logging.getLogger("pymongo").setLevel(logging.WARNING)
     
     # Definisce la struttura grafica della riga di log:
@@ -96,9 +90,7 @@ def setup_logging():
     return logger, LOG_FILE
 
 
-# ==============================================================================
 # LOGGER SPECIFICI PER SOTTO-MODULI (PATTERN SINGLETON)
-# ==============================================================================
 # Variabili globali per memorizzare le istanze dei logger ed evitarne la ricreazione
 startup_logger = None
 query_logger = None

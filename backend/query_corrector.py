@@ -4,7 +4,7 @@ Query Corrector - Corregge errori comuni di sintassi JCoQL
 Questo modulo fix automaticamente errori comuni che il LLM genera,
 come "IS NOT NULL" invece di "ISNOTNULL".
 
-STATO ATTUALE (per chi legge questo file aspettandosi più correttori):
+STATO ATTUALE:
 nonostante il nome e il docstring parlino di "errori comuni" al plurale,
 oggi è implementato UN solo correttore (ISNOTNULL, sotto). L'architettura
 è però pensata per essere estesa: correct_query() applica in sequenza
@@ -65,8 +65,7 @@ def correct_isnotnull_syntax(query: str) -> tuple[str, bool]:
     # l'ha generata correttamente), sbaglia solo la spaziatura di
     # ISNOTNULL. Applicato DOPO il pattern 1: a quel punto, se il
     # pattern 1 ha già agito, la query non contiene più il testo
-    # "IS NOT NULL" (l'ha già trasformato in ISNOTNULL), quindi qui non
-    # scatta di nuovo per errore sullo stesso pezzo di query — i due
+    # "IS NOT NULL" (l'ha già trasformato in ISNOTNULL) — i due
     # pattern intercettano due varianti di errore diverse e non si
     # sovrappongono mai sullo stesso frammento di testo.
     pattern2 = r'FIELD\s+(\.\w+)\s+IS\s+NOT\s+NULL'
@@ -105,17 +104,12 @@ def correct_query(query: str) -> tuple[str, list]:
         corrector_logger.warning("Query None o vuota - nessuna correzione applicata")
         return query, []
     
-    # Se la query è un messaggio di errore (non JCoQL), non correggerla
+    # Se la query è un messaggio di errore (non JCoQL), non è da correggere
     # Il LLM a volte genera messaggi descrittivi invece di query
     # NOTA: il prefisso "QUERY:" è controllato anche a monte, in main.py
     # (prima ancora di chiamare correct_query) — qui è un controllo
     # ridondante/difensivo, utile se in futuro correct_query() viene
     # richiamata da un altro punto del codice che non fa già quel check.
-    # Il prefisso "Operazione" invece non risulta più generato da nessuna
-    # parte del codice attuale (verificato con una ricerca nel progetto):
-    # probabilmente un residuo difensivo di un formato di risposta LLM
-    # precedente. Lasciato per sicurezza, ma se non scatta mai in pratica
-    # potrebbe essere rimosso in futuro.
     if query.startswith("QUERY:") or query.startswith("Operazione"):
         corrector_logger.info("Query è un messaggio del sistema - nessuna correzione")
         return query, []

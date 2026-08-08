@@ -1,6 +1,4 @@
-// ==========================================
 // 1. IMPORTAZIONI DEI MODULI E DEI COMPONENTI
-// ==========================================
 import React, { useState, useEffect } from 'react'
 import { QueryClient, QueryClientProvider, useMutation } from '@tanstack/react-query'
 import { BrowserRouter, Routes, Route, Link } from 'react-router-dom'
@@ -12,9 +10,8 @@ import QueryExecutor from './QueryExecutor'
 import Dashboard from './Dashboard'
 import './App.css'
 
-// ==========================================
+
 // 2. CONFIGURAZIONE INIZIALE & COSTANTI
-// ==========================================
 const queryClient = new QueryClient()
 // URL hardcoded, ripetuto identico (o quasi: DatabaseSelector.jsx usa
 // 127.0.0.1 invece di localhost) in più componenti — QueryExecutor.jsx,
@@ -22,9 +19,8 @@ const queryClient = new QueryClient()
 // hanno ciascuno una propria copia.
 const API_BASE_URL = 'http://localhost:8000'
 
-// ==========================================
+
 // 3. COMPONENTE INTERFACCIA JCoQL
-// ==========================================
 function MainInterface() {
   // --- STATI LOCALI ---
   const [nlQuery, setNlQuery] = useState('') 
@@ -38,14 +34,14 @@ function MainInterface() {
   // --- STATO PARSER ATTIVO (letto dal backend, non più hardcoded) ---
   const [activeParser, setActiveParser] = useState(null)
 
-  // --- EFFECT: CARICAMENTO PARSER ATTIVO DAL BACKEND ---
+  // EFFECT: CARICAMENTO PARSER ATTIVO DAL BACKEND
   useEffect(() => {
     axios.get(`${API_BASE_URL}/api/parsers`)
       .then(res => setActiveParser(res.data.current_name || res.data.current))
       .catch(err => console.error('Errore caricamento parser attivo:', err))
   }, [])
 
-  // --- EFFECT: CARICAMENTO INIZIALE DA LOCAL STORAGE ---
+  // EFFECT: CARICAMENTO INIZIALE DA LOCAL STORAGE
   useEffect(() => {
     try {
       const savedDb = localStorage.getItem('jcoql_selected_databases')
@@ -58,11 +54,10 @@ function MainInterface() {
     }
   }, [])
 
-  // --- HANDLER: CAMBIO LLM ---
+  // HANDLER: CAMBIO LLM
   // Nota: se response.data.success è false (senza che axios sollevi
   // un'eccezione), il catch sotto non scatta e selectedLlm non viene
-  // aggiornato — ma non c'è nemmeno un messaggio per l'utente in quel
-  // caso specifico (l'alert scatta solo nel branch catch).
+  // aggiornato.
   const handleLlmChange = async (e) => {
     const newLlm = e.target.value
     try {
@@ -78,7 +73,7 @@ function MainInterface() {
     }
   }
 
-  // --- HANDLER: GESTIONE UNIFICATA DATABASE (Da DatabaseSelector) ---
+  // HANDLER: GESTIONE UNIFICATA DATABASE (Da DatabaseSelector)
   const handleDatabasesChange = (databases, join) => {
     setSelectedDatabases(databases)
     setJoinConfig(join)
@@ -96,7 +91,7 @@ function MainInterface() {
     }
   }
 
-  // --- MUTATION REACT QUERY: GENERAZIONE QUERY JCoQL ---
+  // MUTATION REACT QUERY: GENERAZIONE QUERY JCoQL
   // Nota: parser_type è passato come stringa fissa 'antlr3_official' —
   // il campo "Parser" nell'header (activeParser, sopra) mostra quello
   // realmente attivo sul backend, ma la richiesta effettiva continua a
@@ -133,9 +128,7 @@ function MainInterface() {
     }
   }
 
-  // ==========================================
   // RENDER DELL'INTERFACCIA
-  // ==========================================
   return (
     <div className="app-wrapper">
 
@@ -322,9 +315,7 @@ function MainInterface() {
   )
 }
 
-// ==========================================
 // 4. CONFIGURAZIONE ROUTING & PROVIDER GLOBALI
-// ==========================================
 export default function App() {
   return (
     <QueryClientProvider client={queryClient}>

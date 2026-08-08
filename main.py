@@ -5,9 +5,7 @@ Modulo principale FastAPI per la traduzione da linguaggio naturale a query JCoQL
 e per l'esecuzione/gestione dei database MongoDB.
 """
 
-# ==============================================================================
 # IMPORT LIBRERIE STANDARD E TERZE PARTI
-# ==============================================================================
 import os
 import sys
 import time
@@ -39,9 +37,8 @@ from backend.query_corrector import correct_query
 from backend.database_persistence import load_databases_from_file, save_databases_to_file
 from backend.join_executor import JoinExecutor
 
-# ==============================================================================
+
 # CONFIGURAZIONE PATH E MODULI INTERNI
-# ==============================================================================
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 
 sys.path.append(os.path.join(BASE_DIR, "backend", "parsers"))
@@ -55,9 +52,8 @@ from backend.llm_local import generate_with_llama, generate_with_gemma
 from backend.parsers.parser_factory import ParserFactory, ParserType
 from executor_factory import ExecutorFactory, ExecutorType
 
-# ==============================================================================
+
 # INIZIALIZZAZIONE CONFIGURAZIONE ED AMBIENTE
-# ==============================================================================
 load_dotenv()
 
 # Timestamp di avvio del processo, usato da /api/stats per calcolare
@@ -69,8 +65,7 @@ def load_file_content(path: str) -> str:
     # In caso di errore (es. file mancante) ritorna una stringa vuota
     # invece di sollevare l'eccezione — l'app continua ad avviarsi anche
     # se uno di questi file manca, ma il prompt inviato all'LLM perde
-    # silenziosamente quella parte di contesto, senza nessun log o
-    # avviso visibile che lo segnali.
+    # silenziosamente quella parte di contesto.
     try:
         with open(path, 'r', encoding='utf-8') as f:
             return f.read()
@@ -149,9 +144,8 @@ class MongoDBJSONEncoder(JSONEncoder):
         return super().default(obj)
 
 
-# ==============================================================================
+
 # FASTAPI APP & MIDDLEWARE
-# ==============================================================================
 # Nota: json_encoder=MongoDBJSONEncoder qui sotto NON ha alcun effetto.
 # FastAPI (0.141.1, verificato) non espone un parametro "json_encoder" nel
 # costruttore — la classe FastAPI accetta comunque la chiamata perché
@@ -196,9 +190,9 @@ class QueryRequest(BaseModel):
     databases: List[str] = ["jcoql_test"]
     join_config: Optional[dict] = None
 
-# ==============================================================================
+
 # LIFECYCLE EVENTS
-# ==============================================================================
+
 @app.on_event("startup")
 async def startup_event():
     global executor, GLOBAL_SCHEMA
@@ -276,9 +270,9 @@ def shutdown():
     except Exception as e:
         pass
 
-# ==============================================================================
+
 # ENDPOINT: GENERAZIONE QUERY JCOQL (NL -> JCoQL)
-# ==============================================================================
+
 @app.post("/api/generate")
 async def generate_query(request: GenerateRequest):
     """
@@ -459,11 +453,23 @@ async def generate_query(request: GenerateRequest):
           Usa PARTITION TRUE se non c'è una condizione specifica di selezione; opzionali
           DROP GROUPING FIELDS, KEEP OTHERS.
 
-        • EXPAND — l'utente chiede di "espandere" un array, o "un documento/risultato per ogni
-          elemento di" un campo che è una lista:
+        • EXPAND — l'utente chiede ESPLICITAMENTE "un documento/risultato separato per ogni
+          elemento" di un array (es. "elenca ogni attore di ogni film separatamente", "un
+          risultato per ogni genere"):
           GET COLLECTION collezione;
           EXPAND UNPACK TRUE ARRAY .campoArray TO .campoDestinazione;
           Opzionali KEEP OTHERS / DROP OTHERS per i documenti privi di quell'array.
+
+          🚨 NON usare EXPAND per un semplice controllo "l'array contiene questo valore"
+          (es. "film con l'attore X", "prodotti con il tag Y") - in quel caso basta un FILTER
+          diretto sul campo array, senza espanderlo:
+          GET COLLECTION movies;
+          FILTER CASE WHERE .cast = 'Claudio Bisio' KEEP OTHERS;
+          Questo funziona perché confrontare un campo array con un valore singolo (es.
+          .cast = 'valore') controlla automaticamente se l'array CONTIENE quel valore - non
+          serve nessun operatore speciale, e NON esiste comunque un operatore CONTAINS in
+          JCoQL+ (non scriverlo mai). Usa EXPAND SOLO quando l'utente vuole vedere ogni
+          elemento come riga/documento separato nel risultato, non solo per filtrare.
 
         • MERGE — l'utente chiede di "unire tutti i documenti"/"combinare" due collezioni intere:
           MERGE COLLECTIONS collezione1, collezione2;
@@ -527,7 +533,7 @@ Usa ESATTAMENTE i nomi campi dello schema. NESSUN testo aggiuntivo.
                 response = model.generate_content(prompt)
                 current_query = response.text.strip()
 
-            # 🔧 Fix: applicato a TUTTI i modelli locali (Llama e Gemma), non solo Llama.
+            # Fix: applicato a TUTTI i modelli locali (Llama e Gemma), non solo Llama.
             # I modelli locali quantizzati sono più soggetti a due tipi di errore:
             # (a) nome di collezione sbagliato ma presente, (b) clausola GET COLLECTION
             # omessa del tutto. Qui correggiamo (a) e rileviamo esplicitamente (b).
@@ -756,9 +762,9 @@ Usa ESATTAMENTE i nomi campi dello schema. NESSUN testo aggiuntivo.
     query_logger.info(f"✅ Query processata in {elapsed:.3f}s | Valida: {result['is_valid']}")
     return result
 
-# ==============================================================================
+
 # ENDPOINT: GESTIONE MODELLI LLM E PARSER
-# ==============================================================================
+
 @app.get("/api/llms")
 async def list_llms():
     return {
@@ -783,9 +789,9 @@ async def list_parsers():
         "current_version": parser.parser_version
     }
 
-# ==============================================================================
+
 # ENDPOINT: ESECUZIONE QUERY JCOQL SU MONGODB
-# ==============================================================================
+
 @app.post("/api/execute")
 async def execute_query(request: QueryRequest):
     global executor
@@ -925,9 +931,9 @@ async def execute_query(request: QueryRequest):
         query_logger.error(traceback.format_exc())
         raise HTTPException(status_code=500, detail=str(e))
 
-# ==============================================================================
+
 # ENDPOINT: GESTIONE COLLEZIONI MONGODB
-# ==============================================================================
+
 # 🔴 Attenzione — i 4 endpoint di questa sezione presuppongono che
 # l'"executor" globale abbia un attributo .db (un oggetto pymongo
 # Database). Questo è vero SOLO per python_translator.py
@@ -1011,9 +1017,9 @@ async def get_collection_count(collection_name: str):
     except Exception as e:
         return JSONResponse(status_code=500, content={'error': str(e)})
 
-# ==============================================================================
+
 # ENDPOINT: GESTIONE MULTI-DATABASE
-# ==============================================================================
+
 @app.get("/api/databases")
 async def list_databases():
     """Restituisce la lista di tutti i database registrati"""
@@ -1140,16 +1146,7 @@ async def disconnect_database(db_name: str):
         db_registry.databases.pop(db_name)
         db_logger.info(f"✅ Database '{db_name}' scollegato")
 
-        # FIX: se il database appena scollegato era quello "corrente",
-        # db_registry.current_database restava un nome non più presente
-        # in db_registry.databases. La prossima chiamata a
-        # get_current_schema() (es. dentro /api/generate) faceva
-        # self.databases[self.current_database]["schema"] su una chiave
-        # inesistente, sollevando KeyError non gestito — quindi la
-        # generazione della query successiva falliva con un errore 500
-        # generico, apparentemente scollegato dall'azione di disconnect
-        # appena fatta. Ora si riassegna current_database a un database
-        # ancora connesso rimasto (se ce n'è uno), altrimenti a None.
+        
         if was_current:
             remaining = list(db_registry.databases.keys())
             db_registry.current_database = remaining[0] if remaining else None
@@ -1180,17 +1177,7 @@ async def get_stats():
         try:
             for db_name, db_info in db_registry.databases.items():
                 db_list.append(db_name)
-                # FIX: db_info è il dizionario di metadati salvato da
-                # DatabaseRegistry.add_database() (uri, database_name,
-                # schema, client, collections) — non una connessione
-                # MongoDB. Prima qui si chiamava db_conn.list_collection_names()
-                # su questo stesso dizionario, che non ha quel metodo:
-                # l'AttributeError veniva ingoiato dal except sotto e
-                # collections_count restava sempre a 0. Il conteggio
-                # corretto è già calcolato e salvato in add_database
-                # come db_info["collections"] (len(schema) al momento
-                # della connessione) — lo si usa direttamente, senza
-                # bisogno di richiamare Mongo.
+                
                 try:
                     collections_count += db_info.get("collections", 0)
                 except Exception:
@@ -1216,11 +1203,7 @@ async def get_stats():
                 "current": ACTIVE_LLM
             },
             "system": {
-                # FIX: prima era un valore fisso (3600 = sempre "1h" in
-                # Dashboard.jsx, indipendentemente da quanto il server
-                # fosse realmente attivo). Calcolato ora dal timestamp di
-                # avvio del processo (APP_START_TIME, impostato
-                # all'inizio del file).
+                
                 "uptime_seconds": int(time.time() - APP_START_TIME),
                 "version": "1.0.0-production"
             }

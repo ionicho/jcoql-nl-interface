@@ -123,9 +123,8 @@ examples.extend([
     }
 ])
 
-# ========================================
+
 # PRODUCTS (25 esempi)
-# ========================================
 examples.extend([
     {
         "title": "Prodotti elettronica",
@@ -254,9 +253,8 @@ examples.extend([
     }
 ])
 
-# ========================================
+
 # USERS (20 esempi)
-# ========================================
 examples.extend([
     {
         "title": "Utenti maggiorenni",
@@ -360,9 +358,8 @@ examples.extend([
     }
 ])
 
-# ========================================
+
 # ORDERS (12 esempi)
-# ========================================
 examples.extend([
     {
         "title": "Ordini spediti",
@@ -426,9 +423,8 @@ examples.extend([
     }
 ])
 
-# ========================================
+
 # RESTAURANTS (12 esempi)
-# ========================================
 examples.extend([
     {
         "title": "Ristoranti Roma",
@@ -492,9 +488,8 @@ examples.extend([
     }
 ])
 
-# ========================================
+
 # SALVA FILE
-# ========================================
 def save_examples(filename):
     with open(filename, 'w', encoding='utf-8') as f:
         for i, ex in enumerate(examples, 1):

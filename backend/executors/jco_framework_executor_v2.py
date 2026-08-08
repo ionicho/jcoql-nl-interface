@@ -173,6 +173,101 @@ class JCoFrameworkExecutor:
             return {}
         return {field: {mongo_op: value}}
 
+    def _doc_matches_mongo_filter(self, doc, filter_dict):
+        """Valuta se un documento Python (dict) soddisfa un filtro in formato Mongo
+        ($and/$or/$eq/$ne/$gt/$lt/$gte/$lte), del tipo prodotto da _extract_mongo_filter().
+        Serve a JOIN/GROUP/EXPAND/MERGE/INTERSECT/SUBTRACT per applicare un FILTER
+        incatenato DOPO il comando principale nella stessa query multi-istruzione,
+        senza dover ri-interrogare MongoDB (i documenti qui sono già stati trasformati
+        - campi aggiunti da EXPAND/GROUP - e non esistono così nella collezione
+        originale, quindi il filtro va valutato in Python sui documenti ricostruiti)."""
+        if not filter_dict:
+            return True
+        if '$and' in filter_dict:
+            return all(self._doc_matches_mongo_filter(doc, f) for f in filter_dict['$and'])
+        if '$or' in filter_dict:
+            return any(self._doc_matches_mongo_filter(doc, f) for f in filter_dict['$or'])
+        for field, cond in filter_dict.items():
+            doc_value = self._get_nested(doc, field)
+            if doc_value is None:
+                return False
+            if not isinstance(cond, dict):
+                continue
+            for op, value in cond.items():
+                try:
+                    # NOTA: replica la semantica reale di MongoDB per l'uguaglianza su un
+                    # campo array - {campo: 'X'} in MongoDB significa "l'array CONTIENE X",
+                    # non "l'array è letteralmente uguale a X". Scoperto con un caso reale
+                    # (.languages = 'Italian' su un campo .languages che è una lista) che
+                    # falliva sempre senza questa distinzione.
+                    if isinstance(doc_value, list):
+                        is_member = any(el == value or str(el) == str(value) for el in doc_value)
+                        if op == '$eq' and not is_member:
+                            return False
+                        elif op == '$ne' and is_member:
+                            return False
+                        elif op in ('$gt', '$lt', '$gte', '$lte'):
+                            # Per i confronti d'ordine su un array, richiede che ALMENO un
+                            # elemento soddisfi la condizione (stessa semantica MongoDB)
+                            ops_fn = {
+                                '$gt': lambda a, b: a > b, '$lt': lambda a, b: a < b,
+                                '$gte': lambda a, b: a >= b, '$lte': lambda a, b: a <= b,
+                            }
+                            if not any(ops_fn[op](el, value) for el in doc_value if not isinstance(el, (list, dict))):
+                                return False
+                        continue
+                    if op == '$eq' and not (doc_value == value or str(doc_value) == str(value)):
+                        return False
+                    elif op == '$ne' and (doc_value == value or str(doc_value) == str(value)):
+                        return False
+                    elif op == '$gt' and not (doc_value > value):
+                        return False
+                    elif op == '$lt' and not (doc_value < value):
+                        return False
+                    elif op == '$gte' and not (doc_value >= value):
+                        return False
+                    elif op == '$lte' and not (doc_value <= value):
+                        return False
+                except TypeError:
+                    return False
+        return True
+
+    def _apply_trailing_filter_and_truncate(self, jcoql_query, full_results, primary_clause_pattern):
+        """Applica un eventuale FILTER CASE WHERE incatenato DOPO il comando principale
+        (JOIN/GROUP/EXPAND/MERGE/INTERSECT/SUBTRACT) nella stessa query multi-istruzione,
+        poi tronca a 100 documenti per la visualizzazione. IMPORTANTE: il filtro va
+        applicato PRIMA di troncare, non dopo - se si troncasse prima, su un EXPAND che
+        produce decine di migliaia di righe il filtro vedrebbe solo le prime 100 (i primi
+        documenti in ordine naturale MongoDB), quasi certamente non quelle cercate.
+
+        Nessuno dei metodi _extract_* gestiva questo caso finora: ciascuno cattura solo
+        la propria clausola con un regex mirato sul comando principale e ignora
+        qualunque cosa venga dopo nella query - scoperto con una query reale
+        (EXPAND + FILTER su due condizioni AND) che restituiva silenziosamente i primi
+        100 risultati dell'EXPAND, mai filtrati.
+
+        Args:
+            jcoql_query: la query completa originale
+            full_results: la lista COMPLETA (non troncata) dei documenti ricostruiti
+            primary_clause_pattern: regex del comando principale, usata per capire se il
+                FILTER trovato è quello del comando stesso (già gestito internamente da
+                ciascun metodo) o uno realmente incatenato dopo - evita di ri-applicare
+                per errore una condizione già usata altrove
+        """
+        # Cerca un FILTER CASE WHERE che comincia DOPO la fine del comando principale
+        primary_match = re.search(primary_clause_pattern, jcoql_query, re.IGNORECASE | re.DOTALL)
+        search_from = primary_match.end() if primary_match else 0
+        filter_match = re.search(r'FILTER\s+CASE\s+WHERE', jcoql_query[search_from:], re.IGNORECASE)
+
+        if filter_match:
+            mongo_filter = self._extract_mongo_filter(jcoql_query[search_from:])
+            if mongo_filter:
+                full_results = [d for d in full_results if self._doc_matches_mongo_filter(d, mongo_filter)]
+
+        total_count = len(full_results)
+        truncated = [self._sanitize_bson(d) for d in full_results[:100]]
+        return truncated, total_count
+
     def _extract_join_documents(self, jcoql_query):
         """
         Estrae ed esegue lato Python un JOIN OF COLLECTIONS nativo JCoQL+, nel caso
@@ -220,13 +315,6 @@ class JCoFrameworkExecutor:
         try:
             from pymongo import MongoClient
 
-            # FIX: prima "client = MongoClient(...)" senza mai chiudere
-            # la connessione (verificato: nessun client.close() in tutto
-            # il file, su 8 punti diversi che aprono una MongoClient) —
-            # ogni JOIN/GROUP/EXPAND/ecc. apriva una connessione Mongo in
-            # più che restava aperta per sempre, fino alla chiusura del
-            # processo. Con "with" la connessione si chiude sempre
-            # all'uscita dal blocco, anche in caso di eccezione.
             with MongoClient(self.mongo_uri) as client:
                 db1_name = db1 or self.database_name
                 db2_name = db2 or self.database_name
@@ -243,44 +331,31 @@ class JCoFrameworkExecutor:
 
                 remove_duplicates = bool(re.search(r'REMOVE\s+DUPLICATES', jcoql_query, re.IGNORECASE))
 
-                if remove_duplicates:
-                    # Serve la lista completa (non troncata) per deduplicare correttamente
-                    # prima di contare e troncare per la visualizzazione.
-                    all_pairs = []
-                    for d1 in docs1:
-                        key = self._get_nested(d1, field1)
-                        if key is None:
-                            continue
-                        for d2 in index2.get(str(key), []):
-                            all_pairs.append({alias1: d1, alias2: d2, '_join_key': str(key)})
+                full_results = []
+                for d1 in docs1:
+                    key = self._get_nested(d1, field1)
+                    if key is None:
+                        continue
+                    for d2 in index2.get(str(key), []):
+                        full_results.append({alias1: d1, alias2: d2, '_join_key': str(key)})
 
+                if remove_duplicates:
                     seen = set()
                     deduped = []
-                    for pair in all_pairs:
+                    for pair in full_results:
                         canon_key = self._canonical_doc(pair)
                         if canon_key not in seen:
                             seen.add(canon_key)
                             deduped.append(pair)
+                    full_results = deduped
 
-                    total_count = len(deduped)
-                    results = deduped[:100]
-                else:
-                    results = []
-                    total_count = 0
-                    for d1 in docs1:
-                        key = self._get_nested(d1, field1)
-                        if key is None:
-                            continue
-                        for d2 in index2.get(str(key), []):
-                            total_count += 1
-                            if len(results) < 100:
-                                results.append({
-                                    alias1: d1,
-                                    alias2: d2,
-                                    '_join_key': str(key)
-                                })
-
-                results = [self._sanitize_bson(r) for r in results]
+                # FIX: un eventuale FILTER incatenato DOPO questo JOIN nella stessa query
+                # veniva ignorato (stesso problema scoperto e corretto per EXPAND - vedi
+                # _apply_trailing_filter_and_truncate). Applicato PRIMA di troncare.
+                results, total_count = self._apply_trailing_filter_and_truncate(
+                    jcoql_query, full_results,
+                    r'WHERE\s+\.\w+\.[\w.]+\s*=\s*\.\w+\.[\w.]+'
+                )
                 return {'doc_count': total_count, 'results': results}
         except Exception as e:
             print(f"[JCoFrameworkExecutor] WARNING estrazione JOIN fallita: {e}")
@@ -353,8 +428,14 @@ class JCoFrameworkExecutor:
                     doc['_group_size'] = len(full_group)
                     results.append(doc)
 
-                results = [self._sanitize_bson(r) for r in results]
-                return {'doc_count': len(results), 'results': results}
+                # FIX: un eventuale FILTER incatenato DOPO questo GROUP nella stessa query
+                # (es. per selezionare solo certi gruppi in base al campo di raggruppamento)
+                # veniva ignorato - stesso problema scoperto e corretto per EXPAND/JOIN.
+                results, total_count = self._apply_trailing_filter_and_truncate(
+                    jcoql_query, results,
+                    r'GROUP\s+PARTITION\s+.+?\s+BY\s+.+?\s+INTO\s+\.?[\w.]+'
+                )
+                return {'doc_count': total_count, 'results': results}
         except Exception as e:
             print(f"[JCoFrameworkExecutor] WARNING estrazione GROUP fallita: {e}")
             return {'doc_count': 0, 'results': []}
@@ -392,8 +473,7 @@ class JCoFrameworkExecutor:
                 collection = client[self.database_name][source_collection]
                 docs = list(collection.find())
 
-                results = []
-                total_count = 0
+                full_results = []
                 for doc in docs:
                     # La condizione determina se QUESTO documento e' idoneo all'espansione
                     # (vedi expand.md: "if the condition is met..."). Se non lo e', il
@@ -403,18 +483,24 @@ class JCoFrameworkExecutor:
                     array_value = self._get_nested(doc, array_field) if condition_ok else None
                     if condition_ok and isinstance(array_value, list) and len(array_value) > 0:
                         for element in array_value:
-                            total_count += 1
-                            if len(results) < 100:
-                                new_doc = dict(doc)
-                                new_doc[dest_field] = element
-                                results.append(new_doc)
+                            new_doc = dict(doc)
+                            new_doc[dest_field] = element
+                            full_results.append(new_doc)
                     elif keep_others:
-                        total_count += 1
-                        if len(results) < 100:
-                            results.append(dict(doc))
+                        full_results.append(dict(doc))
                     # altrimenti (array assente/vuoto e non KEEP OTHERS): documento scartato
 
-                results = [self._sanitize_bson(r) for r in results]
+                # FIX: un eventuale FILTER incatenato DOPO questo EXPAND nella stessa query
+                # (es. "EXPAND ...; FILTER CASE WHERE .actor = 'X' KEEP OTHERS;") veniva
+                # completamente ignorato - il regex sopra cattura solo la clausola EXPAND
+                # e si ferma li'. Applicato PRIMA di troncare a 100 (vedi
+                # _apply_trailing_filter_and_truncate), altrimenti su un EXPAND che produce
+                # decine di migliaia di righe il filtro vedrebbe solo le prime 100 non
+                # filtrate, quasi certamente non quelle cercate.
+                results, total_count = self._apply_trailing_filter_and_truncate(
+                    jcoql_query, full_results,
+                    r'EXPAND\s+UNPACK\s+.+?\s+ARRAY\s+\.?[\w.]+\s+TO\s+\.?[\w.]+'
+                )
                 return {'doc_count': total_count, 'results': results}
         except Exception as e:
             print(f"[JCoFrameworkExecutor] WARNING estrazione EXPAND fallita: {e}")
@@ -473,8 +559,11 @@ class JCoFrameworkExecutor:
                             deduped.append(d)
                     all_docs = deduped
 
-                total_count = len(all_docs)
-                results = [self._sanitize_bson(d) for d in all_docs[:100]]
+                # FIX: un eventuale FILTER incatenato DOPO questo MERGE veniva ignorato -
+                # stesso problema scoperto e corretto per EXPAND/JOIN/GROUP.
+                results, total_count = self._apply_trailing_filter_and_truncate(
+                    jcoql_query, all_docs, r'MERGE\s+COLLECTIONS\s+.+?\s*;'
+                )
                 return {'doc_count': total_count, 'results': results}
         except Exception as e:
             print(f"[JCoFrameworkExecutor] WARNING estrazione MERGE fallita: {e}")
@@ -499,8 +588,11 @@ class JCoFrameworkExecutor:
                 keys2 = {self._canonical_doc(d) for d in docs2}
                 results_all = [d for d in docs1 if self._canonical_doc(d) in keys2]
 
-                total_count = len(results_all)
-                results = [self._sanitize_bson(d) for d in results_all[:100]]
+                # FIX: un eventuale FILTER incatenato DOPO questo INTERSECT veniva ignorato.
+                results, total_count = self._apply_trailing_filter_and_truncate(
+                    jcoql_query, results_all,
+                    r'INTERSECT\s+COLLECTIONS\s+\w+(?:@\w+)?\s*,\s*\w+(?:@\w+)?'
+                )
                 return {'doc_count': total_count, 'results': results}
         except Exception as e:
             print(f"[JCoFrameworkExecutor] WARNING estrazione INTERSECT fallita: {e}")
@@ -525,8 +617,11 @@ class JCoFrameworkExecutor:
                 keys2 = {self._canonical_doc(d) for d in docs2}
                 results_all = [d for d in docs1 if self._canonical_doc(d) not in keys2]
 
-                total_count = len(results_all)
-                results = [self._sanitize_bson(d) for d in results_all[:100]]
+                # FIX: un eventuale FILTER incatenato DOPO questo SUBTRACT veniva ignorato.
+                results, total_count = self._apply_trailing_filter_and_truncate(
+                    jcoql_query, results_all,
+                    r'SUBTRACT\s+COLLECTIONS\s+\w+(?:@\w+)?\s*,\s*\w+(?:@\w+)?'
+                )
                 return {'doc_count': total_count, 'results': results}
         except Exception as e:
             print(f"[JCoFrameworkExecutor] WARNING estrazione SUBTRACT fallita: {e}")

@@ -15,7 +15,6 @@ from chromadb.config import Settings
 # 'backend/' invece che dalla radice del progetto, i percorsi relativi puntavano a
 # cartelle sbagliate/inesistenti (esempi non trovati, e rischio di scrivere ChromaDB
 # in una posizione diversa da quella che l'app vera legge).
-# Questo file e' in <root_progetto>/backend/database/load_examples.py
 PROJECT_ROOT = Path(__file__).resolve().parent.parent.parent
 EXAMPLES_DIR = PROJECT_ROOT / "examples" / "validated"
 CHROMA_PATH = PROJECT_ROOT / "chroma_data"
@@ -139,7 +138,7 @@ def load_examples_to_chromadb():
     print("=" * 60)
     print()
     
-    # Initialize ChromaDB (usa embeddings LOCALI automaticamente!)
+    # Initialize ChromaDB (usa embeddings LOCALI automaticamente)
     print(f"📂 ChromaDB path: {CHROMA_PATH}")
     client = chromadb.PersistentClient(
         path=str(CHROMA_PATH),
@@ -158,11 +157,9 @@ def load_examples_to_chromadb():
     
     # Create collection
     # NOTA: qui non viene specificato metadata={"hnsw:space": "cosine"}
-    # come in chroma_setup.py (deprecato) — questa collection usa quindi
-    # la metrica di distanza di default di ChromaDB (L2/squared-L2), non
-    # cosine similarity. Dato che questo è lo script che crea davvero la
-    # collection usata in produzione, se in futuro vuoi cambiare metrica
-    # è qui che va specificata, non in chroma_setup.py.
+    # questa collection usa quindi la metrica di distanza di default di ChromaDB (L2/squared-L2). 
+    # Dato che questo è lo script che crea davvero la collection usata in produzione, 
+    # se in futuro si vuole cambiare metrica è qui che va specificata.
     collection = client.create_collection(
         name="jcoql_examples",
         metadata={"description": "JCoQL+ query examples for RAG"}

@@ -13,7 +13,7 @@ if str(current_folder) not in sys.path:
 # 2. Import del traduttore Python
 try:
     import python_translator
-    # ✅ La classe si chiama JCoQLExecutor
+    # La classe si chiama JCoQLExecutor
     PythonExecutorClass = python_translator.JCoQLExecutor
     IMPORT_SUCCESS = True
 except Exception as e:
@@ -47,7 +47,7 @@ class ExecutorFactory:
                 raise ImportError(f"Errore import python_translator: {IMPORT_ERROR}")
             
             try:
-                # ✅ Parametro si chiama 'database', non 'database_name'
+                # Parametro si chiama 'database', non 'database_name'
                 executor = PythonExecutorClass(
                     mongo_uri=kwargs.get('mongo_uri', 'mongodb://localhost:27017'),
                     database=kwargs.get('database', 'jcoql_test')

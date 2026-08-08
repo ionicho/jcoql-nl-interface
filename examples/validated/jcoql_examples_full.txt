@@ -174,3 +174,9 @@ Descrizione: Ordini che hanno un numero di tracciamento registrato.
 Query:
 GET COLLECTION orders;
 FILTER CASE WHERE FIELD .tracking_number ISNOTNULL KEEP OTHERS;
+ESEMPIO 25: Array contiene un valore specifico (FILTER diretto, non CONTAINS)
+----------------------------------------------
+Descrizione: Film in cui recita un attore specifico. JCoQL+ non ha un operatore CONTAINS, ma non serve: confrontare un campo array con un valore singolo verifica automaticamente se l'array contiene quel valore, senza bisogno di EXPAND.
+Query:
+GET COLLECTION movies;
+FILTER CASE WHERE .cast = 'Claudio Bisio' KEEP OTHERS;

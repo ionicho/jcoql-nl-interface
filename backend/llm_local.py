@@ -35,7 +35,11 @@ def generate_with_llama(prompt: str, model: str = "llama3.1:8b-instruct-q4_K_M")
         model=model,
         prompt=prompt,
         options={
-            'temperature': 0.1,  # Bassa per codice deterministico
+            'temperature': 0,  # Zero netto (non 0.1): a 0.1 restava un margine di
+                                # scelta tra token quasi ugualmente probabili, che su
+                                # una generazione di media lunghezza si accumulava in
+                                # formulazioni diverse a parità di richiesta - vedi
+                                # nota simmetrica in generate_with_gemma sotto
             'top_p': 0.9,
             'num_predict': 512,  # Max token output
         }
@@ -61,7 +65,7 @@ def generate_with_gemma(prompt: str, model: str = "gemma:7b-instruct-q4_K_M") ->
         model=model,
         prompt=prompt,
         options={
-            'temperature': 0.1,
+            'temperature': 0,  # Zero netto - vedi nota in generate_with_llama sopra
             'top_p': 0.9,
             'num_predict': 512,
         }

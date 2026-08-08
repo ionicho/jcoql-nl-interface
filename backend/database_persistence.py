@@ -3,8 +3,7 @@ Database Persistence - Salva i database connessi su disco
 
 Così quando il server si riavvia, i database rimangono connessi
 
-NOTA — cosa NON fa questo modulo:
-salva/ricarica solo l'ELENCO dei database connessi (nome, mongo_uri,
+NOTA — salva/ricarica solo l'ELENCO dei database connessi (nome, mongo_uri,
 database_name). Non ha niente a che fare con "quale database è
 attualmente selezionato" (l'ultimo su cui hai lavorato) — quello è uno
 stato diverso: vive solo in memoria come attributo
@@ -35,9 +34,8 @@ persistence_logger = logging.getLogger('persistence')
 # cartella da cui il processo Python viene avviato (la working directory),
 # non necessariamente nella root del progetto. Funziona perché in pratica
 # il server si avvia sempre da lì (uvicorn main:app dalla root), ma è
-# un'assunzione implicita: se in futuro lanci main.py da un'altra cartella
-# (es. un cron job, un altro script, un test), il file salterebbe fuori
-# altrove o non verrebbe trovato.
+# un'assunzione implicita: se in futuro si lanciasse main.py da un'altra cartella, 
+# il file salterebbe fuori altrove o non verrebbe trovato.
 PERSISTENCE_FILE = 'connected_databases.json'
 
 
@@ -47,8 +45,7 @@ def save_databases_to_file(registry):
     connessi nel registry (registry.databases), uno per uno: nome logico,
     URI Mongo e nome del database fisico. Viene chiamata ogni volta che
     un database viene aggiunto/rimosso, così il file resta sempre
-    allineato allo stato in memoria (nessuna chiamata esplicita di "save"
-    richiesta al chiamante).
+    allineato allo stato in memoria.
     """
     try:
         databases_data = {}

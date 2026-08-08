@@ -18,11 +18,7 @@ class DatabaseRegistry:
     add_database, vedi sotto). Chi consuma self.databases altrove nel
     progetto deve tenerne conto: db_registry.databases[nome] non ha
     metodi come .list_collection_names(), solo db_registry.databases[nome]["client"]
-    li ha. (Nota per chi legge: main.py, nell'endpoint /api/stats, ha
-    proprio questo problema — chiama .list_collection_names() sul dict
-    invece che su ["client"], l'eccezione viene silenziosamente ignorata
-    e "Collezioni Totali" nella Dashboard risulta sempre 0. Bug scoperto
-    rileggendo questo file, da correggere in main.py.)
+    li ha.
     """
     
     def __init__(self):
@@ -122,7 +118,7 @@ class DatabaseRegistry:
     def close_all(self):
         """
         Chiude tutte le connessioni MongoDB aperte. Chiamata da main.py
-        nell'evento "shutdown" di FastAPI — non serve richiamarla a mano.
+        nell'evento "shutdown" di FastAPI.
         """
         for db_name, info in self.databases.items():
             try:
@@ -154,7 +150,5 @@ class DatabaseRegistry:
             return all_schemas
 
 
-# Istanza globale — un solo registry condiviso da tutto il processo
-# FastAPI (importato così com'è da main.py e dagli altri moduli che ne
-# hanno bisogno, invece di istanziare DatabaseRegistry() più volte).
+# Istanza globale — un solo registry condiviso da tutto il processo FastAPI
 db_registry = DatabaseRegistry()
