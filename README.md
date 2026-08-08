@@ -78,6 +78,10 @@ Permettere agli utenti di interrogare database MongoDB usando **linguaggio natur
 
 ## 🚀 Quick Start
 
+> Guida rapida. Per la procedura completa passo-passo (inclusi i comandi
+> esatti per Ollama, il seed di MongoDB, e l'ordine corretto in cui
+> lanciare tutto la prima volta), vedi **[SETUP.md](SETUP.md)**.
+
 ### Prerequisites
 
 - **Python 3.x**
@@ -109,9 +113,8 @@ cp .env.example .env
 # Modifica .env con la tua GEMINI_API_KEY
 
 # 5. MongoDB
-# Assicurati che MongoDB sia in esecuzione e che i database/collezioni
-# che intendi usare siano popolati (vedi backend/database/ per gli script
-# di seed, se presenti)
+# Assicurati che MongoDB sia in esecuzione. Per popolare il database di
+# esempio "jcoql_test" da zero, vedi SETUP.md (sezione "Dati di esempio").
 
 # 6. Carica gli esempi in ChromaDB
 python backend/database/load_examples.py
@@ -121,6 +124,12 @@ python backend/database/load_examples.py
 (percorso calcolato rispetto alla posizione dello script, non alla cartella da cui lo
 lanci) e ricrea la collection ChromaDB da zero a ogni esecuzione — dopo averlo lanciato,
 **riavvia il backend**, altrimenti resta collegato al riferimento della collection precedente.
+
+> Questo era già tutto quello che serve per un avvio "al volo" se hai già un ambiente
+> pronto. Per un ambiente nuovo (Ollama, modelli locali, seed MongoDB, verifica finale),
+> segui **[SETUP.md](SETUP.md)** in ordine — evita gran parte degli errori più comuni
+> incontrati durante lo sviluppo (percorsi relativi, ordine di avvio, modelli Ollama
+> non scaricati).
 
 ### Run
 ```bash
@@ -249,6 +258,12 @@ class ExecutorFactory:
         return JcoFrameworkExecutor()
 ```
 
+> Esiste anche un secondo executor (`python_translator.py`, traduzione diretta
+> JCoQL+→MongoDB senza passare dal motore Java, selezionabile con
+> `ACTIVE_EXECUTOR=python_translator`), pensato come fallback leggero limitato a
+> `GET COLLECTION`+`FILTER` semplice. Il progetto usa e testa sempre e solo
+> `jco_framework` (il default): è quello a cui si riferisce l'intero README.
+
 ---
 
 ## 🚧 Limitazioni Note
@@ -288,7 +303,6 @@ jcoql-nl-interface/
 │
 ├── backend/
 │   ├── query_corrector.py
-│   ├── rag_with_validation.py
 │   ├── rag_examples_extended.txt  # Iniettato SEMPRE in ogni prompt - solo pattern
 │   │                               # sintattici generici, nessun nome di campo legato
 │   │                               # a un database specifico
