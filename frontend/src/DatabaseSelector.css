@@ -14,10 +14,11 @@
 
 .database-selector h2 {
   margin: 0;
-  font-size: 18px;
-  color: #007bff;
+  font-size: 22px;
+  font-weight: 600;
+  color: #2563eb;
   padding-bottom: 12px;
-  border-bottom: 2px solid #007bff;
+  border-bottom: 2px solid #2563eb;
 }
 
 /* Loading */

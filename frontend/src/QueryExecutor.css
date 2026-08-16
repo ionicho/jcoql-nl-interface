@@ -2,6 +2,29 @@
  * QueryExecutor.css
  */
 
+/* Header del componente — stesso identico meccanismo di
+   .database-selector h2 (DatabaseSelector.css), non le classi utility di
+   Tailwind: usare due sistemi diversi per due titoli che devono sembrare
+   uguali produceva un'incoerenza visiva (line-height diverso tra i due,
+   anche a parità di padding-bottom dichiarato). */
+.qe-header-title {
+  margin: 0;
+  font-size: 22px;
+  font-weight: 600;
+  color: #2563eb;
+  padding-bottom: 12px;
+  border-bottom: 2px solid #2563eb;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.qe-header-subtitle {
+  margin: 8px 0 0 0;
+  font-size: 14px;
+  color: #6b7280;
+}
+
 .query-executor {
   background: white;
   border-radius: 8px;
