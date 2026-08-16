@@ -101,6 +101,12 @@ mongoimport --db jcoql_test --collection users --file backend/database/data_user
 collega il tuo database dalla UI (sidebar → "Connetti nuovo database") o
 modificando la connessione di default in `main.py`/`.env`.
 
+**Nota opzionale — per provare `GET DICTIONARY`/`TRANSLATE`:** questo comando richiede
+una collection con struttura specifica, `{ "key": "...", "value": "..." }` per ogni
+documento (il motore legge esattamente questi due nomi di campo, nessun altro). Non è
+creata dai passi sopra: se vuoi provare questa funzionalità, creane una a mano con
+MongoDB Compass o `mongoimport`, ad esempio con 3-4 coppie chiave-valore a piacere.
+
 ---
 
 ## 6. Carica gli esempi RAG in ChromaDB
@@ -150,14 +156,17 @@ Checklist rapida dopo il primo avvio:
 - [ ] Dalla UI, digitando una richiesta in linguaggio naturale semplice (es. "hotel a Milano") ottieni una query JCoQL+ generata e risultati
 - [ ] La Dashboard (`/dashboard`) mostra database e collezioni connesse coerenti con quello che ti aspetti
 - [ ] Se usi anche i modelli locali: selezionando Llama/Gemma dalla UI, la generazione funziona (altrimenti torna al passo 4)
+- [ ] Se hai collegato più di un database: dal form JOIN nella sidebar, un JOIN tra due collezioni con lo stesso nome su database diversi restituisce risultati (non un errore "Invalid database")
 
 ---
 
 ## 9. Debug
 
-Il sistema stampa log diagnostici dettagliati (output grezzo del motore Java per i
-comandi diversi da `GET COLLECTION`, esempi RAG recuperati per ogni richiesta,
-riepilogo dell'esecuzione) solo se richiesto esplicitamente:
+La query completa mandata al motore Java (prolog + comando, `USE DB` incluso) è
+**sempre** stampata in console, indipendentemente da `JCOQL_DEBUG` — utile per
+verificare al volo cosa è stato eseguito davvero senza dover attivare nulla. Il resto
+dei log diagnostici (esempi RAG recuperati per ogni richiesta, riepilogo
+dell'esecuzione) compare solo se richiesto esplicitamente:
 
 ```bash
 set JCOQL_DEBUG=true          # Windows (PowerShell: $env:JCOQL_DEBUG="true")
