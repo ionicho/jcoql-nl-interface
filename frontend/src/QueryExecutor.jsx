@@ -30,7 +30,7 @@ import './QueryExecutor.css';
 //   prima bisognava cambiare tab per vedere l'una o l'altra, ora l'input
 //   NL e il pannello query sono sempre entrambi visibili insieme.
 // ==========================================
-export default function QueryExecutor({ selectedDatabases = [], joinConfig = null }) {
+export default function QueryExecutor({ selectedDatabases = [], joinConfig = null, onDisableJoin = () => {} }) {
 
   // --- STATI DEL COMPONENTE ---
   const [nlQuery, setNlQuery] = useState('');
@@ -217,6 +217,22 @@ export default function QueryExecutor({ selectedDatabases = [], joinConfig = nul
     setError('');
   };
 
+  // FIX (16/08): "Disattiva JOIN" spegneva solo il meccanismo di
+  // costruzione automatica (joinConfig), ma non toccava il testo già nel
+  // pannello — se quel testo era già una query JOIN completa (finita lì
+  // per il riallineamento post-esecuzione), continuava a essere eseguita
+  // come tale anche a JOIN "disattivato", perché il percorso diretto
+  // esegue qualunque testo valido gli venga dato, indipendentemente da
+  // joinConfig. Il pannello va svuotato insieme alla disattivazione,
+  // altrimenti resta un residuo che sembra ignorare la disattivazione.
+  const handleDisableJoinClick = () => {
+    setJcoqlQuery('');
+    setGenerationInfo(null);
+    setResults(null);
+    setError('');
+    onDisableJoin();
+  };
+
   // ==========================================
   // 4. RENDER DELL'INTERFACCIA (JSX)
   // ==========================================
@@ -235,6 +251,31 @@ export default function QueryExecutor({ selectedDatabases = [], joinConfig = nul
           Genera ed esegui query JCoQL su MongoDB
         </p>
       </div>
+
+      {/* --- AVVISO MODALITÀ JOIN ATTIVA ---
+          joinConfig è uno stato "persistente" nella sidebar (resta attivo
+          finché non lo si disattiva esplicitamente, anche passando a una
+          richiesta che non c'entra nulla col JOIN) — osservato più volte
+          durante i test che una query semplice finiva dirottata verso il
+          JOIN senza che fosse ovvio perché. Prima l'unico indizio era il
+          checkbox nella sidebar, facile da perdere di vista con
+          l'attenzione sul pannello principale — questo banner sta proprio
+          lì, in cima, e permette di disattivarlo senza tornare in sidebar. */}
+      {joinConfig && (
+        <div className="bg-amber-50 border border-amber-300 rounded-lg px-4 py-3 flex justify-between items-center gap-3 flex-wrap">
+          <p className="text-sm text-amber-800">
+            Modalità JOIN attiva: <strong>{joinConfig.db1}</strong> ↔{' '}
+            <strong>{joinConfig.db2 || '(database 2 non ancora scelto)'}</strong>.
+            Ogni esecuzione da qui userà questo JOIN, anche per una richiesta non correlata.
+          </p>
+          <button
+            onClick={handleDisableJoinClick}
+            className="px-3 py-1.5 bg-amber-200 hover:bg-amber-300 text-amber-900 rounded text-xs font-medium transition-colors flex-shrink-0"
+          >
+            Disattiva JOIN
+          </button>
+        </div>
+      )}
 
       {/* --- INPUT: LINGUAGGIO NATURALE (unico in tutta l'app, sempre visibile) ---
           Tolta la scelta tra "modalità" — prima costringeva a passare da una

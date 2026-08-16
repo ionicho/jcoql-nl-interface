@@ -33,6 +33,14 @@ function MainInterface() {
   const [selectedDatabases, setSelectedDatabases] = useState(['jcoql_test'])
   const [joinConfig, setJoinConfig] = useState(null)
 
+  // Segnale per disattivare il JOIN da un punto diverso dalla sidebar (il
+  // banner "Modalità JOIN attiva" in QueryExecutor) — un contatore che, ad
+  // ogni incremento, dice a DatabaseSelector di togliere la spunta come se
+  // l'avesse tolta l'utente stesso, mantenendo sincronizzati entrambi gli
+  // stati (quello qui e quello interno a DatabaseSelector).
+  const [joinResetSignal, setJoinResetSignal] = useState(0)
+  const handleDisableJoin = () => setJoinResetSignal((s) => s + 1)
+
   // --- STATO PARSER ATTIVO (letto dal backend, non più hardcoded) ---
   const [activeParser, setActiveParser] = useState(null)
 
@@ -163,6 +171,7 @@ function MainInterface() {
           <DatabaseSelector 
             onDatabasesChange={handleDatabasesChange}
             selectedDatabases={selectedDatabases}
+            resetJoinSignal={joinResetSignal}
           />
         </aside>
 
@@ -178,6 +187,7 @@ function MainInterface() {
               selectedDatabases={selectedDatabases}
               joinConfig={joinConfig}
               llmModel={selectedLlm}
+              onDisableJoin={handleDisableJoin}
             />
           </section>
 

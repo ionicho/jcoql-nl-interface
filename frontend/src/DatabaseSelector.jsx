@@ -16,7 +16,7 @@
 import React, { useState, useEffect } from 'react';
 import './DatabaseSelector.css';
 
-export default function DatabaseSelector({ onDatabasesChange, selectedDatabases }) {
+export default function DatabaseSelector({ onDatabasesChange, selectedDatabases, resetJoinSignal }) {
   // ================== STATE ==================
 
   const [availableDatabases, setAvailableDatabases] = useState([]);
@@ -214,6 +214,23 @@ export default function DatabaseSelector({ onDatabasesChange, selectedDatabases 
 
     onDatabasesChange(Array.from(multiSelected), enabled ? joinConfig : null);
   };
+
+  /**
+   * Disattiva il JOIN quando richiesto da fuori questo componente (es. dal
+   * banner "Modalità JOIN attiva" mostrato in QueryExecutor, per il caso in
+   * cui il checkbox qui sotto resti attivo per una richiesta successiva
+   * che non c'entra col JOIN — problema notato più volte durante i test).
+   * resetJoinSignal è un contatore: ad ogni incremento (mai al montaggio
+   * iniziale, quando vale 0) disattiva il JOIN esattamente come farebbe
+   * l'utente togliendo la spunta qui, tenendo sincronizzato anche lo stato
+   * posseduto da App.jsx.
+   */
+  useEffect(() => {
+    if (resetJoinSignal > 0 && joinMode) {
+      handleJoinToggle(false);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [resetJoinSignal]);
 
   /**
    * Aggiorna join config
