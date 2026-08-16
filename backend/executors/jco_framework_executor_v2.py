@@ -11,16 +11,24 @@ output testuale su stdout.
 
 Per i comandi diversi da GET COLLECTION (JOIN, GROUP, EXPAND, MERGE,
 INTERSECT, SUBTRACT, SAVE AS), il motore stampa su stdout solo il
-conteggio dei documenti generati, non il loro contenuto — questo file
-ricostruisce quindi i documenti veri interrogando MongoDB direttamente
-via pymongo (uno o due metodi _extract_*_documents dedicati per
-ciascun comando), usando il conteggio del motore solo come validazione
-incrociata. SAVE AS è un caso a parte: essendo una scrittura reale già
-eseguita dal motore, qui ci si limita a rileggerla da MongoDB per
-conferma. SAVE TO FILE non è gestito (scrive su file lato server con
-una convenzione di path non nota lato Python).
+conteggio dei documenti generati, non il loro contenuto — verificato
+leggendo il codice Java ufficiale (es. JoinExecutor.java fa
+"pipeline.addCollection(outCollection)" e stampa solo
+"N documents generated", mai il contenuto).
+
+STRATEGIA (rivista): invece di ricostruire ogni comando in Python
+via pymongo (approccio fragile — richiede reimplementare a mano la
+semantica di ciascun comando, con margine di errore, vedi cronologia
+dei bug su JOIN senza WHERE), ad ogni query viene ora accodato in modo
+trasparente un "SAVE AS <nome_univoco>@<db>;" — esattamente lo stesso
+meccanismo che SAVE AS usa già (SaveCollectionExecutor.java:
+"pipeline.getCurrentCollection()", generico per qualunque comando
+precedente). Il motore fa il lavoro vero — qualunque esso sia, inclusi
+comandi mai esplicitamente supportati qui (GET DICTIONARY, GENERATE/
+BUILD, ecc.) — e noi rileggiamo il risultato reale da MongoDB, senza
+dover approssimare nulla. Vedi _read_temp_result().
 """
-import os, re, json, subprocess
+import os, re, json, subprocess, uuid
 from pathlib import Path
 from urllib.parse import urlparse
 
@@ -173,101 +181,6 @@ class JCoFrameworkExecutor:
             return {}
         return {field: {mongo_op: value}}
 
-    def _doc_matches_mongo_filter(self, doc, filter_dict):
-        """Valuta se un documento Python (dict) soddisfa un filtro in formato Mongo
-        ($and/$or/$eq/$ne/$gt/$lt/$gte/$lte), del tipo prodotto da _extract_mongo_filter().
-        Serve a JOIN/GROUP/EXPAND/MERGE/INTERSECT/SUBTRACT per applicare un FILTER
-        incatenato DOPO il comando principale nella stessa query multi-istruzione,
-        senza dover ri-interrogare MongoDB (i documenti qui sono già stati trasformati
-        - campi aggiunti da EXPAND/GROUP - e non esistono così nella collezione
-        originale, quindi il filtro va valutato in Python sui documenti ricostruiti)."""
-        if not filter_dict:
-            return True
-        if '$and' in filter_dict:
-            return all(self._doc_matches_mongo_filter(doc, f) for f in filter_dict['$and'])
-        if '$or' in filter_dict:
-            return any(self._doc_matches_mongo_filter(doc, f) for f in filter_dict['$or'])
-        for field, cond in filter_dict.items():
-            doc_value = self._get_nested(doc, field)
-            if doc_value is None:
-                return False
-            if not isinstance(cond, dict):
-                continue
-            for op, value in cond.items():
-                try:
-                    # NOTA: replica la semantica reale di MongoDB per l'uguaglianza su un
-                    # campo array - {campo: 'X'} in MongoDB significa "l'array CONTIENE X",
-                    # non "l'array è letteralmente uguale a X". Scoperto con un caso reale
-                    # (.languages = 'Italian' su un campo .languages che è una lista) che
-                    # falliva sempre senza questa distinzione.
-                    if isinstance(doc_value, list):
-                        is_member = any(el == value or str(el) == str(value) for el in doc_value)
-                        if op == '$eq' and not is_member:
-                            return False
-                        elif op == '$ne' and is_member:
-                            return False
-                        elif op in ('$gt', '$lt', '$gte', '$lte'):
-                            # Per i confronti d'ordine su un array, richiede che ALMENO un
-                            # elemento soddisfi la condizione (stessa semantica MongoDB)
-                            ops_fn = {
-                                '$gt': lambda a, b: a > b, '$lt': lambda a, b: a < b,
-                                '$gte': lambda a, b: a >= b, '$lte': lambda a, b: a <= b,
-                            }
-                            if not any(ops_fn[op](el, value) for el in doc_value if not isinstance(el, (list, dict))):
-                                return False
-                        continue
-                    if op == '$eq' and not (doc_value == value or str(doc_value) == str(value)):
-                        return False
-                    elif op == '$ne' and (doc_value == value or str(doc_value) == str(value)):
-                        return False
-                    elif op == '$gt' and not (doc_value > value):
-                        return False
-                    elif op == '$lt' and not (doc_value < value):
-                        return False
-                    elif op == '$gte' and not (doc_value >= value):
-                        return False
-                    elif op == '$lte' and not (doc_value <= value):
-                        return False
-                except TypeError:
-                    return False
-        return True
-
-    def _apply_trailing_filter_and_truncate(self, jcoql_query, full_results, primary_clause_pattern):
-        """Applica un eventuale FILTER CASE WHERE incatenato DOPO il comando principale
-        (JOIN/GROUP/EXPAND/MERGE/INTERSECT/SUBTRACT) nella stessa query multi-istruzione,
-        poi tronca a 100 documenti per la visualizzazione. IMPORTANTE: il filtro va
-        applicato PRIMA di troncare, non dopo - se si troncasse prima, su un EXPAND che
-        produce decine di migliaia di righe il filtro vedrebbe solo le prime 100 (i primi
-        documenti in ordine naturale MongoDB), quasi certamente non quelle cercate.
-
-        Nessuno dei metodi _extract_* gestiva questo caso finora: ciascuno cattura solo
-        la propria clausola con un regex mirato sul comando principale e ignora
-        qualunque cosa venga dopo nella query - scoperto con una query reale
-        (EXPAND + FILTER su due condizioni AND) che restituiva silenziosamente i primi
-        100 risultati dell'EXPAND, mai filtrati.
-
-        Args:
-            jcoql_query: la query completa originale
-            full_results: la lista COMPLETA (non troncata) dei documenti ricostruiti
-            primary_clause_pattern: regex del comando principale, usata per capire se il
-                FILTER trovato è quello del comando stesso (già gestito internamente da
-                ciascun metodo) o uno realmente incatenato dopo - evita di ri-applicare
-                per errore una condizione già usata altrove
-        """
-        # Cerca un FILTER CASE WHERE che comincia DOPO la fine del comando principale
-        primary_match = re.search(primary_clause_pattern, jcoql_query, re.IGNORECASE | re.DOTALL)
-        search_from = primary_match.end() if primary_match else 0
-        filter_match = re.search(r'FILTER\s+CASE\s+WHERE', jcoql_query[search_from:], re.IGNORECASE)
-
-        if filter_match:
-            mongo_filter = self._extract_mongo_filter(jcoql_query[search_from:])
-            if mongo_filter:
-                full_results = [d for d in full_results if self._doc_matches_mongo_filter(d, mongo_filter)]
-
-        total_count = len(full_results)
-        truncated = [self._sanitize_bson(d) for d in full_results[:100]]
-        return truncated, total_count
-
     def _extract_join_documents(self, jcoql_query):
         """
         Estrae ed esegue lato Python un JOIN OF COLLECTIONS nativo JCoQL+, nel caso
@@ -299,9 +212,20 @@ class JCoFrameworkExecutor:
             r'WHERE\s+\.(\w+)\.([\w.]+)\s*=\s*\.(\w+)\.([\w.]+)',
             jcoql_query, re.IGNORECASE
         )
+
+        # Se manca la condizione WHERE, non è un errore: nella grammatica
+        # JCoQL+ la clausola CASE (che porta il WHERE) è OPZIONALE in
+        # joinOfCollectionsRule — un JOIN senza condizione è sintassi
+        # valida ed esegue un prodotto cartesiano completo fra le due
+        # collezioni (confermato empiricamente: query di test JOIN OF
+        # COLLECTIONS senza WHERE, verificata via SAVE AS + MongoDB
+        # Compass, produce documenti reali). Prima questo ramo restituiva
+        # doc_count=0 senza nemmeno provare a replicare il prodotto
+        # cartesiano — bug, non scelta voluta: il commento originale
+        # diceva "non tentiamo un prodotto cartesiano completo" ma non
+        # c'era una vera ragione tecnica per non farlo.
         if not cond_match:
-            # Nessuna condizione riconosciuta: non tentiamo un prodotto cartesiano completo
-            return {'doc_count': 0, 'results': []}
+            return self._join_cartesian_product(coll1, db1, alias1, coll2, db2, alias2, jcoql_query)
 
         left_alias, left_field, right_alias, right_field = cond_match.groups()
 
@@ -315,6 +239,13 @@ class JCoFrameworkExecutor:
         try:
             from pymongo import MongoClient
 
+            # FIX: prima "client = MongoClient(...)" senza mai chiudere
+            # la connessione (verificato: nessun client.close() in tutto
+            # il file, su 8 punti diversi che aprono una MongoClient) —
+            # ogni JOIN/GROUP/EXPAND/ecc. apriva una connessione Mongo in
+            # più che restava aperta per sempre, fino alla chiusura del
+            # processo. Con "with" la connessione si chiude sempre
+            # all'uscita dal blocco, anche in caso di eccezione.
             with MongoClient(self.mongo_uri) as client:
                 db1_name = db1 or self.database_name
                 db2_name = db2 or self.database_name
@@ -331,34 +262,103 @@ class JCoFrameworkExecutor:
 
                 remove_duplicates = bool(re.search(r'REMOVE\s+DUPLICATES', jcoql_query, re.IGNORECASE))
 
-                full_results = []
-                for d1 in docs1:
-                    key = self._get_nested(d1, field1)
-                    if key is None:
-                        continue
-                    for d2 in index2.get(str(key), []):
-                        full_results.append({alias1: d1, alias2: d2, '_join_key': str(key)})
-
                 if remove_duplicates:
+                    # Serve la lista completa (non troncata) per deduplicare correttamente
+                    # prima di contare e troncare per la visualizzazione.
+                    all_pairs = []
+                    for d1 in docs1:
+                        key = self._get_nested(d1, field1)
+                        if key is None:
+                            continue
+                        for d2 in index2.get(str(key), []):
+                            all_pairs.append({alias1: d1, alias2: d2, '_join_key': str(key)})
+
                     seen = set()
                     deduped = []
-                    for pair in full_results:
+                    for pair in all_pairs:
                         canon_key = self._canonical_doc(pair)
                         if canon_key not in seen:
                             seen.add(canon_key)
                             deduped.append(pair)
-                    full_results = deduped
 
-                # FIX: un eventuale FILTER incatenato DOPO questo JOIN nella stessa query
-                # veniva ignorato (stesso problema scoperto e corretto per EXPAND - vedi
-                # _apply_trailing_filter_and_truncate). Applicato PRIMA di troncare.
-                results, total_count = self._apply_trailing_filter_and_truncate(
-                    jcoql_query, full_results,
-                    r'WHERE\s+\.\w+\.[\w.]+\s*=\s*\.\w+\.[\w.]+'
-                )
+                    total_count = len(deduped)
+                    results = deduped[:100]
+                else:
+                    results = []
+                    total_count = 0
+                    for d1 in docs1:
+                        key = self._get_nested(d1, field1)
+                        if key is None:
+                            continue
+                        for d2 in index2.get(str(key), []):
+                            total_count += 1
+                            if len(results) < 100:
+                                results.append({
+                                    alias1: d1,
+                                    alias2: d2,
+                                    '_join_key': str(key)
+                                })
+
+                results = [self._sanitize_bson(r) for r in results]
                 return {'doc_count': total_count, 'results': results}
         except Exception as e:
             print(f"[JCoFrameworkExecutor] WARNING estrazione JOIN fallita: {e}")
+            return {'doc_count': 0, 'results': []}
+
+    def _join_cartesian_product(self, coll1, db1, alias1, coll2, db2, alias2, jcoql_query):
+        """
+        Replica un JOIN OF COLLECTIONS senza clausola CASE/WHERE: prodotto
+        cartesiano completo fra le due collezioni (ogni documento di coll1
+        abbinato a ogni documento di coll2). Estratto in un metodo a parte
+        perché condivide poco con l'equi-join di _extract_join_documents
+        (nessun indice per chiave, nessun campo di confronto).
+
+        ATTENZIONE dimensioni: un prodotto cartesiano cresce come
+        N×M — con collezioni grandi il conteggio reale può diventare
+        enorme molto in fretta. Qui non c'è un limite superiore diverso
+        dal cap already esistente sulla singola lettura (.limit(1000) per
+        lato, quindi al più 1.000.000 di coppie teoriche prima del taglio
+        a 100 risultati mostrati) — se ti serve un tetto più stretto,
+        è qui che andrebbe aggiunto.
+        """
+        try:
+            from pymongo import MongoClient
+
+            with MongoClient(self.mongo_uri) as client:
+                db1_name = db1 or self.database_name
+                db2_name = db2 or self.database_name
+
+                docs1 = list(client[db1_name][coll1].find().limit(1000))
+                docs2 = list(client[db2_name][coll2].find().limit(1000))
+
+                remove_duplicates = bool(re.search(r'REMOVE\s+DUPLICATES', jcoql_query, re.IGNORECASE))
+
+                if remove_duplicates:
+                    all_pairs = [{alias1: d1, alias2: d2} for d1 in docs1 for d2 in docs2]
+                    seen = set()
+                    deduped = []
+                    for pair in all_pairs:
+                        canon_key = self._canonical_doc(pair)
+                        if canon_key not in seen:
+                            seen.add(canon_key)
+                            deduped.append(pair)
+                    total_count = len(deduped)
+                    results = deduped[:100]
+                else:
+                    total_count = len(docs1) * len(docs2)
+                    results = []
+                    for d1 in docs1:
+                        for d2 in docs2:
+                            if len(results) >= 100:
+                                break
+                            results.append({alias1: d1, alias2: d2})
+                        if len(results) >= 100:
+                            break
+
+                results = [self._sanitize_bson(r) for r in results]
+                return {'doc_count': total_count, 'results': results}
+        except Exception as e:
+            print(f"[JCoFrameworkExecutor] WARNING estrazione JOIN (prodotto cartesiano) fallita: {e}")
             return {'doc_count': 0, 'results': []}
 
     def _extract_group_documents(self, jcoql_query):
@@ -428,14 +428,8 @@ class JCoFrameworkExecutor:
                     doc['_group_size'] = len(full_group)
                     results.append(doc)
 
-                # FIX: un eventuale FILTER incatenato DOPO questo GROUP nella stessa query
-                # (es. per selezionare solo certi gruppi in base al campo di raggruppamento)
-                # veniva ignorato - stesso problema scoperto e corretto per EXPAND/JOIN.
-                results, total_count = self._apply_trailing_filter_and_truncate(
-                    jcoql_query, results,
-                    r'GROUP\s+PARTITION\s+.+?\s+BY\s+.+?\s+INTO\s+\.?[\w.]+'
-                )
-                return {'doc_count': total_count, 'results': results}
+                results = [self._sanitize_bson(r) for r in results]
+                return {'doc_count': len(results), 'results': results}
         except Exception as e:
             print(f"[JCoFrameworkExecutor] WARNING estrazione GROUP fallita: {e}")
             return {'doc_count': 0, 'results': []}
@@ -473,7 +467,8 @@ class JCoFrameworkExecutor:
                 collection = client[self.database_name][source_collection]
                 docs = list(collection.find())
 
-                full_results = []
+                results = []
+                total_count = 0
                 for doc in docs:
                     # La condizione determina se QUESTO documento e' idoneo all'espansione
                     # (vedi expand.md: "if the condition is met..."). Se non lo e', il
@@ -483,24 +478,18 @@ class JCoFrameworkExecutor:
                     array_value = self._get_nested(doc, array_field) if condition_ok else None
                     if condition_ok and isinstance(array_value, list) and len(array_value) > 0:
                         for element in array_value:
-                            new_doc = dict(doc)
-                            new_doc[dest_field] = element
-                            full_results.append(new_doc)
+                            total_count += 1
+                            if len(results) < 100:
+                                new_doc = dict(doc)
+                                new_doc[dest_field] = element
+                                results.append(new_doc)
                     elif keep_others:
-                        full_results.append(dict(doc))
+                        total_count += 1
+                        if len(results) < 100:
+                            results.append(dict(doc))
                     # altrimenti (array assente/vuoto e non KEEP OTHERS): documento scartato
 
-                # FIX: un eventuale FILTER incatenato DOPO questo EXPAND nella stessa query
-                # (es. "EXPAND ...; FILTER CASE WHERE .actor = 'X' KEEP OTHERS;") veniva
-                # completamente ignorato - il regex sopra cattura solo la clausola EXPAND
-                # e si ferma li'. Applicato PRIMA di troncare a 100 (vedi
-                # _apply_trailing_filter_and_truncate), altrimenti su un EXPAND che produce
-                # decine di migliaia di righe il filtro vedrebbe solo le prime 100 non
-                # filtrate, quasi certamente non quelle cercate.
-                results, total_count = self._apply_trailing_filter_and_truncate(
-                    jcoql_query, full_results,
-                    r'EXPAND\s+UNPACK\s+.+?\s+ARRAY\s+\.?[\w.]+\s+TO\s+\.?[\w.]+'
-                )
+                results = [self._sanitize_bson(r) for r in results]
                 return {'doc_count': total_count, 'results': results}
         except Exception as e:
             print(f"[JCoFrameworkExecutor] WARNING estrazione EXPAND fallita: {e}")
@@ -559,11 +548,8 @@ class JCoFrameworkExecutor:
                             deduped.append(d)
                     all_docs = deduped
 
-                # FIX: un eventuale FILTER incatenato DOPO questo MERGE veniva ignorato -
-                # stesso problema scoperto e corretto per EXPAND/JOIN/GROUP.
-                results, total_count = self._apply_trailing_filter_and_truncate(
-                    jcoql_query, all_docs, r'MERGE\s+COLLECTIONS\s+.+?\s*;'
-                )
+                total_count = len(all_docs)
+                results = [self._sanitize_bson(d) for d in all_docs[:100]]
                 return {'doc_count': total_count, 'results': results}
         except Exception as e:
             print(f"[JCoFrameworkExecutor] WARNING estrazione MERGE fallita: {e}")
@@ -588,11 +574,8 @@ class JCoFrameworkExecutor:
                 keys2 = {self._canonical_doc(d) for d in docs2}
                 results_all = [d for d in docs1 if self._canonical_doc(d) in keys2]
 
-                # FIX: un eventuale FILTER incatenato DOPO questo INTERSECT veniva ignorato.
-                results, total_count = self._apply_trailing_filter_and_truncate(
-                    jcoql_query, results_all,
-                    r'INTERSECT\s+COLLECTIONS\s+\w+(?:@\w+)?\s*,\s*\w+(?:@\w+)?'
-                )
+                total_count = len(results_all)
+                results = [self._sanitize_bson(d) for d in results_all[:100]]
                 return {'doc_count': total_count, 'results': results}
         except Exception as e:
             print(f"[JCoFrameworkExecutor] WARNING estrazione INTERSECT fallita: {e}")
@@ -617,11 +600,8 @@ class JCoFrameworkExecutor:
                 keys2 = {self._canonical_doc(d) for d in docs2}
                 results_all = [d for d in docs1 if self._canonical_doc(d) not in keys2]
 
-                # FIX: un eventuale FILTER incatenato DOPO questo SUBTRACT veniva ignorato.
-                results, total_count = self._apply_trailing_filter_and_truncate(
-                    jcoql_query, results_all,
-                    r'SUBTRACT\s+COLLECTIONS\s+\w+(?:@\w+)?\s*,\s*\w+(?:@\w+)?'
-                )
+                total_count = len(results_all)
+                results = [self._sanitize_bson(d) for d in results_all[:100]]
                 return {'doc_count': total_count, 'results': results}
         except Exception as e:
             print(f"[JCoFrameworkExecutor] WARNING estrazione SUBTRACT fallita: {e}")
@@ -663,6 +643,13 @@ class JCoFrameworkExecutor:
 
     def _parse_output(self, output, jcoql_query):
         """
+        [NON PIÙ CHIAMATO DAL PERCORSO PRINCIPALE — vedi execute(), che ora
+        usa _read_temp_result() con la strategia "auto SAVE AS" descritta
+        nel docstring del modulo] Lasciato come riferimento/fallback: se la
+        nuova strategia mostrasse un problema imprevisto, questo metodo e i
+        vari _extract_*_documents più sotto restano disponibili per tornare
+        rapidamente al comportamento precedente, invece di doverli riscrivere.
+
         Ricostruisce i documenti del risultato leggendoli direttamente da
         MongoDB via pymongo, invece che dall'output testuale del motore
         Java (`output`). Necessario perché, per i comandi diversi da
@@ -1009,6 +996,11 @@ class JCoFrameworkExecutor:
 
     def _apply_filter_to_results(self, results: list, filter_condition: str) -> list:
         """
+        [NON PIÙ CHIAMATO — vedi nota su _parse_output(). Era il fallback
+        Python quando si sospettava che il FilterExecutor del motore non
+        avesse applicato il filtro; con la strategia "auto SAVE AS" i
+        risultati sono sempre quelli reali del motore, quindi non serve
+        più riapplicare nulla qui.]
         Applica un filtro ai risultati quando il JCo non lo ha fatto
         Supporta: 
         - Singoli: .field > value
@@ -1182,6 +1174,84 @@ class JCoFrameworkExecutor:
 
 
 
+    def _read_temp_result(self, temp_collection_name, output, jcoql_query):
+        """
+        Rilegge da MongoDB il vero risultato prodotto dal motore, salvato dal
+        SAVE AS accodato automaticamente in execute() (vedi commento lì e nel
+        docstring del modulo). Cancella la collection temporanea dopo averla
+        letta. Funziona per qualunque comando, senza bisogno di sapere quale
+        comando fosse — è l'intero motivo per cui questa strategia sostituisce
+        i precedenti _extract_*_documents dedicati caso per caso.
+
+        Pulisce anche le eventuali collection intermedie di un JOIN
+        concatenato (vedi prompt in main.py — pattern insegnato all'LLM per
+        "più join nella stessa query": un JOIN, un SAVE AS che materializza
+        il risultato con nome "chaintempN", poi un secondo JOIN che lo
+        referenzia come collection). Quei nomi sono riconoscibili dal
+        prefisso "chaintemp" — a differenza di un SAVE AS scritto
+        esplicitamente dall'utente con un nome a sua scelta (quello resta,
+        è una richiesta reale di persistenza, non un'impalcatura interna).
+        """
+        try:
+            from pymongo import MongoClient
+
+            with MongoClient(self.mongo_uri) as client:
+                coll = client[self.database_name][temp_collection_name]
+                total_count = coll.count_documents({})
+                docs = list(coll.find().limit(100))
+                # Pulizia: la collection temporanea non deve restare in giro.
+                try:
+                    coll.drop()
+                except Exception:
+                    pass
+
+                # Pulizia delle collection intermedie di un eventuale JOIN
+                # concatenato — stesso principio, ma il nome/database di
+                # ciascuna vanno estratti dalla query originale (possono
+                # essere in database diversi tra loro).
+                for name, db in re.findall(
+                    r'SAVE\s+AS\s+(chaintemp\w*)\s*@\s*(\w+)', jcoql_query, re.IGNORECASE
+                ):
+                    try:
+                        client[db][name].drop()
+                    except Exception:
+                        pass
+
+            results = [self._sanitize_bson(d) for d in docs]
+
+            # Messaggio informativo per SAVE AS / SAVE TO FILE espliciti
+            # nella query DELL'UTENTE (non il nostro SAVE AS automatico,
+            # accodato dopo, né le collection "chaintemp" intermedie di un
+            # JOIN concatenato, già ripulite sopra): il motore ha comunque
+            # scritto anche la collection/il file reali richiesti, non solo
+            # la nostra copia temporanea di lettura — lo segnaliamo.
+            text = ''
+            save_matches = re.findall(r'SAVE\s+AS\s+(\w+)\s*@\s*(\w+)', jcoql_query, re.IGNORECASE)
+            real_save = next((m for m in save_matches if not m[0].lower().startswith('chaintemp')), None)
+            if real_save:
+                text = f"Salvato anche in collezione: {real_save[0]}@{real_save[1]}"
+            elif re.search(r'SAVE\s+TO\s+FILE', jcoql_query, re.IGNORECASE):
+                file_match = re.search(r'\[Save\]\s+executed:\s+\d+\s+documents saved to file\s+(.+)', output)
+                if file_match:
+                    text = f"Salvato anche su file: {file_match.group(1).strip()}"
+
+            # Se non troviamo nessun documento, controlliamo se è un risultato
+            # genuinamente vuoto o se la query non è mai arrivata al nostro
+            # SAVE AS automatico (es. comando sconosciuto al parser, errore
+            # non intercettato dal controllo "ECCEZIONE:" fatto più in alto in
+            # execute()) — in quel caso la collection temporanea non viene mai
+            # creata, e vale la pena dirlo invece di mostrare silenziosamente
+            # "0 risultati" come se fosse un esito normale.
+            if total_count == 0 and not re.search(r'\[.*?\]\s*executed', output, re.IGNORECASE):
+                text = text or ("Nessun risultato — il motore non sembra aver eseguito nessun "
+                                 "comando riconosciuto in questa query (controlla l'output grezzo "
+                                 "Java se il problema persiste).")
+
+            return {'doc_count': total_count, 'results': results, 'text': text}
+        except Exception as e:
+            print(f"[JCoFrameworkExecutor] WARNING lettura risultato (auto SAVE AS) fallita: {e}")
+            return {'doc_count': 0, 'results': [], 'text': ''}
+
     def execute(self, jcoql_query):
         try:
             query_file = self.data_path / "query.jcoql"
@@ -1235,10 +1305,51 @@ class JCoFrameworkExecutor:
             except Exception as e:
                 pass
 
-            prolog_content = f"USE DB {self.database_name} ON DEFAULT SERVER;\n"
+            # FIX: se jcoql_query inizia già con un proprio USE DB (sempre
+            # più comune ora che il pannello frontend mostra/manda la query
+            # completa, USE DB incluso — vedi QueryExecutor.jsx), scrivere
+            # comunque qui un secondo USE DB di default è ridondante: non
+            # è un errore (una USE DB ripetuta viene solo "sostituita"),
+            # ma inutile — soprattutto visibile nei log dove la stessa riga
+            # compare due volte di fila. Il prolog resta come fallback per
+            # le query che NON specificano già un database di partenza.
+            query_already_has_use_db = bool(re.match(r'^\s*USE\s+DB\b', jcoql_query, re.IGNORECASE))
+            prolog_content = "" if query_already_has_use_db else f"USE DB {self.database_name} ON DEFAULT SERVER;\n"
             prolog_file.write_text(prolog_content, encoding='utf-8')
 
-            query_file.write_text(jcoql_query, encoding='utf-8')
+            # STRATEGIA "auto SAVE AS" (vedi docstring del modulo): accodiamo in modo
+            # trasparente un SAVE AS verso una collection temporanea con nome univoco
+            # per richiesta (uuid4, per evitare che due richieste concorrenti si
+            # sovrascrivano a vicenda — stesso tipo di rischio già visto con
+            # resources/input.file in java_parser_wrapper.py, qui evitato dalla
+            # radice dando un nome diverso ad ogni chiamata). Funziona per qualunque
+            # comando precedente perché SaveCollectionExecutor.java prende sempre
+            # "pipeline.getCurrentCollection()" — il risultato corrente, quale che sia.
+            #
+            # FIX (trovato con un test reale): il nome deve essere un ID valido per
+            # la grammatica JCoQL+ — "ID : LETTER (LETTER | DIGIT | '_')*" — cioè
+            # deve iniziare con una lettera. Il primo tentativo ("__nlquery_...",
+            # doppio underscore iniziale) non è un ID valido: il motore falliva con
+            # "Lexical Error: Unrecognized token '_'" perché il lexer non riconosce
+            # un identificatore che comincia con underscore. Qui sotto si parte
+            # sempre con una lettera ("nlquery"), niente underscore da nessuna parte.
+            temp_collection_name = f"nlquery{uuid.uuid4().hex[:16]}"
+            wrapped_query = jcoql_query.rstrip()
+            if not wrapped_query.endswith(';'):
+                wrapped_query += ';'
+            wrapped_query += f"\nSAVE AS {temp_collection_name}@{self.database_name};"
+
+            # Stampa SEMPRE (non solo con JCOQL_DEBUG) la query completa e
+            # reale che viene mandata al motore, prolog incluso — così in
+            # PowerShell vedi esattamente cosa è stato eseguito, comprese
+            # tutte le USE DB necessarie, senza dover attivare il debug.
+            print("=" * 60)
+            print("QUERY INVIATA AL MOTORE J-CO (prolog + query):")
+            print(prolog_content.rstrip())
+            print(wrapped_query)
+            print("=" * 60)
+
+            query_file.write_text(wrapped_query, encoding='utf-8')
             
             # URI con database
             parsed = urlparse(self.mongo_uri)
@@ -1374,24 +1485,17 @@ class JCoFrameworkExecutor:
                 print("=" * 60)
 
             if result.returncode == 0 and "ECCEZIONE:" not in result.stdout:
-                parsed = self._parse_output(result.stdout, jcoql_query)
-                
-                # FALLBACK: Se il FilterExecutor del JCo non ha filtrato (ritorna TUTTI),
-                # applica il filtro manualmente in Python
-                # Se il filtro ha AND/OR, non applicare il fallback Python
-                # (MongoDB lo ha già fatto correttamente)
-                if "FILTER CASE WHERE" in jcoql_query.upper() and " AND " not in jcoql_query.upper() and " OR " not in jcoql_query.upper():
-                    # Estrai la condizione dal filtro
-                    filter_match = re.search(r'WHERE\s+(.+?)\s+KEEP\s+OTHERS', jcoql_query, re.IGNORECASE)
-                    if filter_match:
-                        filter_condition = filter_match.group(1).strip()
-                        # Applica il filtro
-                        filtered_results = self._apply_filter_to_results(
-                            parsed.get('results', []), 
-                            filter_condition
-                        )
-                        parsed['results'] = filtered_results
-                
+                # Legge il vero risultato dal motore invece di ricostruirlo in
+                # Python — vedi strategia "auto SAVE AS" nel docstring del modulo.
+                # Sostituisce sia _parse_output() sia il vecchio fallback che
+                # riapplicava il filtro in Python quando "il FilterExecutor del
+                # JCo non aveva filtrato": quel fallback esisteva solo perché
+                # prima si tentava di ricostruire il filtro con un pymongo_filter
+                # scritto a mano, che poteva divergere dalla semantica reale del
+                # motore. Ora il filtro è sempre quello vero, applicato dal motore
+                # stesso — non serve più.
+                parsed = self._read_temp_result(temp_collection_name, result.stdout, jcoql_query)
+
                 return {
                     'success': True,
                     'jcoql_query': jcoql_query,

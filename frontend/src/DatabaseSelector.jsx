@@ -5,26 +5,31 @@
  * 1. DatabaseManager (singolo database)
  * 2. MultiDatabaseSelector (multipli + JOIN)
  * 
- * In un unico componente sidebar-friendly
+ * In UN unico componente sidebar-friendly.
+ *
+ * NOTA (13/08): la modalità "Singolo" (che duplicava DatabaseManager) è
+ * stata rimossa — selezionare un solo database nella modalità "Multipli"
+ * (che è rimasta l'unica) fa esattamente la stessa cosa, non c'era motivo
+ * di tenere due modalità per lo stesso risultato.
  */
 
 import React, { useState, useEffect } from 'react';
 import './DatabaseSelector.css';
 
 export default function DatabaseSelector({ onDatabasesChange, selectedDatabases }) {
-  // STATE
+  // ================== STATE ==================
 
   const [availableDatabases, setAvailableDatabases] = useState([]);
-  const [currentDatabase, setCurrentDatabase] = useState('jcoql_test');
   const [multiSelected, setMultiSelected] = useState(new Set(['jcoql_test']));
-  const [mode, setMode] = useState('single'); // 'single' o 'multi'
   const [joinMode, setJoinMode] = useState(false);
   const [joinConfig, setJoinConfig] = useState({
     db1: 'jcoql_test',
     db2: '',
     joinType: 'INNER',
     joinKey: '',
-    db2JoinKey: ''
+    db2JoinKey: '',
+    alias1: '',
+    alias2: ''
   });
   const [showJoinForm, setShowJoinForm] = useState(false);
   const [loading, setLoading] = useState(true);
@@ -132,7 +137,7 @@ export default function DatabaseSelector({ onDatabasesChange, selectedDatabases 
 
    * Nota: ogni chiamata a questa funzione (al mount, dopo add/remove
    * database, o dal pulsante "Ricarica Database") reimposta
-   * currentDatabase e multiSelected al solo primo database della lista
+   * multiSelected al solo primo database della lista
    * (dbNames[0]) — una selezione multipla già fatta dall'utente non
    * viene preservata attraverso un reload della lista.
    */
@@ -154,7 +159,6 @@ export default function DatabaseSelector({ onDatabasesChange, selectedDatabases 
 
       // Se c'è almeno un database, impostalo come default
       if (dbNames.length > 0) {
-        setCurrentDatabase(dbNames[0]);
         setMultiSelected(new Set([dbNames[0]]));
       }
     } catch (err) {
@@ -163,27 +167,6 @@ export default function DatabaseSelector({ onDatabasesChange, selectedDatabases 
     } finally {
       setLoading(false);
     }
-  };
-
-  /**
-   * Cambia database singolo
-
-   * I console.log sotto sono rimasti attivi incondizionatamente (non
-   * dietro un flag di debug) — ad ogni cambio di database nella tendina
-   * "Singolo", scrivono in console ad ogni interazione dell'utente.
-   */
-  const handleSingleDatabaseChange = (dbName) => {
-    console.log('🔄 handleSingleDatabaseChange CHIAMATO con:', dbName);
-    
-    setCurrentDatabase(dbName);
-    setMultiSelected(new Set([dbName]));
-    
-    console.log('📤 Chiamo onDatabasesChange con:', [dbName]);
-    console.log('📤 Tipo di onDatabasesChange:', typeof onDatabasesChange);
-    
-    onDatabasesChange([dbName], null);
-    
-    console.log('✅ onDatabasesChange chiamato');
   };
 
   /**
@@ -223,7 +206,9 @@ export default function DatabaseSelector({ onDatabasesChange, selectedDatabases 
         db2: '',
         joinType: 'INNER',
         joinKey: '',
-        db2JoinKey: ''
+        db2JoinKey: '',
+        alias1: '',
+        alias2: ''
       });
     }
 
@@ -241,18 +226,22 @@ export default function DatabaseSelector({ onDatabasesChange, selectedDatabases 
 
   /**
    * Valida join config
+   *
+   * NOTA (13/08): joinKey/db2JoinKey non sono più obbligatorie — JCoQL+
+   * accetta un JOIN OF COLLECTIONS senza nessuna condizione dopo (prodotto
+   * cartesiano completo tra le due collezioni), quindi lasciarle vuote è
+   * un caso legittimo, non un form incompleto. L'unico requisito reale è
+   * avere due database diversi selezionati.
    */
   const isJoinValid = () => {
     return (
       joinConfig.db1 &&
       joinConfig.db2 &&
-      joinConfig.db1 !== joinConfig.db2 &&
-      joinConfig.joinKey &&
-      joinConfig.db2JoinKey
+      joinConfig.db1 !== joinConfig.db2
     );
   };
 
-  // RENDER
+  // ================== RENDER ==================
 
   if (loading) {
     return (
@@ -268,41 +257,7 @@ export default function DatabaseSelector({ onDatabasesChange, selectedDatabases 
 
       {error && <div className="error-box">{error}</div>}
 
-      {/* ──────────── MODE SELECTOR ──────────── */}
-      <div className="mode-tabs">
-        <button
-          className={`tab ${mode === 'single' ? 'active' : ''}`}
-          onClick={() => setMode('single')}
-        >
-          📦 Singolo
-        </button>
-        <button
-          className={`tab ${mode === 'multi' ? 'active' : ''}`}
-          onClick={() => setMode('multi')}
-        >
-          🗄️ Multipli
-        </button>
-      </div>
-
-      {/* ──────────── SINGLE MODE ──────────── */}
-      {mode === 'single' && (
-        <div className="mode-content">
-          <label>Database Attuale:</label>
-          <select
-            value={currentDatabase}
-            onChange={(e) => handleSingleDatabaseChange(e.target.value)}
-            className="select-db"
-          >
-            {availableDatabases.map(db => (
-              <option key={db} value={db}>{db}</option>
-            ))}
-          </select>
-        </div>
-      )}
-
-      {/* ──────────── MULTI MODE ──────────── */}
-      {mode === 'multi' && (
-        <div className="mode-content">
+      <div className="mode-content">
           {/* Database checkboxes CON BOTTONE RIMUOVI */}
           <label className="section-label">Database da selezionare:</label>
           <div className="checkboxes">
@@ -347,19 +302,13 @@ export default function DatabaseSelector({ onDatabasesChange, selectedDatabases 
               {/* Join form */}
               {joinMode && (
                 <div className="join-form">
-                  <div className="form-group">
-                    <label>Tipo JOIN:</label>
-                    <select
-                      value={joinConfig.joinType}
-                      onChange={(e) => handleJoinConfigChange('joinType', e.target.value)}
-                    >
-                      <option value="INNER">INNER JOIN</option>
-                      <option value="LEFT">LEFT JOIN</option>
-                      <option value="RIGHT">RIGHT JOIN</option>
-                      <option value="FULL">FULL OUTER JOIN</option>
-                    </select>
-                  </div>
-
+                  {/* Il selettore "Tipo JOIN" è stato tolto: con un solo
+                      tipo supportato (INNER — JCoQL+ non ha un concetto
+                      nativo di LEFT/RIGHT/FULL OUTER JOIN, vedi
+                      join_executor.py), un menu con una sola opzione non
+                      serviva a nulla se non a occupare spazio. joinType
+                      resta fissato a 'INNER' internamente (vedi lo stato
+                      iniziale di joinConfig). */}
                   <div className="form-group">
                     <label>Database 1:</label>
                     <select
@@ -373,10 +322,20 @@ export default function DatabaseSelector({ onDatabasesChange, selectedDatabases 
                   </div>
 
                   <div className="form-group">
-                    <label>Join Key in {joinConfig.db1}:</label>
+                    <label>Alias per {joinConfig.db1} (opzionale):</label>
                     <input
                       type="text"
-                      placeholder="es: .user_id"
+                      placeholder="es: t1 — vuoto = nessun AS nella query"
+                      value={joinConfig.alias1}
+                      onChange={(e) => handleJoinConfigChange('alias1', e.target.value)}
+                    />
+                  </div>
+
+                  <div className="form-group">
+                    <label>Join Key in {joinConfig.db1} (opzionale):</label>
+                    <input
+                      type="text"
+                      placeholder="es: .user_id — vuoto = JOIN senza condizione"
                       value={joinConfig.joinKey}
                       onChange={(e) => handleJoinConfigChange('joinKey', e.target.value)}
                     />
@@ -398,26 +357,36 @@ export default function DatabaseSelector({ onDatabasesChange, selectedDatabases 
                   </div>
 
                   {joinConfig.db2 && (
-                    <div className="form-group">
-                      <label>Join Key in {joinConfig.db2}:</label>
-                      <input
-                        type="text"
-                        placeholder="es: .id"
-                        value={joinConfig.db2JoinKey}
-                        onChange={(e) => handleJoinConfigChange('db2JoinKey', e.target.value)}
-                      />
-                    </div>
+                    <>
+                      <div className="form-group">
+                        <label>Alias per {joinConfig.db2} (opzionale):</label>
+                        <input
+                          type="text"
+                          placeholder="es: t2 — vuoto = nessun AS nella query"
+                          value={joinConfig.alias2}
+                          onChange={(e) => handleJoinConfigChange('alias2', e.target.value)}
+                        />
+                      </div>
+                      <div className="form-group">
+                        <label>Join Key in {joinConfig.db2} (opzionale):</label>
+                        <input
+                          type="text"
+                          placeholder="es: .id — vuoto = JOIN senza condizione"
+                          value={joinConfig.db2JoinKey}
+                          onChange={(e) => handleJoinConfigChange('db2JoinKey', e.target.value)}
+                        />
+                      </div>
+                    </>
                   )}
 
                   <div className={`join-status ${isJoinValid() ? 'valid' : 'invalid'}`}>
-                    {isJoinValid() ? '✅ Valido' : '⚠️ Completa campi'}
+                    {isJoinValid() ? '✅ Valido' : '⚠️ Seleziona due database diversi'}
                   </div>
                 </div>
               )}
             </div>
           )}
-        </div>
-      )}
+      </div>
 
       {/* ──────────── ADD DATABASE FORM ──────────── */}
       <button 
