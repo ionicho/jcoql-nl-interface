@@ -145,3 +145,51 @@ Descrizione: Prodotti biologici con posti a sedere esterni (confronto esplicito 
 Query:
 GET COLLECTION restaurants;
 FILTER CASE WHERE .outdoor_seating = true AND .gluten_free_menu = true KEEP OTHERS;
+
+ESEMPIO 21: GET COLLECTION da una risorsa web
+----------------------------------------------
+Descrizione: Recupera un documento JSON pubblicato a un URL (non da un database).
+Query:
+GET COLLECTION FROM WEB 'https://api.esempio.it/dati.json';
+
+ESEMPIO 22: GET COLLECTION da un file locale
+----------------------------------------------
+Descrizione: Carica una collezione da un file JSON locale sul server (non da un database).
+Query:
+GET COLLECTION FROM FILE 'dati_locali.json';
+
+ESEMPIO 23: GENERATE BUILD - restringere/rinominare i campi restituiti
+----------------------------------------------
+Descrizione: Prodotti con prezzo positivo, mostrando solo nome e prezzo rinominato in "costo".
+Query:
+GET COLLECTION products;
+FILTER CASE WHERE .price > 0 GENERATE BUILD { .name: .name, .costo: .price } KEEP OTHERS;
+
+ESEMPIO 24: GENERATE ADD FIELDS - aggiungere un campo mantenendo gli altri
+----------------------------------------------
+Descrizione: Ordini con priorità urgente, aggiungendo un campo "verificato" con il valore del campo status esistente.
+Query:
+GET COLLECTION orders;
+FILTER CASE WHERE .priority = 'urgent' GENERATE ADD FIELDS { .verificato: .status } KEEP OTHERS;
+
+ESEMPIO 25: GENERATE REMOVE FIELDS - togliere un campo dal risultato
+----------------------------------------------
+Descrizione: Ristoranti con rating alto, escludendo il campo descrizione dal risultato.
+Query:
+GET COLLECTION restaurants;
+FILTER CASE WHERE .rating >= 4 GENERATE REMOVE FIELDS { .description } KEEP OTHERS;
+
+ESEMPIO 26: GENERATE senza condizione - trasforma tutti i documenti
+----------------------------------------------
+Descrizione: Da tutti i prodotti, mostra solo nome e categoria (nessun filtro, solo restrizione dei campi).
+Query:
+GET COLLECTION products;
+FILTER GENERATE BUILD { .name: .name, .categoria: .category };
+
+ESEMPIO 27: GET DICTIONARY + TRANSLATE - tradurre un valore tramite un dizionario
+----------------------------------------------
+Descrizione: Prodotti con il nome della categoria tradotto/mappato tramite un dizionario caricato da un'altra collezione (es. categorie con codice -> nome esteso).
+Query:
+GET DICTIONARY categories@jcoql_test AS catdict;
+GET COLLECTION products;
+FILTER GENERATE ADD FIELDS { .category_translated: TRANSLATE(.category, catdict) };

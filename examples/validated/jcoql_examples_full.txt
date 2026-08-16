@@ -174,9 +174,51 @@ Descrizione: Ordini che hanno un numero di tracciamento registrato.
 Query:
 GET COLLECTION orders;
 FILTER CASE WHERE FIELD .tracking_number ISNOTNULL KEEP OTHERS;
-ESEMPIO 25: Array contiene un valore specifico (FILTER diretto, non CONTAINS)
+
+ESEMPIO 25: GROUP con ordinamento all'interno del gruppo
 ----------------------------------------------
-Descrizione: Film in cui recita un attore specifico. JCoQL+ non ha un operatore CONTAINS, ma non serve: confrontare un campo array con un valore singolo verifica automaticamente se l'array contiene quel valore, senza bisogno di EXPAND.
+Descrizione: Prodotti raggruppati per categoria, ordinando gli elementi di ogni gruppo per prezzo decrescente.
 Query:
-GET COLLECTION movies;
-FILTER CASE WHERE .cast = 'Claudio Bisio' KEEP OTHERS;
+GET COLLECTION products;
+GROUP PARTITION TRUE BY .category INTO .items ORDER BY .price TYPE NUMERIC DESC;
+
+ESEMPIO 26: GROUP con più partizioni nello stesso comando
+----------------------------------------------
+Descrizione: Prodotti raggruppati per categoria separatamente per fascia di prezzo (sopra e sotto 500), in un unico comando GROUP.
+Query:
+GET COLLECTION products;
+GROUP PARTITION .price > 500 BY .category INTO .expensive
+      PARTITION .price <= 500 BY .category INTO .cheap;
+
+ESEMPIO 27: EXPAND su più array nello stesso comando
+----------------------------------------------
+Descrizione: Espandi sia le recensioni sia i tag di ciascun prodotto, mantenendo anche i prodotti senza questi campi.
+Query:
+GET COLLECTION products;
+EXPAND UNPACK TRUE ARRAY .reviews TO .review
+       UNPACK TRUE ARRAY .tags TO .tag
+KEEP OTHERS;
+
+ESEMPIO 28: MERGE su più di due database
+----------------------------------------------
+Descrizione: Cerca gli utenti su tre database diversi contemporaneamente, unendo i risultati.
+Query:
+USE DB jcoql_test ON DEFAULT SERVER;
+USE DB test_db ON DEFAULT SERVER;
+USE DB sample_mflix ON DEFAULT SERVER;
+MERGE COLLECTIONS users@jcoql_test, users@test_db, users@sample_mflix;
+
+ESEMPIO 29: Più JOIN concatenati nella stessa richiesta, con chiave dentro un array
+----------------------------------------------
+Descrizione: Ordini con i dati dell'utente che li ha effettuati, e con i dati di ciascun prodotto acquistato (il riferimento al prodotto è dentro un array "items" di ogni ordine, quindi serve un EXPAND tra i due JOIN per srotolarlo prima di poterlo confrontare).
+Query:
+USE DB jcoql_test ON DEFAULT SERVER;
+JOIN OF COLLECTIONS orders@jcoql_test AS a, users@jcoql_test AS b
+CASE WHERE .a.user_id = .b._id;
+SAVE AS chaintemp1@jcoql_test;
+GET COLLECTION chaintemp1;
+EXPAND UNPACK TRUE ARRAY .a.items TO .item;
+SAVE AS chaintemp2@jcoql_test;
+USE DB jcoql_test ON DEFAULT SERVER;
+JOIN OF COLLECTIONS chaintemp2@jcoql_test AS c, products@jcoql_test AS d
+CASE WHERE .c.item.item.product_id = .d._id;

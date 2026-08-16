@@ -146,10 +146,13 @@ class MongoSchemaDiscoverer:
     def _extract_fields(self, doc: dict, fields_info: dict, prefix: str = ""):
         """Estrae tutti i campi da un documento in modo ricorsivo."""
         for key, value in doc.items():
-            # Evita di tracciare l'ID interno di MongoDB (opzionale, se serve levalo)
-            if key == '_id':
-                continue
-            
+            # FIX (15/08): _id veniva escluso dallo schema mostrato all'LLM
+            # nel prompt — ma è spesso l'identificativo vero usato come
+            # chiave di join (es. products._id, non un separato
+            # "product_id"), e l'LLM, non sapendo che esiste, indovinava
+            # un altro campo (osservato: .d.name invece di .d._id in un
+            # JOIN concatenato). Non c'è più motivo di nasconderlo.
+
             # Costruisci il percorso del campo (es: "address.city")
             field_path = f"{prefix}.{key}" if prefix else key
             
