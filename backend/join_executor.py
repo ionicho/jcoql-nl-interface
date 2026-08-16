@@ -219,6 +219,21 @@ class JoinExecutor:
             join_logger.warning(f"JOIN non costruito: {build_error}")
             return [], None, build_error
 
+        # FIX (16/08): questo percorso non passava mai dalla validazione
+        # standard (self.parser.validate) prima di eseguire — a differenza
+        # del percorso normale/diretto, che la esegue sempre prima di
+        # chiamare l'executor. Scoperto perché un JOIN tra due collezioni
+        # con lo stesso nome senza alias veniva eseguito comunque da qui
+        # (il motore è più permissivo del validatore), producendo un
+        # silenzioso "0 risultati" invece del vero errore semantico che il
+        # parser ufficiale segnala esplicitamente per questo caso
+        # ("Collections in JOIN must have different names or aliases").
+        is_valid, validation_errors = self.parser.validate(native_query)
+        if not is_valid:
+            error_detail = "; ".join(e.message for e in validation_errors) if validation_errors else "query non valida"
+            join_logger.warning(f"JOIN nativo non valido secondo il parser: {error_detail}")
+            return [], native_query, f"Query JOIN non valida: {error_detail}"
+
         try:
             executor = self.executor_factory.create_executor(
                 "jco_framework",

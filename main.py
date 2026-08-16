@@ -1223,7 +1223,22 @@ async def execute_query(request: QueryRequest):
             return {"success": False, "error": "Query vuota"}
 
         # 2. Gestione JOIN mode (se presente)
-        if join_config and len(databases) >= 2:
+        # FIX (15/08): join_executor.execute_join() presuppone sempre che
+        # jcoql_query sia una query semplice ("GET COLLECTION nome; ...")
+        # da cui costruire lui il JOIN nativo — ma dopo un'esecuzione il
+        # pannello frontend si riallinea alla query REALMENTE eseguita
+        # (comportamento voluto, per mostrare cosa gira davvero), che per
+        # un JOIN è già un "JOIN OF COLLECTIONS ...;" completo. Se poi si
+        # riesegue senza rigenerare da linguaggio naturale, join_config è
+        # ancora attivo ma jcoql_query non è più una query semplice —
+        # join_executor falliva con "Impossibile estrarre il nome della
+        # collection" perché cercava un pattern "GET COLLECTION" che non
+        # c'è più. Se il testo è già una query JOIN completa, la eseguiamo
+        # così com'è (stesso percorso di qualunque altra query diretta),
+        # invece di provare a ricostruirla da zero.
+        query_is_already_join = bool(re.search(r'JOIN\s+OF\s+COLLECTIONS', jcoql_query, re.IGNORECASE))
+
+        if join_config and len(databases) >= 2 and not query_is_already_join:
             query_logger.info("🔗 JOIN MODE ATTIVATO")
             join_executor = JoinExecutor(ExecutorFactory, parser, db_registry)
             actual_results, native_join_query, join_error = join_executor.execute_join(jcoql_query, join_config)
@@ -1289,9 +1304,15 @@ async def execute_query(request: QueryRequest):
             # fermava già qui, prima di arrivare all'executor.
             query_logger.warning(f"⚠️ Query non valida: {jcoql_query}")
             query_logger.warning(f"   Errori parser: {errors}")
+            # FIX (16/08): str(e) su un oggetto ValidationError stampa il
+            # repr Python di default ("<... object at 0x...>"), non il
+            # messaggio — mai notato prima perché 'errors' era sempre vuota
+            # in questo punto specifico (altro bug, corretto in
+            # java_parser_wrapper.py), quindi il ramo "else" veniva sempre
+            # preso. Va usato l'attributo .message dell'oggetto.
             return {
                 "success": False,
-                "error": "Query non valida: " + "; ".join(str(e) for e in errors) if errors else "Query non valida"
+                "error": "Query non valida: " + "; ".join(e.message for e in errors) if errors else "Query non valida"
             }
 
         query_logger.info(f"📤 Esecuzione: {jcoql_query}")

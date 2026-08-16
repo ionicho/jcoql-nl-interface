@@ -64,6 +64,19 @@ def validate_with_java_parser(query: str) -> dict:
                 errors.append(line.strip())
             elif re.match(r'^\d+\.\s+Warning', line):
                 warnings.append(line.strip())
+
+        # Robustezza: se il parser dichiara errori (num_errors > 0) ma il
+        # ciclo sopra non ne ha estratto nessuno riga per riga (formato di
+        # output inatteso, o un problema transitorio del subprocess), non
+        # lasciare 'errors' vuota — altrimenti l'utente vede solo "Query
+        # non valida" senza nessun dettaglio, indistinguibile da un bug.
+        # Meglio un messaggio meno preciso ma presente.
+        if num_errors > 0 and not errors:
+            errors.append(
+                f"Il parser segnala {num_errors} errore/i ma non è stato possibile "
+                f"estrarne il dettaglio dall'output — possibile problema transitorio "
+                f"del subprocess Java, riprova. Output grezzo: {output[:300]}"
+            )
         
         return {
             'is_valid': num_errors == 0,

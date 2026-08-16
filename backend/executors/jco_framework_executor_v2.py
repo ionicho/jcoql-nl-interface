@@ -1174,6 +1174,34 @@ class JCoFrameworkExecutor:
 
 
 
+    def _cleanup_chaintemp_collections(self, jcoql_query):
+        """
+        Pulizia "best-effort" delle collection intermedie chaintempN
+        (create da un JOIN concatenato — vedi prompt in main.py) quando
+        l'esecuzione fallisce a metà catena. Prima questa pulizia viveva
+        solo dentro _read_temp_result(), chiamato solo sul percorso di
+        successo — se il primo JOIN di una catena riusciva e creava
+        chaintemp1, ma un passaggio successivo falliva, chaintemp1 restava
+        in giro su MongoDB, mai ripulito. Richiamata sia dal ramo di
+        successo sia da quelli di errore, così la pulizia avviene comunque.
+        Ogni errore qui viene deliberatamente ignorato: è una pulizia
+        opportunistica, non deve mai essere la causa di un errore mostrato
+        all'utente al posto di quello vero dell'esecuzione.
+        """
+        try:
+            from pymongo import MongoClient
+            matches = re.findall(r'SAVE\s+AS\s+(chaintemp\w*)\s*@\s*(\w+)', jcoql_query, re.IGNORECASE)
+            if not matches:
+                return
+            with MongoClient(self.mongo_uri) as client:
+                for name, db in matches:
+                    try:
+                        client[db][name].drop()
+                    except Exception:
+                        pass
+        except Exception:
+            pass
+
     def _read_temp_result(self, temp_collection_name, output, jcoql_query):
         """
         Rilegge da MongoDB il vero risultato prodotto dal motore, salvato dal
@@ -1505,6 +1533,10 @@ class JCoFrameworkExecutor:
                     'executor': 'jco_framework'
                 }
             else:
+                # Pulizia best-effort delle eventuali chaintempN già create
+                # prima del fallimento (vedi _cleanup_chaintemp_collections).
+                self._cleanup_chaintemp_collections(jcoql_query)
+
                 # Estrae un messaggio d'errore leggibile dallo stdout Java, invece del
                 # generico "Failed" che non dice nulla di utile all'utente (vedi indagine
                 # SAVE AS: senza questo, ogni fallimento appariva identico e indistinguibile).
@@ -1526,4 +1558,5 @@ class JCoFrameworkExecutor:
                     'executor': 'jco_framework'
                 }
         except Exception as e:
+            self._cleanup_chaintemp_collections(jcoql_query)
             return {'success': False, 'error': str(e), 'executor': 'jco_framework'}
