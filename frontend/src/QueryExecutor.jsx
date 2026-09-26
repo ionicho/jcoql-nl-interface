@@ -1,9 +1,8 @@
 // ==========================================
 // 1. IMPORTAZIONI
 // ==========================================
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import axios from 'axios';
-import Favorites, { loadFavorites, persistFavorites } from './Favorites';
 import './QueryExecutor.css';
 
 // ==========================================
@@ -30,7 +29,13 @@ import './QueryExecutor.css';
 //   prima bisognava cambiare tab per vedere l'una o l'altra, ora l'input
 //   NL e il pannello query sono sempre entrambi visibili insieme.
 // ==========================================
-export default function QueryExecutor({ selectedDatabases = [], joinConfig = null, onDisableJoin = () => {} }) {
+export default function QueryExecutor({
+  selectedDatabases = [],
+  joinConfig = null,
+  onDisableJoin = () => {},
+  favoriteToLoad = null,
+  onSaveFavorite = () => {}
+}) {
 
   // --- STATI DEL COMPONENTE ---
   const [nlQuery, setNlQuery] = useState('');
@@ -38,6 +43,23 @@ export default function QueryExecutor({ selectedDatabases = [], joinConfig = nul
   const [isGenerating, setIsGenerating] = useState(false);
   const [isExecuting, setIsExecuting] = useState(false);
   const [results, setResults] = useState(null);
+
+  // Campo "Query in Linguaggio Naturale": si adatta all'altezza del testo
+  // scritto, invece di restare a una riga fissa. Il ref serve per leggere
+  // scrollHeight (l'altezza reale del contenuto) e applicarla come nuova
+  // altezza — va rifatto ogni volta che nlQuery cambia, non solo quando
+  // l'utente digita, perché cambia anche caricando un preferito o con
+  // il pulsante "Pulisci" sotto.
+  const nlQueryRef = useRef(null);
+  useEffect(() => {
+    const el = nlQueryRef.current;
+    if (!el) return;
+    el.style.height = 'auto';
+    // +2px di margine: senza, l'altezza calcolata a filo su scrollHeight
+    // tagliava visivamente le lettere con parti sopra/sotto la riga di
+    // base (p, f, la Q maiuscola che sembrava una O).
+    el.style.height = `${el.scrollHeight + 2}px`;
+  }, [nlQuery]);
   const [error, setError] = useState('');
 
   // Esito dell'ultima generazione (null se la query attuale è stata
@@ -45,12 +67,18 @@ export default function QueryExecutor({ selectedDatabases = [], joinConfig = nul
   // pannello di output unificato insieme alla query.
   const [generationInfo, setGenerationInfo] = useState(null);
 
-  // Preferiti: caricati una volta all'avvio, persistiti ad ogni modifica.
-  const [favorites, setFavorites] = useState(() => loadFavorites());
-
+  // Preferiti: stato e persistenza spostati in App.jsx (17/08), il
+  // pannello ora vive nella sidebar sotto "Database", non più qui in
+  // fondo. "Carica" arriva da fuori tramite favoriteToLoad (un segnale,
+  // cambia ad ogni click anche sulla stessa preferita — vedi App.jsx);
+  // "Salva" resta un'azione locale (il pulsante è qui vicino alla query
+  // corrente) ma il risultato va su tramite onSaveFavorite.
   useEffect(() => {
-    persistFavorites(favorites);
-  }, [favorites]);
+    if (favoriteToLoad) {
+      handleLoadFavorite(favoriteToLoad);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [favoriteToLoad]);
 
   // ==========================================
   // 3. HANDLERS (FUNZIONI LOGICHE)
@@ -66,6 +94,12 @@ export default function QueryExecutor({ selectedDatabases = [], joinConfig = nul
     setError('');
     setResults(null);
     setGenerationInfo(null);
+    // FIX (26/09): mancava qui — l'unico setJcoqlQuery('') nel file era
+    // quello di handleDisableJoinClick (riga ~259), una funzione diversa.
+    // Senza questo, la vecchia query restava a schermo finché la nuova
+    // non arrivava dalla risposta, sovrascrivendola senza un intervallo
+    // vuoto visibile nel mezzo.
+    setJcoqlQuery('');
 
     // Nota: a differenza di handleExecute sotto, questa chiamata a
     // /api/generate non invia joinConfig — il join tra due database
@@ -111,10 +145,16 @@ export default function QueryExecutor({ selectedDatabases = [], joinConfig = nul
       });
 
       if (!response.data.is_valid) {
-        setError('Query generata non valida — vedi i dettagli sotto.');
+        setError('Query generata non valida — vedi i dettagli sopra.');
       }
     } catch (err) {
-      setError('Errore generazione: ' + err.message);
+      // FIX (17/09): usava solo err.message (il messaggio generico di
+      // Axios, es. "Request failed with status code 500") — mai il
+      // dettaglio vero che il backend manda in err.response.data.detail
+      // (es. il caso specifico del limite di quota Gemini, ora gestito
+      // lì con un messaggio chiaro). Preferisce il dettaglio quando c'è,
+      // torna al messaggio generico solo se manca.
+      setError('Errore generazione: ' + (err.response?.data?.detail || err.message));
     } finally {
       setIsGenerating(false);
     }
@@ -176,7 +216,7 @@ export default function QueryExecutor({ selectedDatabases = [], joinConfig = nul
         setError('Errore esecuzione: ' + data.error);
       }
     } catch (err) {
-      setError('Errore esecuzione: ' + err.message);
+      setError('Errore esecuzione: ' + (err.response?.data?.detail || err.message));
     } finally {
       setIsExecuting(false);
     }
@@ -202,11 +242,7 @@ export default function QueryExecutor({ selectedDatabases = [], joinConfig = nul
       jcoqlQuery: jcoqlQuery.trim(),
       timestamp: new Date().toISOString()
     };
-    setFavorites([newFavorite, ...favorites]);
-  };
-
-  const handleDeleteFavorite = (id) => {
-    setFavorites(favorites.filter((f) => f.id !== id));
+    onSaveFavorite(newFavorite);
   };
 
   const handleLoadFavorite = (fav) => {
@@ -285,15 +321,34 @@ export default function QueryExecutor({ selectedDatabases = [], joinConfig = nul
         <label className="block text-sm font-medium text-gray-700 mb-2">
           Query in Linguaggio Naturale
         </label>
-        <div className="flex gap-2">
-          <input
-            type="text"
+        <div className="flex gap-2 items-start">
+          <textarea
+            ref={nlQueryRef}
             value={nlQuery}
             onChange={(e) => setNlQuery(e.target.value)}
-            onKeyPress={(e) => e.key === 'Enter' && handleGenerate()}
+            onKeyDown={(e) => {
+              // Invio da solo genera; Shift+Invio va a capo normalmente
+              // (comportamento comune per i campi di testo che crescono).
+              if (e.key === 'Enter' && !e.shiftKey) {
+                e.preventDefault();
+                handleGenerate();
+              }
+            }}
             placeholder="Es: Prodotti di elettronica con sconto maggiore del 20%"
-            className="flex-1 px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+            rows={2}
+            className="flex-1 px-4 py-3 leading-relaxed border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent resize-none overflow-y-auto"
+            style={{ maxHeight: '200px', minHeight: '60px' }}
           />
+          {nlQuery && (
+            <button
+              type="button"
+              onClick={() => setNlQuery('')}
+              title="Cancella il testo"
+              className="px-4 py-3 rounded-lg font-medium border border-gray-300 text-gray-600 hover:bg-gray-50 transition-colors"
+            >
+              🗑️ Pulisci
+            </button>
+          )}
           <button
             onClick={handleGenerate}
             disabled={isGenerating}
@@ -441,6 +496,17 @@ export default function QueryExecutor({ selectedDatabases = [], joinConfig = nul
             </div>
           )}
 
+          {/* Trasparenza sul risultato (17/09): il backend segnala qui
+              (results.warning) quando trova riferimenti .item.item.XXX_id
+              mai risolti da un JOIN successivo — non un errore, non blocca
+              nulla, solo un'informazione in più perché non c'è modo per
+              l'utente di sapere a priori se il risultato è completo. */}
+          {results.warning && (
+            <div className="mb-4 bg-amber-50 border border-amber-300 text-amber-800 px-4 py-3 rounded-lg text-sm">
+              ⚠️ {results.warning}
+            </div>
+          )}
+
           {results.count === 0 ? (
             <div className="text-center py-8 text-gray-500">
               Nessun risultato trovato
@@ -494,11 +560,6 @@ export default function QueryExecutor({ selectedDatabases = [], joinConfig = nul
       )}
 
       {/* --- PREFERITI --- */}
-      <Favorites
-        favorites={favorites}
-        onLoad={handleLoadFavorite}
-        onDelete={handleDeleteFavorite}
-      />
     </div>
   );
 }
