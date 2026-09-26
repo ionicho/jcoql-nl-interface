@@ -214,7 +214,8 @@ export default function Dashboard() {
 
         {/* ════════════════ FOOTER ════════════════ */}
         <div className="text-center py-8 text-gray-600 text-sm border-t border-gray-200">
-          <p>JCoQL+ Natural Language Interface • JCo Framework • Production-Ready 🎓</p>
+          <p>Iotti Nicholas</p>
+          <p>JCoQL+ Natural Language Interface • Università degli Studi di Bergamo </p>
           <p className="text-xs text-gray-500 mt-2">Dashboard aggiornato automaticamente ogni 10 secondi</p>
         </div>
 

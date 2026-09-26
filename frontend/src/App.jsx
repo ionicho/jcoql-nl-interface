@@ -10,6 +10,7 @@ import axios from 'axios'
 import DatabaseSelector from './DatabaseSelector'
 import QueryExecutor from './QueryExecutor'
 import Dashboard from './Dashboard'
+import Favorites, { loadFavorites, persistFavorites } from './Favorites'
 import './App.css'
 
 // ==========================================
@@ -40,6 +41,26 @@ function MainInterface() {
   // stati (quello qui e quello interno a DatabaseSelector).
   const [joinResetSignal, setJoinResetSignal] = useState(0)
   const handleDisableJoin = () => setJoinResetSignal((s) => s + 1)
+
+  // Preferiti: spostati qui da QueryExecutor.jsx (16/08 → 17/08) per poter
+  // mostrare il pannello nella sidebar, sotto "Database" — prima stava in
+  // fondo al pannello principale, che con risultati lunghi finiva molto in
+  // basso, scomodo da raggiungere. "Salva" resta un'azione avviata da
+  // dentro QueryExecutor (il pulsante è lì, vicino alla query corrente),
+  // quindi passata giù come callback; "Carica" invece nasce nella sidebar
+  // e deve arrivare a QueryExecutor — usa lo stesso meccanismo a segnale
+  // già impiegato per la disattivazione del JOIN sopra: un valore che
+  // cambia ad ogni click (mai lo stesso riferimento due volte, altrimenti
+  // cliccare due volte di fila la stessa preferita non farebbe scattare
+  // l'effect in QueryExecutor la seconda volta).
+  const [favorites, setFavorites] = useState(() => loadFavorites())
+  useEffect(() => {
+    persistFavorites(favorites)
+  }, [favorites])
+  const [favoriteToLoad, setFavoriteToLoad] = useState(null)
+  const handleLoadFavoriteRequest = (fav) => setFavoriteToLoad({ ...fav, _loadTs: Date.now() })
+  const handleSaveFavorite = (newFavorite) => setFavorites([newFavorite, ...favorites])
+  const handleDeleteFavorite = (id) => setFavorites(favorites.filter((f) => f.id !== id))
 
   // --- STATO PARSER ATTIVO (letto dal backend, non più hardcoded) ---
   const [activeParser, setActiveParser] = useState(null)
@@ -175,7 +196,7 @@ function MainInterface() {
           />
         </aside>
 
-        {/* ──────────── MAIN CONTENT (Destra) ──────────── */}
+        {/* ──────────── MAIN CONTENT (Centro) ──────────── */}
         <main className="main-content">
 
           {/* QUERY EXECUTOR — unico punto di generazione ed esecuzione
@@ -188,10 +209,25 @@ function MainInterface() {
               joinConfig={joinConfig}
               llmModel={selectedLlm}
               onDisableJoin={handleDisableJoin}
+              favoriteToLoad={favoriteToLoad}
+              onSaveFavorite={handleSaveFavorite}
             />
           </section>
 
         </main>
+
+        {/* ──────────── PREFERITI (Destra) ────────────
+            Colonna propria (17/08), non più sotto Database nella sidebar —
+            il form del JOIN può allungarsi parecchio, spingendo i
+            preferiti fuori schermo. Qui l'altezza della sidebar non la
+            tocca mai. */}
+        <aside className="favorites-column">
+          <Favorites
+            favorites={favorites}
+            onLoad={handleLoadFavoriteRequest}
+            onDelete={handleDeleteFavorite}
+          />
+        </aside>
       </div>
 
       {/* ════════════════ FOOTER ════════════════ */}

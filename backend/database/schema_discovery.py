@@ -68,6 +68,22 @@ class MongoSchemaDiscoverer:
         try:
             # Recupera dinamicamente le collezioni del database corrente
             collection_names = self.database.list_collection_names()
+
+            # FIX (16/08): esclude le collection temporanee interne
+            # (nlquery*, chaintemp*) dalla scoperta dello schema — se una
+            # di queste fosse rimasta per caso in MongoDB nel momento esatto
+            # in cui questa scansione parte (es. un vecchio residuo da
+            # prima di un fix di pulizia, o un avvio del backend proprio
+            # durante l'esecuzione di una query), verrebbe altrimenti
+            # "scoperta" come se fosse una collection vera, e l'LLM
+            # potrebbe arrivare a referenziarla in una query generata come
+            # se fosse un dato reale dell'utente (osservato dal vivo: un
+            # GET COLLECTION su un nome nlquery<hex>).
+            collection_names = [
+                c for c in collection_names
+                if not (c.startswith('nlquery') or c.startswith('chaintemp'))
+            ]
+
             discovery_logger.info(f"🔍 Scoperta collezioni in {self.database_name}: {collection_names}")
             
             for collection_name in collection_names:

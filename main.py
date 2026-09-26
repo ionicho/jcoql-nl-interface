@@ -137,6 +137,264 @@ def _fix_hallucinated_databases(query: str, current_db: str, real_databases: set
     return query
 
 
+def _build_multi_database_query(generated_query: str, databases: list, all_databases: dict) -> str:
+    """
+    Costruzione deterministica (16/08, sullo stesso modello di
+    join_executor.py per il JOIN): se sono selezionati 2+ database, la
+    generazione LLM scrive sempre e solo per il database corrente (non ha
+    modo di sapere se l'utente intendesse coinvolgerli tutti) — prima si
+    chiedeva all'LLM di dedurlo dalla formulazione della richiesta
+    ("cerca su tutti i database selezionati"), ma è un'aspettativa poco
+    intuitiva: selezionare più database in un controllo di selezione
+    dovrebbe significare "usali", non "tienili disponibili nel caso li
+    nomini esplicitamente". Ora, quando 2+ database sono selezionati e la
+    query generata è un semplice "GET COLLECTION nome;" (eventualmente
+    seguito da altro, es. FILTER — preservato e applicato dopo l'unione),
+    viene ricostruita automaticamente per coprire TUTTI i database
+    selezionati tramite MERGE COLLECTIONS.
+
+    FIX (18/09): prima includeva CIECAMENTE ogni database selezionato,
+    anche quando quel database non ha affatto la collection in
+    questione — osservato dal vivo: "MERGE COLLECTIONS products@db1,
+    products@db2;" generato anche se db2 non ha nessuna collection
+    "products", con un test che ha richiesto solo "prodotti con prezzo
+    > 500...", senza mai menzionare più database. Ora include SOLO i
+    database che hanno davvero quella collection nel proprio schema
+    scoperto. Se resta un solo database valido (o nessuno oltre al
+    corrente), il MERGE non avrebbe senso — la query semplice originale
+    non viene toccata.
+
+    Non tocca la query se non è nella forma semplice attesa (es. contiene
+    già JOIN/GROUP/EXPAND/MERGE espliciti) — la costruzione automatica
+    riguarda solo il caso base "prendi questa collection", che è anche
+    l'unico caso per cui un'unione multi-database ha un significato ovvio
+    e univoco.
+    """
+    if not databases or len(databases) < 2:
+        return generated_query
+
+    match = re.match(r'^\s*GET\s+COLLECTION\s+(\w+)\s*;(.*)$', generated_query, re.IGNORECASE | re.DOTALL)
+    if not match:
+        return generated_query
+
+    collection_name = match.group(1)
+    rest = match.group(2).strip()
+
+    valid_databases = [
+        db for db in databases
+        if collection_name in ((all_databases.get(db, {}) or {}).get('schema', {}) or {})
+    ]
+
+    if len(valid_databases) < 2:
+        return generated_query
+
+    use_db_lines = "\n".join(f"USE DB {db} ON DEFAULT SERVER;" for db in valid_databases)
+    merge_refs = ", ".join(f"{collection_name}@{db}" for db in valid_databases)
+
+    result = f"{use_db_lines}\nMERGE COLLECTIONS {merge_refs};"
+    if rest:
+        result += f"\n{rest}"
+    return result
+
+
+def _fix_array_field_filter(query: str, current_schema: dict) -> str:
+    """
+    Riparazione deterministica (16/08): un FILTER CASE WHERE che confronta
+    con = o != un campo che lo schema conosce come array (es. .languages,
+    .cast, .tags) non può funzionare così com'è — verificato tracciando
+    l'intera catena nel codice sorgente del motore, da ValueUtils.java
+    (ogni array MongoDB diventa un ArrayValue) fino a
+    ComparisonPredicateEvaluator.java (che rifiuta un confronto = tra un
+    ArrayValue e un valore singolo, sempre, a prescindere dal contenuto).
+
+    Prima di questa settimana funzionava comunque, perché il FILTER veniva
+    ricalcolato lato Python con una gestione esplicita degli array
+    ("value in doc_value" invece di "doc_value == value", commit 339af27)
+    — sostituita dalla strategia "auto SAVE AS" (che affida il calcolo
+    reale al motore, più fedele per JOIN/GROUP/MERGE, ma senza quella
+    gestione speciale degli array che il motore stesso non replica).
+    Questa funzione richiude quel varco senza tornare alla ricostruzione
+    Python: riscrive la query aggiungendo un EXPAND per ciascun campo
+    array coinvolto nella condizione, e aggiorna il riferimento al campo
+    di conseguenza (.campo diventa .expanded_campo.item — "item" è la
+    chiave fissa del motore per il contenuto di un elemento espanso, vedi
+    JCOConstants.java, ITEM_FIELD_NAME).
+
+    Toglie anche un eventuale KEEP OTHERS/DROP OTHERS quando riscrive:
+    la combinazione con un confronto su un campo array che prima falliva
+    sempre silenziosamente è quasi sempre un errore (vedi caso osservato:
+    restituiva praticamente tutta la collection invece delle sole
+    corrispondenze).
+
+    ATTENZIONE PRESTAZIONI (non risolto qui): se la condizione coinvolge
+    PIÙ campi array su una collection grande, gli EXPAND in sequenza
+    creano il prodotto di tutte le combinazioni — può essere lento o
+    andare in timeout (osservato dal vivo su sample_mflix.movies,
+    countries × cast). Qui si risolve solo la correttezza del risultato,
+    non le prestazioni su collection grandi con più array coinvolti — un
+    filtraggio a stadi (EXPAND+FILTER su un campo, poi SAVE AS, poi
+    EXPAND+FILTER sul successivo) risolverebbe anche quello, ma non è
+    implementato in automatico.
+    """
+    coll_match = re.search(r'GET\s+COLLECTION\s+(\w+)\s*;', query, re.IGNORECASE)
+    if not coll_match:
+        return query
+    collection_name = coll_match.group(1)
+
+    coll_schema = (current_schema or {}).get(collection_name, {})
+    coll_fields = coll_schema.get('fields', {}) if isinstance(coll_schema, dict) else {}
+
+    array_fields = set()
+    for field_name, field_info in coll_fields.items():
+        if '.' in field_name:
+            # Ambito limitato ai campi di primo livello — un campo array
+            # annidato dentro un oggetto richiederebbe un percorso EXPAND
+            # più complesso, non gestito qui.
+            continue
+        types = field_info.get('types', []) if isinstance(field_info, dict) else []
+        if 'array' in types:
+            array_fields.add(field_name)
+
+    if not array_fields:
+        return query
+
+    filter_pattern = re.compile(
+        r'FILTER\s+(CASE|CASES)\s+WHERE\s+(.+?)\s*(KEEP\s+OTHERS|DROP\s+OTHERS)?\s*;',
+        re.IGNORECASE | re.DOTALL
+    )
+    m = filter_pattern.search(query)
+    if not m:
+        return query
+
+    case_kw, condition_text, _others_kw = m.groups()
+
+    # FIX (19/09): il controllo originale riconosceva solo il confronto
+    # DIRETTO sull'intero campo array (.campo = valore) — non copriva
+    # l'accesso a un SOTTOCAMPO dentro ogni elemento (.campo.sottoCampo,
+    # es. .reviews.rating) con un operatore DIVERSO da =/!= (es. <, >).
+    # Osservato dal vivo: "NOT (.reviews.rating < 3)" senza EXPAND, mai
+    # intercettato da questo controllo, perché non è un confronto diretto
+    # sull'array e non usa =/!=. Il pattern ora cattura un sottopercorso
+    # opzionale dopo il nome del campo, e qualunque operatore di
+    # confronto (non solo =/!=) — !=/<=/>= prima di =/</> nell'alternanza,
+    # così l'operatore più lungo vince quando entrambi potrebbero
+    # combaciare parzialmente.
+    used_array_fields = [
+        field for field in array_fields
+        if re.search(rf'\.{re.escape(field)}\b(?:\.\w+)*\s*(?:!=|<=|>=|=|<|>)', condition_text)
+    ]
+    if not used_array_fields:
+        return query
+
+    expand_lines = []
+    new_condition = condition_text
+    for field in used_array_fields:
+        dest_name = f"expanded_{field}"
+        expand_lines.append(f"EXPAND UNPACK TRUE ARRAY .{field} TO .{dest_name};")
+        new_condition = re.sub(
+            rf'\.{re.escape(field)}\b((?:\.\w+)*)(\s*(?:!=|<=|>=|=|<|>))',
+            f'.{dest_name}.item\\1\\2',
+            new_condition
+        )
+
+    new_filter_block = f"FILTER {case_kw} WHERE {new_condition};"
+    replacement = "\n".join(expand_lines) + "\n" + new_filter_block
+    return query[:m.start()] + replacement + query[m.end():]
+
+
+def _stage_multi_expand_filter(query: str, current_db: str) -> str:
+    """
+    Riparazione deterministica (16/08): N EXPAND consecutivi (su array
+    diversi) seguiti da un unico FILTER con condizione AND che li
+    referenzia tutti creano il prodotto di tutte le combinazioni prima di
+    scartarne nessuna — su una collection grande, timeout garantito
+    (osservato dal vivo due volte, 30s su sample_mflix.movies con
+    countries × cast). La regola nel prompt suggeriva di "preferire" lo
+    stadio per collezioni grandi, ma l'LLM non ha modo di sapere con
+    certezza quanto sia grande una collection — meglio togliere il
+    giudizio dall'equazione e farlo sempre, in automatico, a prescindere.
+
+    Riscrive in versione a stadi: primo EXPAND, poi SOLO le condizioni del
+    FILTER che riguardano quella destinazione, poi SAVE AS + GET
+    COLLECTION sul risultato ridotto, poi il secondo EXPAND (che ora
+    lavora su molti meno documenti), e così via. Le condizioni non
+    legate a nessuna destinazione EXPAND (es. .year > 2000) vengono
+    applicate al primo stadio.
+
+    Limiti dichiarati: si applica solo a condizioni unite con AND (una
+    OR renderebbe la separazione in stadi semanticamente diversa dalla
+    query originale, quindi qui non si tocca nulla se c'è un OR) e solo
+    se gli EXPAND sono consecutivi con un unico FILTER subito dopo
+    l'ultimo (il caso osservato finora) — pattern più complessi non
+    vengono riconosciuti e la query passa invariata.
+    """
+    expand_pattern = re.compile(
+        r'EXPAND\s+UNPACK\s+TRUE\s+ARRAY\s+\.(\S+)\s+TO\s+\.(\w+)\s*;',
+        re.IGNORECASE
+    )
+    expands = list(expand_pattern.finditer(query))
+    if len(expands) < 2:
+        return query
+
+    for i in range(len(expands) - 1):
+        if query[expands[i].end():expands[i + 1].start()].strip() != '':
+            return query
+
+    filter_pattern = re.compile(
+        r'FILTER\s+(CASE|CASES)\s+WHERE\s+(.+?)\s*(KEEP\s+OTHERS|DROP\s+OTHERS)?\s*;',
+        re.IGNORECASE | re.DOTALL
+    )
+    fm = filter_pattern.search(query, expands[-1].end())
+    if not fm or query[expands[-1].end():fm.start()].strip() != '':
+        return query
+
+    case_kw, condition_text, _others = fm.groups()
+    destinations = [m.group(2) for m in expands]
+
+    if ' OR ' in condition_text.upper():
+        return query
+
+    parts = re.split(r'\s+AND\s+', condition_text, flags=re.IGNORECASE)
+    assigned = {dest: [] for dest in destinations}
+    leftover = []
+    for part in parts:
+        matched = False
+        for dest in destinations:
+            if re.search(rf'\.{re.escape(dest)}\b', part):
+                assigned[dest].append(part.strip())
+                matched = True
+                break
+        if not matched:
+            leftover.append(part.strip())
+    assigned[destinations[0]] = leftover + assigned[destinations[0]]
+
+    # FIX (16/08): prima cercava un "USE DB" nel testo della query per
+    # dedurre il database — ma in questo punto del flusso (dentro il
+    # repair loop di /api/generate) quella riga non c'è ancora, la
+    # aggiunge il frontend solo dopo aver ricevuto la risposta. Il
+    # fallback letterale 'current_db' finiva quindi scritto per davvero
+    # nella query ("SAVE AS chaintemp1@current_db;", un database che non
+    # esiste) invece di essere sostituito. Ora riceve il nome vero come
+    # parametro, stesso valore già usato dal resto della funzione
+    # chiamante per ogni altra riparazione.
+    db_name = current_db
+
+    pieces = []
+    for i, m in enumerate(expands):
+        pieces.append(m.group(0))
+        dest = destinations[i]
+        conds = assigned.get(dest, [])
+        if conds:
+            pieces.append(f"FILTER {case_kw} WHERE {' AND '.join(conds)};")
+        if i < len(expands) - 1:
+            temp_name = f"chaintemp{i + 1}"
+            pieces.append(f"SAVE AS {temp_name}@{db_name};")
+            pieces.append(f"GET COLLECTION {temp_name};")
+
+    replacement = "\n".join(pieces)
+    return query[:expands[0].start()] + replacement + query[fm.end():]
+
+
 def _lookup_field_type(all_databases: dict, db_name: str, coll_name: str, field_name: str):
     """Legge il tipo (o i tipi) osservato per un campo di una collection,
     dallo schema già scoperto — usato solo da _check_join_type_mismatch."""
@@ -148,6 +406,625 @@ def _lookup_field_type(all_databases: dict, db_name: str, coll_name: str, field_
             return ', '.join(types)
     except Exception:
         pass
+    return None
+
+
+def _fix_missing_expand_item_wrapper(query: str) -> str:
+    """
+    Riparazione deterministica (17/09) — a differenza degli altri
+    controlli su EXPAND (che segnalano un problema e forzano un altro
+    tentativo), qui la correzione è CERTA, non richiede indovinare: per
+    ogni destinazione dichiarata da un EXPAND (TO .destName), se compare
+    successivamente come .destName.X dove X NON è "item" né "position",
+    manca il livello fisso "item" del wrapper (JCOConstants.java,
+    ITEM_FIELD_NAME — vedi anche _check_undeclared_expand_reference sopra
+    per il caso complementare, destinazione mai dichiarata). Il percorso
+    corretto per accedere a un sottocampo dell'elemento espanso è SEMPRE
+    .destName.item.X — non .destName.X.
+
+    Osservato dal vivo: con "item" scelto sia come nome di destinazione
+    sia essendo la parola fissa del motore, il modello ha scritto
+    .c.item.product_id invece di .c.item.item.product_id — probabilmente
+    perché il doppio "item" consecutivo sembra un errore di battitura da
+    evitare, anche dopo aver letto la regola che lo richiede esplicitamente.
+
+    Il regex usa un lookbehind negativo (non preceduto da .destName) per
+    non ri-applicarsi al proprio stesso inserimento su match successivi
+    nella stessa stringa — senza quello, ".destName.item.X" già corretto
+    veniva riletto come "ancora mancante" e diventava
+    ".destName.item.item.X", un baco trovato testando questa stessa
+    funzione prima di integrarla.
+    """
+    declared = set(re.findall(r'UNPACK\s+.+?\s+ARRAY\s+\.\S+\s+TO\s+\.(\w+)', query, re.IGNORECASE))
+    if not declared:
+        return query
+    for dest in declared:
+        pattern = re.compile(rf'(?<!\.{re.escape(dest)})\.{re.escape(dest)}\.(?!item\b)(?!position\b)(\w+)')
+        query = pattern.sub(rf'.{dest}.item.\1', query)
+    return query
+
+
+def _remove_pointless_keep_others(query: str) -> str:
+    """
+    Riparazione deterministica (18/09, generalizzata lo stesso giorno):
+    un FILTER con condizione semplice (nessun GENERATE) e KEEP OTHERS
+    presente non ha mai senso, A PRESCINDERE da cosa viene dopo — non
+    solo prima di un SAVE (ambito della prima versione di questa
+    funzione, poi rivelatosi troppo ristretto: osservato dal vivo lo
+    stesso identico problema anche con un FILTER che mostra il
+    risultato direttamente, senza nessun SAVE dopo). Il ragionamento è
+    generale: se non c'è GENERATE, l'UNICO effetto del FILTER è
+    decidere quali documenti passano — con KEEP OTHERS passano tutti
+    comunque, rendendo la condizione scritta completamente priva di
+    effetto. Non esiste un caso legittimo per questa combinazione.
+
+    Non tocca un FILTER con GENERATE (lì KEEP OTHERS ha un senso reale:
+    trasforma/aggiunge un campo a tutti i documenti, mantenendo anche
+    quelli che non soddisfano la condizione — es. un flag "urgente" su
+    ogni ordine, non solo un sottoinsieme).
+    """
+    pattern = re.compile(
+        r'FILTER\s+(CASE|CASES)\s+WHERE\s+([^;]+?)\s+KEEP\s+OTHERS\s*;',
+        re.IGNORECASE
+    )
+
+    def replacer(m):
+        case_kw, condition = m.groups()
+        if 'GENERATE' in condition.upper():
+            return m.group(0)
+        return f"FILTER {case_kw} WHERE {condition};"
+
+    return pattern.sub(replacer, query)
+
+
+def _fix_missing_semicolon_before_save(query: str) -> str:
+    """
+    Riparazione deterministica (18/09) — osservato dal vivo, ripetuto
+    anche dopo l'introduzione di _remove_keep_others_before_save sopra:
+    un FILTER CASE WHERE la cui condizione è seguita DIRETTAMENTE da
+    SAVE AS/SAVE TO FILE, senza il punto e virgola che dovrebbe
+    terminare il FILTER, non è sintassi valida. Sospetto sulla causa:
+    un'abitudine residua del modello a scrivere il punto e virgola
+    subito dopo KEEP OTHERS — togliendo KEEP OTHERS (per la riparazione
+    sopra, o di sua iniziativa) sembra portarsi via anche quello.
+    Inserisce il punto e virgola mancante subito prima di SAVE. Gestisce
+    anche il caso in cui KEEP OTHERS sia presente ma il punto e virgola
+    manchi comunque (non solo il caso senza KEEP OTHERS osservato per
+    primo).
+    """
+    pattern = re.compile(
+        r'(FILTER\s+(?:CASE|CASES)\s+WHERE\s+[^;]+?)\s+(SAVE\s+(?:AS|TO\s+FILE))',
+        re.IGNORECASE
+    )
+    return pattern.sub(r'\1;\n\2', query)
+
+
+def _fix_lowercase_boolean(query: str) -> str:
+    """
+    Riparazione deterministica (18/09) — su un errore trovato testando
+    OR su campo array+diretto: JCoQL+ definisce il token booleano
+    letteralmente come 'TRUE' | 'FALSE' (verificato contro il parser
+    ufficiale) — un valore minuscolo true/false in un confronto non
+    corrisponde a quel token, viene letto come un identificativo
+    generico, e produce un errore di sintassi criptico ("expecting LP",
+    perché il parser prova a interpretarlo come l'inizio di una chiamata
+    a funzione). La correzione è certa e univoca — non richiede un altro
+    tentativo di generazione.
+
+    Non tocca un valore stringa vero (es. .campo = 'true') — il
+    lookbehind/lookahead negativo sugli apici esclude quel caso, così
+    come non tocca un'occorrenza dentro un identificativo più lungo
+    (es. .true_value) grazie ai confini di parola (\\b).
+    """
+    pattern = re.compile(r"(?<!['\"])\b(true|false)\b(?!['\"])", re.IGNORECASE)
+    return pattern.sub(lambda m: m.group(1).upper(), query)
+
+
+def _fix_arithmetic_in_generate(query: str) -> str:
+    """
+    Riparazione deterministica (18/09) — su una regola già esistente nel
+    prompt (vedi REGOLA CRITICA su GENERATE/BUILD) che non si è
+    dimostrata affidabile da sola: il valore di un campo dentro
+    GENERATE ADD FIELDS/BUILD può essere SOLO un riferimento a campo, un
+    valore letterale, o una chiamata a funzione — MAI un'espressione
+    aritmetica diretta (verificato contro il parser ufficiale: perfino
+    una sottrazione o moltiplicazione singola, senza nulla attorno,
+    produce un errore di sintassi). Né gli operatori diretti né funzioni
+    candidate come MULTIPLY/DIVIDE risolvono aritmetica a runtime
+    (verificato dal vivo: 0 documenti, fallimento silenzioso, stesso
+    segnale già visto con SIZE per il conteggio di array) — è un limite
+    del linguaggio, non solo di sintassi.
+
+    Quando trova un valore contenente un operatore aritmetico (+, -, *,
+    /) fuori da una stringa tra apici, lo sostituisce con il PRIMO
+    riferimento a campo (.qualcosa) trovato in quell'espressione — non
+    un calcolo, ma un dato reale e valido invece di un errore di
+    sintassi, in linea con quanto la regola nel prompt già suggerisce
+    come ripiego.
+
+    Scansiona carattere per carattere (non un unico regex) per separare
+    i campi sulle virgole di primo livello, gestendo correttamente le
+    parentesi annidate (es. ".price - (.price * .discount / 100)") senza
+    il rischio di blocco di un pattern regex complesso.
+
+    Limite noto: assume che il blocco GENERATE non contenga a sua volta
+    parentesi graffe annidate (un sotto-oggetto costruito con BUILD
+    dentro un altro campo) — un caso raro, non gestito qui.
+    """
+    block_pattern = re.compile(
+        r'(GENERATE\s+(?:ADD\s+FIELDS|BUILD)\s*)\{([^{}]*)\}',
+        re.IGNORECASE | re.DOTALL
+    )
+
+    def fix_block(m):
+        prefix, inner = m.group(1), m.group(2)
+        parts = []
+        depth = 0
+        current = []
+        for ch in inner:
+            if ch == '(':
+                depth += 1
+            elif ch == ')':
+                depth -= 1
+            if ch == ',' and depth == 0:
+                parts.append(''.join(current))
+                current = []
+            else:
+                current.append(ch)
+        parts.append(''.join(current))
+
+        fixed_parts = []
+        for part in parts:
+            if ':' not in part:
+                fixed_parts.append(part)
+                continue
+            key, _, value = part.partition(':')
+            stripped_value = value.strip()
+            is_fully_quoted = (
+                (stripped_value.startswith("'") and stripped_value.endswith("'"))
+                or (stripped_value.startswith('"') and stripped_value.endswith('"'))
+            )
+            if re.search(r'[+\-*/]', stripped_value) and not is_fully_quoted:
+                field_match = re.search(r'\.\w+(?:\.\w+)*', stripped_value)
+                fixed_parts.append(f"{key}: {field_match.group(0)}" if field_match else part)
+            else:
+                fixed_parts.append(part)
+
+        return prefix + '{' + ','.join(fixed_parts) + '}'
+
+    return block_pattern.sub(fix_block, query)
+
+
+def _add_remove_duplicates_if_same_source(query: str) -> str:
+    """
+    Riparazione deterministica (19/09) — su un errore reale di esecuzione
+    (MongoDB E11000 duplicate key), non solo di sintassi: un MERGE
+    COLLECTIONS tra due collezioni che derivano ENTRAMBE (tramite GET
+    COLLECTION prima del rispettivo SAVE AS) dalla STESSA collezione
+    originale può avere documenti in comune (es. due FILTER diversi
+    sulla stessa collection, dove un documento soddisfa entrambe le
+    condizioni) — senza REMOVE DUPLICATES, il tentativo di scrivere due
+    volte lo stesso _id fa fallire l'intera query in esecuzione, non solo
+    in validazione. La regola nel prompt lo spiega, ma non si è
+    dimostrata affidabile da sola (osservato dal vivo: MERGE generato
+    correttamente ma senza REMOVE DUPLICATES, nonostante la regola).
+
+    Aggiunge REMOVE DUPLICATES SOLO quando riesce a verificare che
+    entrambe le collezioni derivano dalla stessa origine — REMOVE
+    DUPLICATES è innocuo quando non serve (la nostra stessa regola lo
+    dice: se non ci sono duplicati, non toglie nulla), ma non lo si
+    aggiunge comunque a ogni MERGE per restare fedeli a cosa la query
+    dichiara di fare, non solo per sicurezza.
+
+    Non tocca un MERGE che ha già REMOVE DUPLICATES, né uno le cui
+    collezioni derivano da origini diverse o non tracciabili (es. hotels
+    e restaurants, o nomi non passati per un GET COLLECTION rintracciabile
+    nella stessa query).
+    """
+    merge_pattern = re.compile(r'MERGE\s+COLLECTIONS\s+([^;]+?)(REMOVE\s+DUPLICATES\s*)?;', re.IGNORECASE)
+
+    def replacer(m):
+        colls_text, has_remove = m.group(1), m.group(2)
+        if has_remove:
+            return m.group(0)
+
+        coll_names = [c.strip().split('@')[0] for c in colls_text.split(',')]
+        origins = []
+        for name in coll_names:
+            save_pattern = re.compile(rf'SAVE\s+AS\s+{re.escape(name)}\s*@', re.IGNORECASE)
+            sm = save_pattern.search(query)
+            if not sm:
+                origins.append(None)
+                continue
+            preceding = query[:sm.start()]
+            get_matches = list(re.finditer(r'GET\s+COLLECTION\s+(\w+)\s*;', preceding, re.IGNORECASE))
+            origins.append(get_matches[-1].group(1) if get_matches else None)
+
+        if len(set(origins)) == 1 and origins[0] is not None:
+            return f"MERGE COLLECTIONS {colls_text.strip()} REMOVE DUPLICATES;"
+        return m.group(0)
+
+    return merge_pattern.sub(replacer, query)
+
+
+def _reorder_expand_before_join(query: str) -> str:
+    """
+    Riparazione deterministica (17/09) — su richiesta esplicita di NON
+    indovinare/hardcodare un calcolo di quanti livelli di annidamento
+    aggiungere: invece di correggere il percorso dopo un EXPAND fatto
+    PRIMA di un JOIN che riusa la stessa collection (che richiederebbe
+    calcolare un livello di annidamento in più per ogni JOIN successivo —
+    fragile, e osservato dal vivo produrre lo stesso errore più volte
+    nonostante un avviso esplicito nel prompt), RISCRIVE la query
+    scambiando l'ordine in JOIN-poi-EXPAND — la struttura che sappiamo
+    per certo essere sempre corretta con un solo livello di annidamento,
+    verificata più volte in questa sessione (esempio 29 del corpus RAG,
+    e la query salvata dall'utente).
+
+    Riconosce il pattern:
+        GET COLLECTION X[@db];
+        EXPAND UNPACK TRUE ARRAY .campo TO .dest;
+        SAVE AS chaintempN@db2;
+        JOIN OF COLLECTIONS chaintempN@db2 AS alias1, altra@db3 AS alias2
+        CASE WHERE condizione;
+    e lo riscrive in:
+        JOIN OF COLLECTIONS X@db AS alias1, altra@db3 AS alias2
+        CASE WHERE condizione;
+        SAVE AS chaintempN@db2;
+        GET COLLECTION chaintempN;
+        EXPAND UNPACK TRUE ARRAY .alias1.campo TO .dest;
+    (gestisce chaintempN sia come primo sia come secondo lato del JOIN).
+    Il resto della query — qualunque cosa venga dopo, incluso un
+    eventuale JOIN successivo che referenzia .dest — non viene toccato:
+    con dest di nuovo in cima al documento, quei riferimenti sono già
+    corretti così come sono, non serve calcolare nulla su di loro.
+
+    Non tocca nulla se il pattern non è presente per intero (es. l'ordine
+    è già corretto, non c'è nessun JOIN successivo che riusa la
+    collection espansa — come nell'esempio 27, EXPAND multiplo senza
+    JOIN dopo, dove questo riordino non ha senso).
+    """
+    pattern = re.compile(
+        r'GET\s+COLLECTION\s+(\w+)(?:@(\w+))?\s*;\s*'
+        r'EXPAND\s+UNPACK\s+TRUE\s+ARRAY\s+\.(\w+)\s+TO\s+\.(\w+)\s*;\s*'
+        r'SAVE\s+AS\s+(chaintemp\w+)@(\w+)\s*;\s*'
+        r'JOIN\s+OF\s+COLLECTIONS\s+'
+        r'(?:'
+        r'\5@\6\s+AS\s+(\w+)\s*,\s*(\w+)@(\w+)\s+AS\s+(\w+)'
+        r'|'
+        r'(\w+)@(\w+)\s+AS\s+(\w+)\s*,\s*\5@\6\s+AS\s+(\w+)'
+        r')\s*'
+        r'(CASE|CASES)\s+WHERE\s+(.+?);',
+        re.IGNORECASE | re.DOTALL
+    )
+    m = pattern.search(query)
+    if not m:
+        return query
+
+    src_coll, src_db, array_field, dest_name, chaintemp_name, chaintemp_db = m.group(1, 2, 3, 4, 5, 6)
+    if m.group(7):
+        expand_alias, other_coll, other_db, other_alias = m.group(7, 8, 9, 10)
+    else:
+        other_coll, other_db, other_alias, expand_alias = m.group(11, 12, 13, 14)
+    case_kw, condition = m.group(15, 16)
+
+    if not src_db:
+        use_db_before = list(re.finditer(
+            r'USE\s+DB\s+(\w+)\s+ON\s+DEFAULT\s+SERVER', query[:m.start()], re.IGNORECASE
+        ))
+        src_db = use_db_before[-1].group(1) if use_db_before else chaintemp_db
+
+    replacement = (
+        f"JOIN OF COLLECTIONS {src_coll}@{src_db} AS {expand_alias}, {other_coll}@{other_db} AS {other_alias}\n"
+        f"{case_kw} WHERE {condition};\n"
+        f"SAVE AS {chaintemp_name}@{chaintemp_db};\n"
+        f"GET COLLECTION {chaintemp_name};\n"
+        f"EXPAND UNPACK TRUE ARRAY .{expand_alias}.{array_field} TO .{dest_name};"
+    )
+    return query[:m.start()] + replacement + query[m.end():]
+
+
+def _collect_all_ids(obj, ids_found: set):
+    """Raccoglie tutti i valori _id presenti ovunque in un documento —
+    usato solo da _find_unresolved_id_references sotto, per sapere quali
+    riferimenti risultano già risolti da qualche parte nello stesso
+    documento (un JOIN riuscito AGGIUNGE il lato risolto accanto
+    all'originale, non lo SOSTITUISCE — quindi il riferimento grezzo
+    resta comunque presente anche quando è stato risolto correttamente)."""
+    if isinstance(obj, dict):
+        if '_id' in obj and isinstance(obj['_id'], (str, int)):
+            ids_found.add(obj['_id'])
+        for v in obj.values():
+            _collect_all_ids(v, ids_found)
+    elif isinstance(obj, list):
+        for item in obj:
+            _collect_all_ids(item, ids_found)
+
+
+def _find_unresolved_id_references(documents: list, max_examples: int = 3):
+    """
+    Trasparenza sul risultato (17/09), non un controllo che blocca o
+    corregge nulla — su richiesta esplicita di non indovinare/hardcodare
+    quale JOIN mancherebbe: guarda i DOCUMENTI VERI del risultato (non il
+    testo della query) e segnala se contengono un riferimento non
+    risolto, usando solo una convenzione di denominazione universale
+    (un campo che finisce per "_id", diverso da "_id" stesso) — non un
+    elenco di nomi scritto per questo caso specifico.
+
+    Ambito ristretto alla firma del wrapper creato da EXPAND (un dict con
+    ESATTAMENTE "item" e "position" come chiavi, dove "item" è a sua
+    volta un dict) — un campo _id grezzo lì dentro è quasi sempre un
+    riferimento mai risolto con un JOIN successivo.
+
+    FIX (17/09, stesso giorno): un JOIN riuscito AGGIUNGE il lato
+    risolto accanto all'originale, non SOSTITUISCE il riferimento grezzo
+    — quindi anche dopo un JOIN corretto con products, .item.product_id
+    resta comunque presente nel documento accanto al prodotto vero
+    (osservato dal vivo: falso positivo su una query in realtà completa
+    e corretta, 6 documenti giusti). Ora, prima di segnalare un
+    riferimento, si controlla se il SUO VALORE coincide con un _id
+    presente DA QUALCHE PARTE nello stesso documento (_collect_all_ids)
+    — se sì, è già stato risolto altrove, non viene segnalato.
+
+    Non impedisce l'esecuzione, non modifica il risultato — aggiunge solo
+    un'informazione in più nella risposta, perché un utente che non sa a
+    priori quanti documenti aspettarsi possa comunque accorgersi che il
+    risultato contiene riferimenti grezzi mai risolti, invece di
+    scoprirlo per caso o non scoprirlo affatto.
+    """
+    found = []
+
+    def scan(obj, path, candidates):
+        if isinstance(obj, dict):
+            if 'item' in obj and 'position' in obj and isinstance(obj['item'], dict):
+                inner = obj['item']
+                for k, v in inner.items():
+                    if isinstance(v, (str, int)) and re.match(r'^[a-zA-Z]\w*_id$', k, re.IGNORECASE) and k.lower() != '_id':
+                        candidates.append((f'{path}.item.{k}' if path else f'item.{k}', v))
+            for k, v in obj.items():
+                if isinstance(v, (dict, list)):
+                    scan(v, f'{path}.{k}' if path else k, candidates)
+        elif isinstance(obj, list):
+            for item in obj:
+                scan(item, path, candidates)
+
+    for doc in documents:
+        if len(found) >= max_examples:
+            break
+        resolved_ids = set()
+        _collect_all_ids(doc, resolved_ids)
+        candidates = []
+        scan(doc, '', candidates)
+        for path, val in candidates:
+            if val not in resolved_ids:
+                found.append((path, val))
+                if len(found) >= max_examples:
+                    break
+    return found
+
+
+def _check_undeclared_expand_reference(query: str, current_schema: dict):
+    """
+    Controllo semantico (16/08): rileva un riferimento ".nome.item" (il
+    pattern che indica un elemento prodotto da EXPAND — "item" è la
+    chiave fissa del motore, vedi JCOConstants.java) per un "nome" che
+    non è MAI stato dichiarato come destinazione di un EXPAND UNPACK ...
+    TO .nome nella stessa query. Osservato dal vivo: l'LLM ha scritto
+    ".actor.item = 'Claudio Bisio'" senza mai scrivere l'EXPAND
+    corrispondente — probabilmente confuso dal fatto che negli esempi
+    RAG "actor" compare come nome di DESTINAZIONE scelto (TO .actor), non
+    come nome di campo reale (che è "cast") — e ha saltato il passaggio
+    di EXPAND vero e proprio, usando il nome di destinazione come se
+    fosse già disponibile da solo.
+
+    A differenza delle altre riparazioni, qui NON si prova a indovinare
+    quale campo array l'utente intendesse (un confronto testuale tra
+    "actor" e "cast" non aiuterebbe, non si somigliano) — si segnala
+    l'incongruenza con l'elenco dei campi array VERI disponibili, e si
+    forza un altro tentativo di generazione con quell'informazione
+    concreta, stessa filosofia del controllo sul disallineamento di tipo.
+    """
+    coll_match = re.search(r'GET\s+COLLECTION\s+(\w+)\s*;', query, re.IGNORECASE)
+    if not coll_match:
+        return None
+    collection_name = coll_match.group(1)
+
+    coll_schema = (current_schema or {}).get(collection_name, {})
+    coll_fields = coll_schema.get('fields', {}) if isinstance(coll_schema, dict) else {}
+    array_fields = sorted({
+        f for f, info in coll_fields.items()
+        if '.' not in f and isinstance(info, dict) and 'array' in info.get('types', [])
+    })
+
+    declared = set(re.findall(r'UNPACK\s+.+?\s+ARRAY\s+\.\S+\s+TO\s+\.(\w+)', query, re.IGNORECASE))
+    # FIX (16/08, falso positivo trovato subito dopo aver scritto il
+    # controllo): un JOIN concatenato tipo ".c.item.item.product_id" (c è
+    # l'alias del JOIN, non una destinazione EXPAND) veniva letto male —
+    # il regex sotto, non "overlapping", si fermava al primo ".c.item" e
+    # scambiava l'alias "c" per un nome mai dichiarato. Gli alias di
+    # JOIN/MERGE (dichiarati con "AS nome") vanno esclusi dal conteggio:
+    # non sono mai destinazioni di EXPAND, quindi comparire dopo un punto
+    # seguito da ".item" è normale per loro (fanno da preambolo al vero
+    # percorso), non un errore.
+    join_aliases = set(re.findall(r'\bAS\s+(\w+)\b', query, re.IGNORECASE))
+    referenced = set(re.findall(r'\.(\w+)\.item\b', query))
+    undeclared = referenced - declared - join_aliases
+
+    if not undeclared:
+        return None
+
+    hint = ', '.join(array_fields) if array_fields else "nessun campo array trovato nello schema"
+    names = ', '.join(sorted(undeclared))
+    return (
+        f"Nella query usi '.{names}.item' ma non hai mai scritto un EXPAND che dichiari "
+        f"'{names}' come destinazione (TO .{names}) — quel nome non esiste da nessuna parte "
+        f"finché non lo crei tu con EXPAND UNPACK TRUE ARRAY .campoReale TO .{names};. "
+        f"I campi array realmente disponibili in {collection_name} sono: {hint}. "
+        f"Trova tra questi quello giusto per la richiesta e aggiungi l'EXPAND mancante prima del FILTER."
+    )
+
+
+def _sample_field_values(all_databases: dict, db_name: str, coll_name: str, field_name: str, limit: int = 30):
+    """Legge un campione di valori non-null di un campo, direttamente da
+    MongoDB — usato solo da _check_join_key_data_overlap sotto."""
+    info = all_databases.get(db_name)
+    if not info:
+        return []
+    client = info["client"]
+    mongo_db = client[info["database_name"]]
+    coll = mongo_db[coll_name]
+    cursor = coll.find({field_name: {"$ne": None}}, {field_name: 1}).limit(limit)
+    return [doc[field_name] for doc in cursor if field_name in doc and doc[field_name] is not None]
+
+
+def _fetch_matching_values(all_databases: dict, db_name: str, coll_name: str, field_name: str, candidate_values: list):
+    """Controlla quanti dei candidate_values esistono davvero come valore
+    di field_name in coll_name — una singola query $in su MongoDB."""
+    if not candidate_values:
+        return []
+    info = all_databases.get(db_name)
+    if not info:
+        return []
+    client = info["client"]
+    mongo_db = client[info["database_name"]]
+    coll = mongo_db[coll_name]
+    cursor = coll.find({field_name: {"$in": candidate_values}}, {field_name: 1}).limit(5)
+    return [doc[field_name] for doc in cursor if field_name in doc]
+
+
+def _trace_chaintemp_origin(query: str, chaintemp_name: str, _depth: int = 0):
+    """
+    Prova a risalire a quale collection REALE (non un'altra chaintemp) ha
+    originato una collection chaintempN — cerca l'ultima GET COLLECTION
+    prima del SAVE AS che crea chaintemp_name. Usato sia da
+    _check_join_key_data_overlap sia da _check_join_type_mismatch, per
+    poter verificare/controllare anche campi di una chaintemp che non
+    sono stati toccati da un EXPAND/GENERATE nel frattempo (un EXPAND
+    aggiunge un campo nuovo, non modifica quelli preesistenti — quindi
+    per un campo semplice come "user_id", i valori/il tipo di chaintempN
+    sono sempre gli stessi della collection di origine).
+
+    RICORSIVA (17/09, prima si fermava al primo livello): se la GET
+    COLLECTION trovata è a sua volta un'altra chaintemp (es. chaintemp2
+    che deriva da chaintemp1, non direttamente da una collection reale —
+    osservato dal vivo: un passaggio "GET COLLECTION orders; SAVE AS
+    chaintemp1;" senza fare nulla in mezzo, prima di espandere solo
+    chaintemp1 in chaintemp2), risale ricorsivamente attraverso quel
+    livello invece di arrendersi — altrimenti il controllo di tipo non
+    scattava proprio in questo genere di catena più lunga del solito.
+    _depth con un limite di 5 previene una ricorsione infinita su query
+    malformate o circolari (mai un caso reale, solo una rete di sicurezza).
+
+    Limite noto, non risolto qui: se un passaggio intermedio usa GENERATE
+    per rimuovere o ridefinire il campo che si sta cercando, la risalita
+    lo darebbe comunque per invariato — un caso raro (di solito non si
+    rinomina un campo su cui si sta per fare JOIN), non gestito.
+    """
+    if _depth >= 5:
+        return None, None
+    save_as_pattern = re.compile(rf'SAVE\s+AS\s+{re.escape(chaintemp_name)}\s*@\s*(\w+)', re.IGNORECASE)
+    m = save_as_pattern.search(query)
+    if not m:
+        return None, None
+    preceding_text = query[:m.start()]
+    get_coll_matches = list(re.finditer(r'GET\s+COLLECTION\s+(\w+)\s*;', preceding_text, re.IGNORECASE))
+    if not get_coll_matches:
+        return None, None
+    last_get = get_coll_matches[-1]
+    origin_coll = last_get.group(1)
+    if origin_coll.lower().startswith('chaintemp'):
+        return _trace_chaintemp_origin(query, origin_coll, _depth + 1)
+    use_db_matches = list(re.finditer(
+        r'USE\s+DB\s+(\w+)\s+ON\s+DEFAULT\s+SERVER', preceding_text[:last_get.start()], re.IGNORECASE
+    ))
+    origin_db = use_db_matches[-1].group(1) if use_db_matches else None
+    return origin_coll, origin_db
+
+
+def _check_join_key_data_overlap(query: str, all_databases: dict):
+    """
+    Controllo empirico (17/09) — deliberatamente SENZA nessun giudizio sul
+    NOME dei campi coinvolti (su richiesta esplicita di evitare
+    hardcoding, stessa richiesta già fatta per _check_join_type_mismatch):
+    per un JOIN che confronta .X.campoA = .Y.campoB, verifica interrogando
+    MongoDB — non lo schema, i dati veri — se esiste ALMENO una
+    corrispondenza reale tra un campione di valori di campoA e i valori
+    di campoB. Se NESSUNO dei valori campionati da un lato compare mai
+    nell'altro, è un segnale forte che quella non sia la chiave di join
+    giusta, a prescindere da come si chiamano i due campi.
+
+    Si applica SOLO quando i due campi hanno NOMI DIVERSI — il caso
+    "stesso nome, tipo diverso" è già coperto da _check_join_type_mismatch
+    sopra; qui si copre il caso complementare, altrettanto reale: stesso
+    tipo (es. entrambi stringa), nome diverso, ma valori che non si
+    sovrappongono mai (osservato dal vivo: .a.user_id confrontato con
+    .b.name — "user_005" non ha nessuna relazione con "User 5", ma sono
+    comunque due stringhe, quindi il controllo di tipo non lo vedeva).
+
+    Quando un lato è una collection chaintempN (join concatenati), prova
+    prima a risalire alla collection reale che l'ha originata (vedi
+    _trace_chaintemp_origin) e verifica su QUELLA — chaintempN non esiste
+    ancora fisicamente su MongoDB in questa fase (viene creata solo
+    quando la query viene poi eseguita davvero, non durante la
+    generazione), quindi non è mai interrogabile direttamente qui. Se la
+    risalita non è possibile (es. l'origine è un'altra chaintemp, o il
+    campo stesso è quello creato dall'EXPAND — questi hanno sempre un
+    punto nel nome, .item.item..., già esclusi sotto), quel lato del JOIN
+    viene saltato invece di dare un falso allarme.
+
+    Se la verifica empirica stessa fallisce per qualunque motivo
+    (connessione, campo non esistente, ecc.) non blocca la generazione:
+    non è pensata per essere l'unica rete di sicurezza, solo un controllo
+    in più quando può essere eseguito con successo.
+    """
+    join_pattern = re.compile(
+        r'JOIN OF COLLECTIONS\s+(\w+)@(\w+)\s+AS\s+(\w+)\s*,\s*(\w+)@(\w+)\s+AS\s+(\w+).*?'
+        r'WHERE\s+\.(\w+)\.([\w.]+)\s*=\s*\.(\w+)\.([\w.]+)',
+        re.IGNORECASE | re.DOTALL
+    )
+    for m in join_pattern.finditer(query):
+        coll1, db1, alias1, coll2, db2, alias2, cond_alias1, field1, cond_alias2, field2 = m.groups()
+        if field1 == field2 or '.' in field1 or '.' in field2:
+            continue
+
+        alias_to_coll_db = {alias1: (coll1, db1), alias2: (coll2, db2)}
+        if cond_alias1 not in alias_to_coll_db or cond_alias2 not in alias_to_coll_db:
+            continue
+        coll_a, db_a = alias_to_coll_db[cond_alias1]
+        coll_b, db_b = alias_to_coll_db[cond_alias2]
+
+        # Per ciascun lato che è una chaintemp, risali alla collection
+        # reale di origine per poterla interrogare — chaintempN stessa
+        # non esiste ancora in questa fase (creata solo all'esecuzione).
+        query_coll_a, query_db_a = coll_a, db_a
+        if coll_a.lower().startswith('chaintemp'):
+            query_coll_a, query_db_a = _trace_chaintemp_origin(query, coll_a)
+        query_coll_b, query_db_b = coll_b, db_b
+        if coll_b.lower().startswith('chaintemp'):
+            query_coll_b, query_db_b = _trace_chaintemp_origin(query, coll_b)
+
+        if not query_coll_a or not query_coll_b:
+            continue
+
+        try:
+            sample_a = _sample_field_values(all_databases, query_db_a, query_coll_a, field1, limit=30)
+            overlap = _fetch_matching_values(all_databases, query_db_b, query_coll_b, field2, sample_a)
+        except Exception:
+            continue
+
+        if sample_a and not overlap:
+            example_vals = ", ".join(str(v) for v in sample_a[:3])
+            return (
+                f"Nel JOIN tra {coll_a}@{db_a} e {coll_b}@{db_b}, la condizione confronta "
+                f".{cond_alias1}.{field1} con .{cond_alias2}.{field2} — ho verificato "
+                f"direttamente su MongoDB (non solo lo schema) e NESSUNO dei valori "
+                f"campionati da {coll_a}.{field1} (es: {example_vals}) risulta presente in "
+                f"{coll_b}.{field2}, su un campione di {len(sample_a)} documenti. "
+                f"Probabilmente non è la chiave di join corretta, anche se il tipo coincide. "
+                f"Guarda gli altri campi disponibili in {coll_b} (con i loro tipi ed esempi, "
+                f"nello schema sopra) per trovarne uno i cui valori corrispondano davvero a "
+                f".{cond_alias1}.{field1}."
+            )
     return None
 
 
@@ -173,8 +1050,6 @@ def _check_join_type_mismatch(query: str, all_databases: dict):
     )
     for m in join_pattern.finditer(query):
         coll1, db1, alias1, coll2, db2, alias2, cond_alias1, field1, cond_alias2, field2 = m.groups()
-        if coll1.lower().startswith('chaintemp') or coll2.lower().startswith('chaintemp'):
-            continue
         if field1 != field2:
             continue
         alias_to_coll_db = {alias1: (coll1, db1), alias2: (coll2, db2)}
@@ -182,8 +1057,47 @@ def _check_join_type_mismatch(query: str, all_databases: dict):
             continue
         coll_a, db_a = alias_to_coll_db[cond_alias1]
         coll_b, db_b = alias_to_coll_db[cond_alias2]
-        type_a = _lookup_field_type(all_databases, db_a, coll_a, field1)
-        type_b = _lookup_field_type(all_databases, db_b, coll_b, field2)
+
+        # FIX (17/09): prima si saltava del tutto ogni JOIN con una
+        # collection chaintempN da un lato (schema sconosciuto) — ma
+        # questo lasciava passare senza controllo esattamente il caso dei
+        # join concatenati, dove capita più spesso (osservato dal vivo:
+        # .a.user_id = .b.user_id con "a" = chaintemp1, mai controllato).
+        # Come per _check_join_key_data_overlap sopra, si prova a
+        # risalire alla collection reale di origine (_trace_chaintemp_origin)
+        # e si guarda lo schema di QUELLA — un EXPAND non cambia il tipo
+        # dei campi preesistenti, solo ne aggiunge uno nuovo.
+        lookup_coll_a, lookup_db_a = coll_a, db_a
+        if coll_a.lower().startswith('chaintemp'):
+            lookup_coll_a, lookup_db_a = _trace_chaintemp_origin(query, coll_a)
+        lookup_coll_b, lookup_db_b = coll_b, db_b
+        if coll_b.lower().startswith('chaintemp'):
+            lookup_coll_b, lookup_db_b = _trace_chaintemp_origin(query, coll_b)
+        if not lookup_coll_a or not lookup_coll_b:
+            continue
+
+        type_a = _lookup_field_type(all_databases, lookup_db_a, lookup_coll_a, field1)
+        type_b = _lookup_field_type(all_databases, lookup_db_b, lookup_coll_b, field2)
+
+        # FIX (16/08): il controllo originale confrontava i tipi solo
+        # quando il campo esiste su ENTRAMBI i lati — se manca del tutto su
+        # uno dei due (osservato: test_db.users non ha nessun campo
+        # "user_id", solo "id" — la query generata comunque scriveva
+        # .a.user_id = .b.user_id, producendo 0 risultati senza nessun
+        # avviso) il controllo non aveva nulla da confrontare e lasciava
+        # passare in silenzio. Un campo assente è un segnale ancora più
+        # netto di un campo con tipo diverso — va segnalato per primo.
+        if type_a is None or type_b is None:
+            missing_side = f".{cond_alias1}.{field1} (in {coll_a})" if type_a is None else f".{cond_alias2}.{field2} (in {coll_b})"
+            present_side = f".{cond_alias2}.{field2} (tipo: {type_b}, in {coll_b})" if type_a is None else f".{cond_alias1}.{field1} (tipo: {type_a}, in {coll_a})"
+            return (
+                f"Nel JOIN tra {coll_a}@{db_a} e {coll_b}@{db_b}, la condizione confronta "
+                f"{missing_side} con {present_side} — ma {missing_side.split(' (')[0]} non risulta "
+                f"esistere affatto nello schema scoperto di quella collection (nomi di campo simili "
+                f"non bastano, verifica quello giusto guardando i campi realmente presenti, mostrati "
+                f"nello schema sopra)."
+            )
+
         if type_a and type_b and type_a != type_b:
             return (
                 f"Nel JOIN tra {coll_a}@{db_a} e {coll_b}@{db_b}, la condizione confronta "
@@ -233,7 +1147,20 @@ parser = ParserFactory.create_parser(ParserType(ACTIVE_PARSER))
 
 # Configurazione Google Gemini
 genai.configure(api_key=os.getenv("GEMINI_API_KEY"))
-model = genai.GenerativeModel("gemini-3.1-flash-lite-preview")
+# FIX (17/09): la temperatura non era mai impostata — Gemini usava il
+# proprio default (non zero), spiegando gran parte della variabilità
+# osservata tra una generazione e l'altra per la stessa richiesta (alias
+# diversi, ordine dei lati del JOIN invertito, nomi di destinazione EXPAND
+# diversi, e in alcuni casi anche una scelta di correttezza diversa — vedi
+# caso reale: stessa richiesta, tre query strutturalmente diverse). Stessa
+# scelta già fatta per i modelli locali in llm_local.py (temperature=0) —
+# qui coerente con quella. model è usato una sola volta in tutto il file
+# (riga con model.generate_content, nel loop di generazione), quindi
+# impostarlo qui a livello di modello non tocca nessun altro utilizzo.
+model = genai.GenerativeModel(
+    "gemini-3.1-flash-lite-preview",
+    generation_config=genai.GenerationConfig(temperature=0)
+)
 
 # Inizializzazione ChromaDB
 # Nota: get_collection (non get_or_create_collection) solleva
@@ -414,6 +1341,13 @@ async def generate_query(request: GenerateRequest):
     """
     Riceve un prompt in Linguaggio Naturale e genera una query JCoQL valida
     """
+    # "global collection" dichiarata qui, in cima alla funzione: serve per
+    # poter riassegnare il riferimento globale alla collection ChromaDB più
+    # sotto (auto-guarigione RAG) — deve stare prima di qualunque lettura
+    # di "collection" in questa funzione, altrimenti Python solleva
+    # SyntaxError ("name used prior to global declaration").
+    global collection
+
     # Nota di concorrenza: db_registry.current_database è uno stato
     # GLOBALE condiviso da tutto il processo (vedi database_registry.py),
     # non uno stato per-richiesta. Impostarlo qui in base a
@@ -445,36 +1379,81 @@ async def generate_query(request: GenerateRequest):
     retrieved_docs = []
     
     # Recupero contesto RAG
+    # FIX (17/09): n_results era 6 — con il corpus cresciuto a 32+ esempi
+    # che coprono pattern molto diversi tra loro (JOIN semplice, EXPAND,
+    # GROUP, MERGE, filtro array, join concatenati a 3 passaggi...), un
+    # pattern specifico e meno comune (es. join concatenati) rischia di
+    # restare fuori dai primi 6 se altri esempi più generici sembrano
+    # "assomigliare" di più a una richiesta formulata in modo ampio — anche
+    # quando la sua descrizione userebbe quasi le stesse parole della
+    # richiesta (osservato dal vivo: "ordini con utente e prodotti
+    # acquistati" non ha portato l'esempio del join a 3 passaggi, la cui
+    # descrizione contiene letteralmente "prodotti acquistati"). Alzato
+    # prima a 9, poi RIDOTTO a 7 nello stesso giorno: con 9 il prompt è
+    # cresciuto abbastanza da contribuire a esaurire più in fretta la
+    # quota gratuita di Gemini (250k token/minuto) durante i test
+    # ravvicinati — 7 è un compromesso tra il margine di recupero più
+    # ampio e il consumo di quota, non ancora riportato al 6 originale.
+    # Per i modelli locali (Llama/Gemma): meno esempi, per tenere il
+    # prompt più leggero (vedi il lavoro sul prompt più snello per loro,
+    # 19/09) — Gemini resta a 7, invariato.
+    RAG_N_RESULTS = 4 if ACTIVE_LLM in ("llama", "gemma") else 7
+
     if collection:
         try:
             results = collection.query(
                 query_texts=[request.nl_query],
-                n_results=6
+                n_results=RAG_N_RESULTS
             )
             retrieved_docs = results['documents'][0] if (results and results.get('documents')) else []
             context_str = "\n\n".join(retrieved_docs)
         except Exception as e:
-            query_logger.warning(f"⚠️ Errore RAG: {e}")
+            # Auto-guarigione (16/08): se load_examples.py viene rilanciato
+            # DOPO l'avvio del backend, ricrea la collection ChromaDB con un
+            # UUID interno nuovo — il riferimento globale "collection" tenuto
+            # qui resta agganciato al vecchio, e ogni query fallisce con
+            # "Collection [uuid] does not exist" finché non si riavvia il
+            # backend a mano. Osservato dal vivo: una generazione è arrivata
+            # a ZERO esempi RAG per questo motivo (incluso proprio quello che
+            # avrebbe dato la chiave di join giusta), causando una scelta di
+            # campo sbagliata da parte dell'LLM senza nessun esempio a cui
+            # appoggiarsi. Un solo tentativo di recupero: riprendere un
+            # riferimento fresco alla collection e riprovare la stessa query,
+            # prima di arrendersi e procedere senza esempi.
+            query_logger.warning(f"⚠️ Errore RAG (primo tentativo): {e}")
+            try:
+                collection = chroma_client.get_collection(name="jcoql_examples")
+                results = collection.query(
+                    query_texts=[request.nl_query],
+                    n_results=RAG_N_RESULTS
+                )
+                retrieved_docs = results['documents'][0] if (results and results.get('documents')) else []
+                context_str = "\n\n".join(retrieved_docs)
+                query_logger.info("✅ Riferimento ChromaDB rinfrescato — RAG recuperato al secondo tentativo")
+            except Exception as e2:
+                query_logger.warning(f"⚠️ Errore RAG (dopo tentativo di refresh, procedo senza esempi): {e2}")
 
     # Schema prompt
-    current_schema = db_registry.get_current_schema()
-    if current_schema:
-        schema_prompt_str = f"SCHEMA MONGODB REALE (Database: {db_registry.get_current_database_name()}):\n\n"
-        for coll_name, coll_data in current_schema.items():
-            schema_prompt_str += f"COLLECTION: {coll_name}\n"
-            
-            # Estrai i campi da coll_data['fields']
+    def _format_schema_for_prompt(schema: dict, db_name: str) -> str:
+        """
+        Estratta il 16/08 dal blocco che prima costruiva solo lo schema del
+        database corrente — riusata sotto per costruire lo schema COMPLETO
+        (campi, tipi, esempi) anche degli altri database selezionati, non
+        solo i loro nomi. Prima l'LLM vedeva lo schema vero solo del
+        database corrente; per qualunque altro selezionato (es. in un JOIN
+        cross-database) doveva indovinare i nomi dei campi, spesso
+        assumendo — sbagliando — che fossero uguali a quelli del database
+        corrente (osservato dal vivo: un JOIN che confrontava .user_id su
+        entrambi i lati, quando il secondo database aveva invece un campo
+        "id", mai visibile all'LLM).
+        """
+        out = f"SCHEMA MONGODB REALE (Database: {db_name}):\n\n"
+        for coll_name, coll_data in schema.items():
+            out += f"COLLECTION: {coll_name}\n"
             if isinstance(coll_data, dict):
                 fields = coll_data.get('fields', {})
                 if isinstance(fields, dict):
                     for field_name, field_info in fields.items():
-                        # FIX (15/08): schema_discovery.py scrive la chiave
-                        # "types" (plurale, una lista — vedi quel file), ma
-                        # qui si cercava "type" (singolare) che non esiste
-                        # mai in quella struttura — field_type risultava
-                        # SEMPRE "unknown" per ogni campo di ogni collection,
-                        # per tutta la sessione. L'LLM non ha mai visto un
-                        # tipo vero finora.
                         if isinstance(field_info, dict):
                             field_type = field_info.get('types', field_info.get('type', 'unknown'))
                             if isinstance(field_type, list):
@@ -483,21 +1462,18 @@ async def generate_query(request: GenerateRequest):
                         else:
                             field_type = type(field_info).__name__
                             examples = []
-                        # Aggiunti valori di esempio reali (già raccolti da
-                        # schema_discovery.py ma mai mostrati finora) — utili
-                        # perché l'LLM possa distinguere due campi con lo
-                        # stesso nome ma contenuto/tipo diverso tra due
-                        # collezioni (es. un "user_id" stringa vs uno numerico),
-                        # invece di scegliere quello sbagliato solo perché il
-                        # nome coincide.
                         examples_str = ''
                         if examples:
                             ex_display = [str(e)[:40] for e in examples[:2] if e is not None]
                             if ex_display:
                                 examples_str = f" — es: {', '.join(ex_display)}"
-                        schema_prompt_str += f"  .{field_name} ({field_type}){examples_str}\n"
-            
-            schema_prompt_str += "\n"
+                        out += f"  .{field_name} ({field_type}){examples_str}\n"
+            out += "\n"
+        return out
+
+    current_schema = db_registry.get_current_schema()
+    if current_schema:
+        schema_prompt_str = _format_schema_for_prompt(current_schema, db_registry.get_current_database_name())
     else:
         schema_prompt_str = f"""SCHEMA MONGODB - Database '{db_registry.get_current_database_name()}'
     Nessuna collezione disponibile in questo database."""
@@ -512,11 +1488,26 @@ async def generate_query(request: GenerateRequest):
     other_databases = [db for db in (request.databases or []) if db and db != db_registry.get_current_database_name()]
     if other_databases:
         other_databases_str = (
-            "\nALTRI DATABASE SELEZIONATI DALL'UTENTE (disponibili, oltre a quello sopra):\n"
-            + ", ".join(other_databases)
-            + "\nSe l'utente chiede di cercare/unire dati \"su tutti i database selezionati\" o simili, "
-              "usa ESATTAMENTE questi nomi (più quello corrente sopra) — non inventare nomi di database, "
-              "e non confonderli con nomi di collection.\n"
+            "\nALTRI DATABASE SELEZIONATI DALL'UTENTE (disponibili, oltre a quello sopra) — "
+            "schema completo di ciascuno, non solo il nome, per evitare di dover indovinare i "
+            "nomi dei campi assumendo (spesso sbagliando) che siano uguali a quelli del database "
+            "sopra:\n\n"
+        )
+        for db_name in other_databases:
+            try:
+                other_schema = db_registry.databases.get(db_name, {}).get('schema', {})
+            except Exception:
+                other_schema = {}
+            if other_schema:
+                other_databases_str += _format_schema_for_prompt(other_schema, db_name)
+            else:
+                other_databases_str += f"SCHEMA MONGODB REALE (Database: {db_name}): nessuna collezione scoperta.\n\n"
+        other_databases_str += (
+            "Se l'utente chiede di cercare/unire dati \"su tutti i database selezionati\" o simili, "
+            "usa ESATTAMENTE questi nomi (più quello corrente sopra) — non inventare nomi di database, "
+            "e non confonderli con nomi di collection. Per un JOIN cross-database, i nomi dei campi "
+            "possono essere DIVERSI da un database all'altro anche per la stessa entità (es. \"id\" in "
+            "uno, \"user_id\" nell'altro) — guarda gli schemi qui sopra invece di assumere simmetria.\n"
         )
     else:
         other_databases_str = ""
@@ -571,13 +1562,31 @@ async def generate_query(request: GenerateRequest):
         Input: "Dati dove campo = valore" → Query: GET COLLECTION <collezione>; FILTER CASE WHERE .campo = valore KEEP OTHERS;
         Input: "Elementi con numero > 100" → Query: GET COLLECTION <collezione>; FILTER CASE WHERE .numero > 100 KEEP OTHERS;
 
-        🚨 REGOLA CRITICA #2 - SINTASSI ISNOTNULL:
-        ❌ NON usare: FIELD .campo ISNOTNULL
-        ❌ NON usare: .campo IS NOT NULL
-        ✅ USA SOLO: FILTER CASE WHERE .campo IS NOT NULL KEEP OTHERS;
-        
-        Oppure per campi con valore:
-        ✅ FILTER CASE WHERE .campo = 'valore' KEEP OTHERS;
+        🚨 REGOLA CRITICA #2 - SINTASSI ISNOTNULL/ISNULL (corretta il 17/09 — la versione
+        precedente di questa regola diceva l'esatto contrario di quello che richiede la
+        grammatica, verificato ora contro il parser ufficiale):
+        ❌ NON usare: .campo IS NOT NULL           (manca la parola chiave FIELD — errore di sintassi)
+        ❌ NON usare: FILTER CASE WHERE .campo IS NOT NULL KEEP OTHERS;   (stesso problema)
+        ✅ USA SEMPRE: FILTER CASE WHERE FIELD .campo IS NOT NULL KEEP OTHERS;
+        ✅ Per il caso opposto (campo assente/nullo): FILTER CASE WHERE FIELD .campo IS NULL KEEP OTHERS;
+        La parola chiave FIELD è obbligatoria subito prima del riferimento al campo, in
+        questo caso specifico — non serve invece per un confronto con un valore:
+        ✅ FILTER CASE WHERE .campo = 'valore' KEEP OTHERS;   (qui niente FIELD, campo diretto)
+
+        🚨 REGOLA CRITICA #2bis - BOOLEANI IN MAIUSCOLO (scoperta il 18/09, verificato contro
+        il parser ufficiale — il token è definito letteralmente come 'TRUE' | 'FALSE'):
+        ❌ NON usare: .campo = true          (minuscolo — letto come identificativo generico,
+                                               NON come valore booleano, causa un errore di
+                                               sintassi criptico: "expecting LP", perché il
+                                               parser prova a interpretarlo come l'inizio di
+                                               una chiamata a funzione)
+        ❌ NON usare: .campo = false
+        ✅ USA SEMPRE: .campo = TRUE
+        ✅ USA SEMPRE: .campo = FALSE
+        A differenza di quasi tutti i linguaggi di programmazione (dove true/false sono
+        minuscoli), in JCoQL+ i valori booleani letterali vanno SEMPRE scritti in MAIUSCOLO in
+        un confronto — non confonderlo con le parole chiave TRUE di UNPACK TRUE/PARTITION TRUE,
+        che sono già corrette così, è lo stesso identico token riusato in più punti.
 
         🔧 REGOLA CRITICA #3 - ATTRIBUTI NESTED (MOLTO IMPORTANTE):
         ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
@@ -634,34 +1643,126 @@ async def generate_query(request: GenerateRequest):
           🚨 TYPE è OBBLIGATORIO dopo ogni campo di ordinamento, valore SOLO uno tra
           NUMERIC, STRING, BOOLEAN (a seconda del tipo del campo) — "ORDER BY .campo DESC"
           senza TYPE non è sintassi valida. La direzione (ASC/DESC) è opzionale, va DOPO TYPE.
-          Se l'utente chiede raggruppamenti diversi/paralleli nella stessa richiesta (es. "sia
-          per categoria sia per fascia di prezzo"), puoi mettere più PARTITION in un solo
-          comando GROUP, una di seguito all'altra prima del punto e virgola finale:
-          GROUP PARTITION cond1 BY .campo1 INTO .risultato1
-                PARTITION cond2 BY .campo2 INTO .risultato2;
+          🚨 PIÙ PARTITION NELLO STESSO GROUP — verificato leggendo il codice del motore
+          (GroupExecutor.java): per ogni documento, il motore prova le PARTITION IN ORDINE e
+          si ferma alla PRIMA la cui condizione è vera (c'è un "break" esplicito) — le
+          PARTITION successive non vengono MAI valutate per quel documento, anche se la loro
+          condizione sarebbe risultata vera. Usa più PARTITION nello stesso comando SOLO se le
+          condizioni sono RECIPROCAMENTE ESCLUSIVE (un documento può soddisfarne al massimo
+          una), es. fasce di prezzo che non si sovrappongono:
+          GROUP PARTITION .prezzo > 500 BY .campo1 INTO .risultato1
+                PARTITION .prezzo <= 500 BY .campo2 INTO .risultato2;
+          Se invece l'utente chiede raggruppamenti INDIPENDENTI tra loro sugli stessi documenti
+          (es. "raggruppa sia per categoria sia per marca" — ogni prodotto ha sia una categoria
+          sia una marca, non sono alternative) — le condizioni si sovrapporrebbero (spesso
+          entrambe TRUE), quindi la seconda PARTITION risulterebbe sempre vuota. In questo caso
+          servono comandi GROUP SEPARATI, ciascuno sulla collezione originale, non uniti in un
+          solo comando:
+          GET COLLECTION collezione;
+          GROUP PARTITION TRUE BY .categoria INTO .per_categoria;
+          GET COLLECTION collezione;
+          GROUP PARTITION TRUE BY .marca INTO .per_marca;
+          🚨 CONTARE GLI ELEMENTI DI UN GRUPPO NON È POSSIBILE — verificato dal vivo (18/09):
+          JCoQL+ non ha NESSUNA funzione per contare quanti elementi ha un array/gruppo (niente
+          SIZE, COUNT, LENGTH — nessuna di queste esiste nel motore, anche se sintatticamente
+          "qualcosaCheNonEsiste(...)" non darebbe un errore di sintassi, fallisce silenziosamente
+          a runtime restituendo 0 documenti). Se la richiesta chiede "categorie con più di N
+          prodotti", "gruppi con almeno N elementi", o qualunque soglia sul NUMERO di elementi in
+          un gruppo — NON È ESPRIMIBILE in una query JCoQL+, non inventare una funzione per
+          provarci. In questo caso, genera SOLO il GROUP (senza nessuna condizione sul conteggio,
+          che JCoQL+ non può esprimere) — il filtro sul numero di elementi non può far parte
+          della query.
 
         • EXPAND — l'utente chiede di "espandere" un array, o "un documento/risultato per ogni
           elemento di" un campo che è una lista:
           GET COLLECTION collezione;
           EXPAND UNPACK TRUE ARRAY .campoArray TO .campoDestinazione;
           Opzionali KEEP OTHERS / DROP OTHERS per i documenti privi di quell'array.
-          Se l'utente chiede di espandere PIÙ array nella stessa richiesta, puoi mettere più
-          UNPACK in un solo comando EXPAND, uno di seguito all'altro prima del KEEP/DROP OTHERS
-          finale (che si applica a tutto il comando, non va ripetuto per ogni UNPACK):
-          EXPAND UNPACK TRUE ARRAY .campoArray1 TO .dest1
-                 UNPACK TRUE ARRAY .campoArray2 TO .dest2
-          KEEP OTHERS;
+          🚨 SE L'UTENTE CHIEDE DI ESPANDERE PIÙ ARRAY DIVERSI NELLA STESSA RICHIESTA (es. sia il
+          cast sia le lingue di un film) — NON mettere più UNPACK nello stesso comando EXPAND.
+          Verificato leggendo il codice del motore (ExpandExecutor.java): quando un EXPAND ha
+          più UNPACK, per ogni documento il motore prova le condizioni IN ORDINE e si ferma alla
+          PRIMA che risulta vera (c'è un "break" esplicito) — gli UNPACK successivi non vengono
+          MAI eseguiti per quel documento. Con condizioni sempre vere (TRUE, il caso comune),
+          solo il PRIMO UNPACK ha effetto, sempre — i campi degli altri non esistono mai. Più
+          UNPACK nello stesso EXPAND serve solo per "prova questa struttura, se non c'è prova
+          quest'altra" (documenti con forme diverse tra loro), MAI per espandere più array dello
+          stesso documento insieme.
+          Per espandere DAVVERO più array dello stesso documento, servono EXPAND SEPARATI in
+          sequenza (ognuno il proprio comando completo):
+          GET COLLECTION collezione;
+          EXPAND UNPACK TRUE ARRAY .campoArray1 TO .dest1;
+          EXPAND UNPACK TRUE ARRAY .campoArray2 TO .dest2;
+          Se la collezione è grande (molti documenti, array non piccoli), preferisci filtrare
+          dopo il primo EXPAND, salvare con SAVE AS, e fare il secondo EXPAND sul risultato già
+          ridotto — due EXPAND su tutta la collezione senza filtrare in mezzo possono creare il
+          prodotto di tutte le combinazioni e andare in timeout:
+          GET COLLECTION collezione;
+          EXPAND UNPACK TRUE ARRAY .campoArray1 TO .dest1;
+          FILTER CASE WHERE .dest1.item = 'valore1';
+          SAVE AS chaintemp1@{current_db};
+          GET COLLECTION chaintemp1;
+          EXPAND UNPACK TRUE ARRAY .campoArray2 TO .dest2;
+          FILTER CASE WHERE .dest2.item = 'valore2';
 
-        • MERGE — l'utente chiede di "unire tutti i documenti"/"combinare" due collezioni intere:
+        • MERGE — l'utente chiede di "unire"/"combinare"/"mettere insieme" documenti da due
+          fonti, tenendo tutto ciò che viene da ENTRAMBI i lati (unione — l'opposto di
+          INTERSECT sotto, che tiene solo le corrispondenze in comune): vale sia per collezioni
+          intere sia per due sottoinsiemi filtrati dalla stessa collezione — la distinzione da
+          INTERSECT/SUBTRACT sotto NON è "collezione intera vs sottoinsieme filtrato" (entrambi
+          i comandi funzionano su entrambi i casi), è il SIGNIFICATO della richiesta: "unisci"/
+          "metti insieme"/"combina" (tieni tutto) è sempre MERGE, "cosa hanno in comune"/
+          "quali soddisfano entrambe le condizioni insieme" è INTERSECT, "togli"/"che però
+          non" è SUBTRACT — anche quando entrambi i lati sono due FILTER diversi sulla stessa
+          collezione (osservato dal vivo: "unisci i prodotti scontati con i biologici" generato
+          per errore come INTERSECT invece di MERGE, probabilmente proprio per questa
+          ambiguità):
           MERGE COLLECTIONS collezione1, collezione2;
-          Opzionale REMOVE DUPLICATES.
+          🚨 REMOVE DUPLICATES (opzionale) confronta i documenti per intero, _id incluso — ha
+          senso SOLO se le collezioni derivano dalla stessa collezione originale (stessi _id
+          possibili in comune, es. due sottoinsiemi filtrati diversamente dalla stessa
+          collezione). Tra collezioni scorrelate per natura (es. hotels e restaurants, o la
+          stessa collezione su database diversi) non troverà mai duplicati da togliere — non
+          aggiungerlo in quel caso, sarebbe inutile.
 
-        • INTERSECT — l'utente chiede "cosa hanno in comune" due collezioni, o i documenti
-          presenti in entrambe:
-          INTERSECT COLLECTIONS collezione1, collezione2;
-
-        • SUBTRACT — l'utente chiede i documenti "presenti in X ma non in Y":
-          SUBTRACT COLLECTIONS collezione1, collezione2;
+        • INTERSECT / SUBTRACT — l'utente chiede "cosa hanno in comune"/"la differenza tra" due
+          insiemi di documenti CHE DERIVANO DALLA STESSA COLLEZIONE, tipicamente due filtri
+          diversi sulla stessa collezione (es. "prodotti scontati" e "prodotti elettronici", poi
+          trova quelli in comune o la differenza). Verificato nel codice del motore: il
+          confronto tra documenti è per intero, _id incluso — funziona correttamente SOLO
+          quando entrambe le collezioni condividono gli stessi _id originali (perché derivano
+          dagli stessi documenti sorgente, solo filtrati diversamente), MAI tra due collezioni
+          scorrelate per natura (es. "hotels" e "restaurants", o la stessa collezione presa da
+          due database diversi) — in quel caso _id non potrebbe mai coincidere e il risultato
+          sarebbe sempre vuoto (INTERSECT) o l'insieme di partenza intatto (SUBTRACT), a
+          prescindere da quanto i documenti si somiglino nel contenuto. 🚨 NON aggiungere KEEP
+          OTHERS ai due FILTER qui sotto — questi due filtri devono SELEZIONARE solo le
+          corrispondenze per creare due sottoinsiemi VERI, non trasformare l'intera collezione
+          tenendo anche chi non soddisfa la condizione (altrimenti entrambi i "sottoinsiemi"
+          finiscono per contenere l'intera collezione originale, vanificando l'operazione):
+          GET COLLECTION collezione;
+          FILTER CASE WHERE condizione1;
+          SAVE AS sottoinsieme1@{current_db};
+          GET COLLECTION collezione;
+          FILTER CASE WHERE condizione2;
+          SAVE AS sottoinsieme2@{current_db};
+          INTERSECT COLLECTIONS sottoinsieme1@{current_db}, sottoinsieme2@{current_db};
+          (SUBTRACT ha la stessa identica struttura, solo il nome del comando cambia)
+          🚨 Se una delle due condizioni richiede un EXPAND o un JOIN (es. "con almeno una
+          recensione a 5 stelle" — un campo dentro un array; oppure "e il nome dell'utente" —
+          un dato che sta in un'altra collezione), NON usare EXPAND né JOIN prima di uno dei due
+          FILTER qui sopra — verificato dal vivo, per entrambi separatamente: sia EXPAND sia
+          JOIN, quando il risultato viene salvato con SAVE AS, generano SEMPRE un _id
+          completamente nuovo (un ObjectId nuovo di MongoDB, senza nessuna relazione con l'_id
+          originale del documento — per JOIN è anche intuitivo: unendo due documenti diversi non
+          ci sarebbe comunque un _id "giusto" da ereditare da nessuno dei due lati) — anche
+          ripulendo con GENERATE REMOVE FIELDS i campi aggiunti, l'_id resta comunque diverso,
+          quindi INTERSECT/SUBTRACT non troverebbero MAI corrispondenze (risultato sempre vuoto).
+          Non esiste un modo di aggirarlo componendo la query diversamente — è un limite del
+          motore, non della query. Se la richiesta ha davvero bisogno di un EXPAND o un JOIN per
+          una delle due condizioni, preferisci un singolo FILTER con AND (vedi combinazione di
+          condizioni sopra) invece di INTERSECT/SUBTRACT — ottiene lo stesso risultato logico
+          senza scontrarsi con questo limite.
 
         • SAVE AS — l'utente chiede di "salvare"/"creare una copia"/"fare un backup" del
           risultato come nuova collezione:
@@ -671,6 +1772,56 @@ async def generate_query(request: GenerateRequest):
           @database NON scrive su MongoDB (salva solo temporaneamente nella pipeline interna).
           Se l'utente chiede di salvare, includi SEMPRE @{current_db} (o il database indicato
           esplicitamente dall'utente).
+
+        • GET COLLECTION FROM WEB — l'utente chiede di "caricare"/"recuperare"/"scaricare i
+          dati da" un URL (un'API/endpoint pubblico, non un file locale — quello è FROM FILE
+          sotto):
+          GET COLLECTION FROM WEB 'https://esempio.com/api/dati';
+          🚨 STRUTTURA DEL RISULTATO (verificato dal vivo, 19/09) — i dati NON arrivano come
+          documenti separati, arrivano SEMPRE incapsulati in UN SOLO documento, con i dati
+          veri dentro un campo .data (un array), insieme a .timestamp e .url aggiunti dal
+          motore. Per lavorare sui singoli elementi (filtrare, raggruppare) serve SEMPRE un
+          EXPAND su .data prima, esattamente come per qualunque altro array:
+          GET COLLECTION FROM WEB 'https://esempio.com/api/utenti';
+          EXPAND UNPACK TRUE ARRAY .data TO .elemento;
+          FILTER CASE WHERE .elemento.item.city = 'Roma';
+          Il nome dell'URL va tra apici singoli o doppi, MAI senza apici. Nessun @database.
+
+        • GET COLLECTION FROM FILE — l'utente chiede di "caricare"/"leggere"/"importare" un
+          file (tipicamente uno esportato in precedenza con SAVE TO FILE, vedi sotto):
+          GET COLLECTION FROM FILE 'nomefile.json';
+          [eventuali FILTER/GROUP/EXPAND su questi dati, come su qualunque altra collezione]
+          Il nome del file va tra apici singoli o doppi, MAI senza apici. Nessun @database —
+          non è una collection MongoDB.
+          🚨🚨 CAMPI ANNIDATI SE IL FILE VIENE DA UN JOIN — verificato dal vivo, capitato
+          ripetutamente: se il file era stato esportato dopo un JOIN, OGNI campo resta
+          annidato sotto l'alias usato in quel JOIN (es. .a.campo, .b.campo) — MAI un campo
+          diretto in cima al documento, ANCHE SE il nome del campo sembra ovvio o unico (es.
+          "priority", "status", "name"). Esempio concreto — SBAGLIATO:
+          GET COLLECTION FROM FILE 'ordini_con_utenti.json';
+          GROUP PARTITION TRUE BY .priority INTO .risultato;
+          ...CORRETTO (stesso file, un JOIN orders AS a/users AS b lo aveva generato):
+          GET COLLECTION FROM FILE 'ordini_con_utenti.json';
+          GROUP PARTITION TRUE BY .a.priority INTO .risultato;
+          Se non sai con certezza da dove viene il file, preferisci comunque il percorso con
+          l'alias (.a.campo) quando la richiesta stessa nomina un JOIN precedente o un file
+          con un nome che lo suggerisce (es. "..._con_utenti", "..._join", "..._unito") — un
+          campo diretto in cima silenziosamente non trova nulla (0 risultati, nessun errore).
+
+        • SAVE TO FILE — l'utente chiede di "esportare"/"scaricare"/"salvare su file"/"salvare
+          come JSON" il risultato (non "su un'altra collezione" — quello è SAVE AS sopra):
+          GET COLLECTION collezione; [eventuali FILTER/GROUP/EXPAND]
+          SAVE TO FILE 'nomefile.json';
+          Il nome del file va tra apici singoli o doppi (entrambi validi), MAI senza apici.
+          Nessun @database qui — non è una collection, non serve nessuna destinazione oltre
+          al nome del file. Il percorso, se relativo, è risolto rispetto alla working
+          directory del processo Java che esegue la query, non rispetto a dove giri il
+          browser o il backend Python.
+          🚨 Se il FILTER prima di SAVE TO FILE ha una condizione di selezione (es. "gli utenti
+          con nome X", "i prodotti scontati"), NON aggiungere KEEP OTHERS — l'utente vuole
+          esportare SOLO le corrispondenze, KEEP OTHERS esporterebbe anche tutto il resto
+          della collezione, vanificando la selezione (osservato dal vivo: un export "solo
+          User 1" con KEEP OTHERS ha prodotto un file con tutti e 5 gli utenti).
 
         • GENERATE/BUILD — l'utente chiede di "mostrare solo alcuni campi", "rinominare un
           campo", "aggiungere un campo calcolato da un altro campo esistente", o "togliere un
@@ -691,6 +1842,29 @@ async def generate_query(request: GenerateRequest):
             o .a + .b. Se l'utente chiede un calcolo aritmetico non disponibile con un semplice
             riferimento a campo, non inventare una sintassi: genera comunque BUILD/ADD FIELDS
             con i campi disponibili così come sono, senza il calcolo.
+
+        • GENERATE dentro JOIN o GROUP (non solo dentro FILTER) — stesse regole di BUILD/ADD
+          FIELDS/REMOVE FIELDS sopra, ma la posizione nella query cambia:
+          — Dentro JOIN, GENERATE può stare insieme alla condizione (dentro la stessa CASE
+            WHERE, non dopo) oppure al posto della condizione se non ce n'è una:
+            JOIN OF COLLECTIONS coll1@db1 AS a, coll2@db2 AS b
+            CASE WHERE .a.chiave1 = .b.chiave2 GENERATE ADD FIELDS {{ .nuovoCampo: .b.campo }};
+            JOIN OF COLLECTIONS coll1@db1 AS a, coll2@db2 AS b
+            GENERATE ADD FIELDS {{ .nuovoCampo: .b.campo }};  ← senza condizione, su ogni coppia
+          — Dentro GROUP, GENERATE va sempre alla fine della PARTITION, dopo INTO (ed eventuali
+            DROP GROUPING FIELDS / ORDER BY):
+            GROUP PARTITION TRUE BY .campo INTO .risultato GENERATE ADD FIELDS {{ .nuovoCampo: .campo }};
+          🚨 Non usare KEEP OTHERS/DROP OTHERS in nessuno dei due casi sopra quando non c'è una
+          CASE WHERE — stessa regola generale già vista per FILTER.
+          🚨 Se la richiesta nomina esplicitamente una chiave di corrispondenza ("usando
+          l'id", "in base a", "che corrisponde a") NON scegliere mai la forma "senza
+          condizione" — quella esiste solo per quando non c'è davvero nessuna chiave da
+          abbinare (es. "unisci ogni prodotto con ogni categoria disponibile", un prodotto
+          cartesiano voluto). Quando una chiave è nominata, la condizione va SEMPRE inclusa
+          insieme a GENERATE, nella stessa CASE WHERE — verificato dal vivo che è possibile
+          farlo insieme, non c'è nessun motivo tecnico per ometterla (osservato: un JOIN con
+          GENERATE ma senza condizione, pur richiesta esplicitamente, ha prodotto un risultato
+          con ogni combinazione possibile invece degli abbinamenti corretti).
 
         • GET DICTIONARY + TRANSLATE — l'utente chiede di "tradurre"/"mappare"/"convertire" un
           valore usando un'altra collezione come dizionario di corrispondenza:
@@ -775,15 +1949,69 @@ async def generate_query(request: GenerateRequest):
           USE DB db1 ON DEFAULT SERVER;
           USE DB db3 ON DEFAULT SERVER;
           JOIN OF COLLECTIONS chaintemp2@db1 AS c, coll3@db3 AS d
-          CASE WHERE .c.elemento.elemento.campoInterno = .d.chiave3;
-          🚨🚨 ATTENZIONE al percorso dopo EXPAND: il nome scelto dopo TO (es. "elemento") NON
-          diventa direttamente il contenuto dell'elemento — EXPAND lo avvolge in un oggetto con
-          DUE campi, uno chiamato come il nome scelto stesso (contenente l'elemento vero) e uno
-          chiamato "position" (l'indice). Quindi il percorso per arrivare a un campo interno
-          all'elemento è SEMPRE .alias.nomeScelto.nomeScelto.campoInterno (il nome ripetuto due
-          volte), non .alias.nomeScelto.campoInterno — verificato empiricamente sul motore reale,
-          è un dettaglio facile da sbagliare.
-          🚨 SCEGLIERE IL CAMPO GIUSTO PER UN JOIN — quando due collezioni hanno campi con lo
+          CASE WHERE .c.elemento.item.campoInterno = .d.chiave3;
+          🚨🚨 ORDINE PREFERITO — JOIN PRIMA, EXPAND DOPO (come sopra, non il contrario):
+          quando l'array da espandere appartiene a una delle due collezioni che comunque devi
+          unire con JOIN, fai SEMPRE prima il JOIN e POI l'EXPAND sul risultato già unito —
+          MAI il contrario (EXPAND su una collection da sola, prima di qualunque JOIN). Il
+          motivo: ogni JOIN aggiunge un livello di annidamento con l'alias attorno a TUTTO il
+          contenuto di quel lato — se fai prima EXPAND e POI JOIN quella collection già
+          espansa, il campo creato dall'EXPAND finisce annidato sotto l'alias di quel JOIN
+          (es. .c.a.elemento.item...), non più in cima al documento (.c.elemento.item...) —
+          un livello in più facile da dimenticare, che porta a un percorso sbagliato e a 0
+          risultati senza nessun errore visibile (osservato dal vivo). Facendo prima il JOIN
+          e poi l'EXPAND, come nell'esempio sopra, il campo espanso resta sempre in cima al
+          documento risultante — un solo livello da tenere a mente, non due.
+          🚨🚨 ATTENZIONE al percorso dopo EXPAND — verificato leggendo il codice sorgente del
+          motore (JCOConstants.java: ITEM_FIELD_NAME = "item"), non dedotto per tentativi: il
+          nome scelto dopo TO (es. "elemento") NON diventa direttamente il contenuto
+          dell'elemento — EXPAND lo avvolge in un oggetto con DUE campi FISSI, sempre chiamati
+          "item" (il contenuto vero) e "position" (l'indice), a prescindere da quale nome hai
+          scelto dopo TO. Il percorso è SEMPRE .alias.nomeScelto.item.campoInterno — "item" è
+          una parola fissa del motore, non il nome che hai scelto ripetuto.
+          Se l'elemento dell'array è un valore semplice (non un oggetto, es. un array di
+          stringhe), il percorso si ferma a .alias.nomeScelto.item (senza altro campo dopo).
+
+          🚨🚨 ERRORE COMUNE DA EVITARE — fermarsi troppo presto: dopo l'EXPAND sull'array,
+          può sembrare che la richiesta sia già soddisfatta (i riferimenti sono lì,
+          "srotolati") — ma se la richiesta NOMINA un'entità (es. "prodotti", "categorie",
+          "autori") o CHIEDE "CHI" ha fatto qualcosa (chi ha scritto, chi ha acquistato, chi
+          ha ordinato) e nei dati hai solo un riferimento grezzo a quell'entità (un valore
+          semplice, non un nome/prezzo/altri dettagli), la richiesta NON è soddisfatta finché
+          non fai anche il JOIN finale che porta dentro i dati veri di quell'entità. 🚨 QUESTO
+          VALE ANCHE SE IL CAMPO NON SI CHIAMA "qualcosa_id" — un campo chiamato semplicemente
+          "user", "autore", "owner" (senza suffisso _id) che contiene comunque un
+          identificativo (non un nome leggibile) è lo stesso identico caso, non fare
+          affidamento sul nome del campo per riconoscerlo. Un riferimento grezzo da solo non
+          è "l'utente"/"l'autore" — è solo un riferimento A quell'entità. Prima di considerare
+          finita una query con EXPAND su un array di riferimenti, controlla: la richiesta
+          nomina esplicitamente l'entità referenziata, o chiede "chi" ha fatto qualcosa (es.
+          "e i prodotti acquistati", "con i dettagli di X", "e chi le ha scritte")? Se sì,
+          manca sempre un ultimo JOIN — non fermarti al solo riferimento srotolato, anche se
+          sintatticamente la query già "funziona" così com'è (es. tramite GENERATE che si
+          limita a copiare il riferimento grezzo nel risultato, senza mai risolverlo).
+
+        • 🚨 STESSA REGOLA VALE PER FILTER (non solo per JOIN sopra) — verificato che
+          SynchronizedFilterCycle.java (il motore per FILTER CASE WHERE) usa lo stesso
+          evaluator di JOIN, quindi la stessa restrizione: un campo che è un array non è MAI
+          uguale a un valore singolo con =, anche se lo contiene, anche se il campo ha un solo
+          elemento. Questo riguarda in particolare richieste tipo "film con l'attore X",
+          "prodotti con il tag Y", "ordini che contengono il prodotto Z" — qualunque richiesta
+          che cerca un valore DENTRO un array. NON generare mai .campoArray = 'valore' — serve
+          sempre un EXPAND prima:
+          GET COLLECTION collezione;
+          EXPAND UNPACK TRUE ARRAY .campoArray TO .elemento;
+          FILTER CASE WHERE .elemento.item = 'valore';
+          🚨 Qui NON va aggiunto KEEP OTHERS al FILTER finale — l'utente vuole SOLO le
+          corrispondenze (una ricerca), KEEP OTHERS terrebbe anche tutto il resto, vanificando
+          il filtro (esattamente l'errore osservato: un FILTER con KEEP OTHERS su un confronto
+          sempre "non valutabile" per il disallineamento di tipo aveva restituito il 100% dei
+          documenti invece delle sole corrispondenze).
+          Se il campo dentro l'array è un OGGETTO (non un valore semplice), il percorso dopo
+          EXPAND include anche il campo interno: .elemento.item.campoInterno = 'valore'
+          (stessa regola del doppio nome vista sopra per JOIN).
+
+        • 🚨 SCEGLIERE IL CAMPO GIUSTO PER UN JOIN — quando due collezioni hanno campi con lo
           stesso nome ma sono in realtà cose diverse (es. entrambe hanno un campo "user_id", ma
           in una è una stringa che identifica un altro documento, nell'altra è solo un numero
           progressivo interno), NON scegliere un campo solo perché il nome coincide con l'altro
@@ -811,7 +2039,40 @@ Genera SOLO la query JCoQL basata sullo SCHEMA REALE sopra.
 Usa ESATTAMENTE i nomi campi dello schema. NESSUN testo aggiuntivo.
 """
 
+        # MISURA DIAGNOSTICA (17/09): dimensione reale del prompt appena
+        # costruito — per capire con certezza cosa sta saturando la quota
+        # Gemini (250k token/minuto), invece di continuare a stimarlo da
+        # fuori senza vedere lo schema vero del database dell'utente.
+        # ~4 caratteri per token è una stima approssimativa ma ragionevole
+        # per testo misto italiano/inglese — non è il conteggio esatto di
+        # Gemini, ma dà l'ordine di grandezza. Stampato sempre, non solo
+        # sotto JCOQL_DEBUG, perché è proprio il primo tentativo (quello
+        # più difficile da riprodurre) quello che ci interessa vedere.
+        query_logger.info(
+            f"📏 Dimensione prompt: {len(prompt):,} caratteri "
+            f"(~{len(prompt)//4:,} token stimati) — "
+            f"grammatica: {len(JCOQL_SYNTAX_FULL):,} car., "
+            f"esempi fissi: {len(EXTENDED_EXAMPLES):,} car., "
+            f"schema+regole+RAG: {len(prompt) - len(JCOQL_SYNTAX_FULL) - len(EXTENDED_EXAMPLES):,} car."
+        )
+
         try:
+            # Prompt più snello per i modelli locali (19/09) — primo passo,
+            # solo su questo punto per ora (le regole restano le stesse
+            # invariate, un intervento più grosso da fare con calma a
+            # parte): la grammatica FULL (~14.000 token stimati) è quella
+            # ufficiale pensata per il parser stesso, non per spiegare
+            # l'uso — osservato dal vivo un modello locale "perdersi" a
+            # descriverla in prosa invece di usarla per generare una
+            # query. JCOQL_SYNTAX_BASIC (~5.000 token, la grammatica
+            # 'JCoQLBasic.g' ufficiale) copre tutto tranne GET COLLECTION
+            # FROM FILE (verificato confrontando le due grammatiche) — un
+            # limite accettato per ora, dato che la regola su FROM FILE
+            # resta comunque nel testo delle regole condiviso sotto,
+            # anche senza il supporto formale della grammatica.
+            # Gemini NON è toccato da questo cambio — usa sempre `prompt`
+            # tale e quale, mai `local_model_prompt`.
+            #
             # Promemoria extra SOLO per i modelli locali (Llama/Gemma), che nei test si
             # sono dimostrati più propensi a usare solo l'ultimo segmento di un campo
             # annidato (es. .rating invece di .imdb.rating) invece di leggere il percorso
@@ -820,7 +2081,7 @@ Usa ESATTAMENTE i nomi campi dello schema. NESSUN testo aggiuntivo.
             # qualunque database connesso.
             local_model_prompt = prompt
             if ACTIVE_LLM in ("llama", "gemma"):
-                local_model_prompt = prompt + (
+                local_model_prompt = prompt.replace(JCOQL_SYNTAX_FULL, JCOQL_SYNTAX_BASIC) + (
                     "\n\nATTENZIONE - CAMPI ANNIDATI: nello SCHEMA MONGODB REALE sopra, se un "
                     "campo appare con un punto nel nome (es. 'imdb.rating', 'location.city'), "
                     "quello è un campo ANNIDATO: DEVI usare il percorso completo con il punto "
@@ -828,13 +2089,27 @@ Usa ESATTAMENTE i nomi campi dello schema. NESSUN testo aggiuntivo.
                     "(MAI .rating da solo se lo schema mostra imdb.rating). Controlla sempre lo "
                     "schema prima di scegliere un nome di campo."
                 )
+                query_logger.info(
+                    f"📏 Dimensione prompt (modello locale, grammatica BASIC): "
+                    f"{len(local_model_prompt):,} caratteri "
+                    f"(~{len(local_model_prompt)//4:,} token stimati) — "
+                    f"contro {len(prompt):,} caratteri che avrebbe avuto con la grammatica FULL"
+                )
 
             if ACTIVE_LLM == "llama":
                 current_query = generate_with_llama(local_model_prompt)
             elif ACTIVE_LLM == "gemma":
                 current_query = generate_with_gemma(local_model_prompt)
             else:
-                response = model.generate_content(prompt)
+                # FIX (17/09): nessun timeout esplicito qui — osservato dal
+                # vivo un blocco di diversi minuti, senza errore né
+                # risposta, subito dopo aver esaurito la quota gratuita
+                # (429): la libreria di Google, sotto al cofano, sembra
+                # ritentare automaticamente con attese crescenti, senza
+                # far arrivare nulla ai nostri log nel frattempo. Un
+                # timeout esplicito forza un errore chiaro dopo un tempo
+                # ragionevole, invece di un blocco silenzioso indefinito.
+                response = model.generate_content(prompt, request_options={"timeout": 20})
                 current_query = response.text.strip()
 
             # 🔧 Fix: applicato a TUTTI i modelli locali (Llama e Gemma), non solo Llama.
@@ -1021,6 +2296,73 @@ Usa ESATTAMENTE i nomi campi dello schema. NESSUN testo aggiuntivo.
             if current_query and not current_query.startswith("QUERY:"):
                 current_query, _ = correct_query(current_query)
 
+            # Costruzione multi-database deterministica (16/08): se 2+
+            # database sono selezionati, ricostruisce una query semplice
+            # "GET COLLECTION X;" in un MERGE su tutti i database
+            # selezionati — vedi _build_multi_database_query per il
+            # perché. Va DOPO l'auto-correzione sintattica sopra (lavora su
+            # una query già ripulita) e PRIMA delle riparazioni sotto,
+            # così quelle si applicano già alla versione multi-database
+            # se necessario.
+            current_query = _build_multi_database_query(current_query, request.databases, db_registry.databases)
+
+            # Riparazione deterministica: FILTER che confronta con =/!= un
+            # campo che lo schema conosce come array — vedi
+            # _fix_array_field_filter per il perché (regressione introdotta
+            # dalla strategia "auto SAVE AS", che ha tolto una gestione
+            # esplicita degli array che prima esisteva lato Python).
+            current_query = _fix_array_field_filter(current_query, current_schema)
+
+            # Riparazione deterministica: N EXPAND consecutivi seguiti da
+            # un unico FILTER combinato — riscritta a stadi per evitare il
+            # prodotto di tutte le combinazioni su collection grandi (vedi
+            # _stage_multi_expand_filter — timeout osservato due volte dal
+            # vivo su sample_mflix.movies).
+            current_query = _stage_multi_expand_filter(current_query, current_db)
+
+            # Riparazione deterministica: EXPAND fatto prima di un JOIN
+            # che riusa la stessa collection — riscritta scambiando
+            # l'ordine (JOIN poi EXPAND), invece di calcolare un livello
+            # di annidamento extra sul posto. Va PRIMA della riparazione
+            # sul livello ".item" mancante sotto, così quella lavora già
+            # sulla struttura riordinata. Vedi _reorder_expand_before_join.
+            current_query = _reorder_expand_before_join(current_query)
+
+            # Riparazione deterministica: percorso dopo EXPAND con un
+            # livello ".item" mancante — vedi _fix_missing_expand_item_wrapper.
+            # A differenza delle altre riparazioni su EXPAND, qui la
+            # correzione è certa (non richiede un altro tentativo).
+            current_query = _fix_missing_expand_item_wrapper(current_query)
+
+            # Riparazione deterministica: KEEP OTHERS di troppo su un
+            # FILTER senza GENERATE — vedi _remove_pointless_keep_others.
+            # Generalizzata il 18/09: non più limitata al caso "prima di
+            # un SAVE", riguarda ogni FILTER senza GENERATE (dove KEEP
+            # OTHERS è sempre privo di effetto utile, a prescindere da
+            # cosa viene dopo).
+            current_query = _remove_pointless_keep_others(current_query)
+
+            # Riparazione deterministica: punto e virgola mancante tra la
+            # condizione del FILTER e un SAVE AS/SAVE TO FILE subito dopo
+            # — vedi _fix_missing_semicolon_before_save. Va DOPO la
+            # riparazione sopra (toglie KEEP OTHERS), così corregge anche
+            # il punto e virgola che a volte sparisce insieme ad esso.
+            current_query = _fix_missing_semicolon_before_save(current_query)
+
+            # Riparazione deterministica: true/false minuscoli in un
+            # confronto — vedi _fix_lowercase_boolean.
+            current_query = _fix_lowercase_boolean(current_query)
+
+            # Riparazione deterministica: aritmetica diretta dentro
+            # GENERATE (non supportata dal motore) — vedi
+            # _fix_arithmetic_in_generate.
+            current_query = _fix_arithmetic_in_generate(current_query)
+
+            # Riparazione deterministica: REMOVE DUPLICATES mancante su
+            # un MERGE tra due sottoinsiemi con la stessa origine — vedi
+            # _add_remove_duplicates_if_same_source.
+            current_query = _add_remove_duplicates_if_same_source(current_query)
+
             # Riparazione deterministica: @database mancante su un
             # riferimento a collection dentro JOIN OF COLLECTIONS o MERGE
             # COLLECTIONS (osservato il 15/08 in un JOIN concatenato — il
@@ -1083,6 +2425,31 @@ Usa ESATTAMENTE i nomi campi dello schema. NESSUN testo aggiuntivo.
                 if dict_name_match:
                     dict_collection = dict_name_match.group(1) or dict_name_match.group(2)
 
+                # FALLBACK (18/09): osservato dal vivo che una richiesta di
+                # traduzione formulata in modo naturale ("tradotta in
+                # italiano") non nomina affatto il dizionario — il tentativo
+                # sopra non ha nulla da estrarre. Prima di arrendersi,
+                # cerca nello schema del database corrente l'UNICA
+                # collection con la forma tipica di un dizionario (solo
+                # campi "key"/"value", a parte _id) — se ce n'è esattamente
+                # una, non c'è ambiguità da indovinare, usala. Se ce n'è
+                # più di una o nessuna, non si tenta nulla: resta il
+                # messaggio di errore esplicito sotto, che chiede
+                # all'utente di specificare quale.
+                if not dict_collection:
+                    dict_candidates = []
+                    for coll_name, coll_data in (current_schema or {}).items():
+                        coll_fields = set(((coll_data or {}).get('fields', {}) or {}).keys())
+                        coll_fields.discard('_id')
+                        if coll_fields == {'key', 'value'}:
+                            dict_candidates.append(coll_name)
+                    if len(dict_candidates) == 1:
+                        dict_collection = dict_candidates[0]
+                        query_logger.info(
+                            f"🔧 Nessun nome dizionario nella richiesta — trovata un'unica "
+                            f"collection a forma di dizionario nello schema: '{dict_collection}'"
+                        )
+
                 if dict_collection:
                     repaired_query = (
                         f"GET DICTIONARY {dict_collection}@{current_db} AS {used_alias};\n"
@@ -1134,6 +2501,29 @@ Usa ESATTAMENTE i nomi campi dello schema. NESSUN testo aggiuntivo.
                     is_valid = False
                     errors = [type('Err', (), {'message': type_mismatch_msg})()]
 
+            # Controllo empirico (17/09): campi con NOMI DIVERSI, stesso
+            # tipo, ma valori che non si sovrappongono mai nei dati veri —
+            # vedi _check_join_key_data_overlap. Complementare al
+            # controllo di tipo sopra, non sostitutivo: quello copre
+            # "stesso nome, tipo diverso", questo copre "nome diverso,
+            # tipo uguale, valori scorrelati".
+            if is_valid:
+                overlap_msg = _check_join_key_data_overlap(current_query, db_registry.databases)
+                if overlap_msg:
+                    is_valid = False
+                    errors = [type('Err', (), {'message': overlap_msg})()]
+
+            # Controllo semantico: riferimento a un elemento espanso
+            # (.nome.item) il cui EXPAND non è mai stato dichiarato — vedi
+            # _check_undeclared_expand_reference. Stessa filosofia di
+            # quello sopra: non prova a indovinare il campo giusto, forza
+            # un altro tentativo con l'elenco dei campi array veri.
+            if is_valid:
+                undeclared_msg = _check_undeclared_expand_reference(current_query, current_schema)
+                if undeclared_msg:
+                    is_valid = False
+                    errors = [type('Err', (), {'message': undeclared_msg})()]
+
             if not is_valid:
                 error_messages = [err.message for err in errors] if errors else ["Errore sintattico"]
                 # Se avevamo rilevato leakage del prompt o l'assenza di GET COLLECTION,
@@ -1149,6 +2539,27 @@ Usa ESATTAMENTE i nomi campi dello schema. NESSUN testo aggiuntivo.
 
         except Exception as e:
             query_logger.error(f"⚠️ Errore durante la generazione: {e}")
+            # FIX (17/09): un except Exception generico rimandava sempre lo
+            # stesso 500 anche per un semplice limite di quota della API
+            # Gemini (429, comune durante test ravvicinati) — l'utente
+            # vedeva solo "Request failed with status code 500", niente
+            # che spiegasse cosa fare (aspettare qualche secondo). Qui
+            # riconosciamo il caso in base al testo dell'errore (non serve
+            # sapere il nome esatto della classe di eccezione della
+            # libreria Google, basta cercare i segnali che compaiono nel
+            # loro stesso messaggio) e diamo un dettaglio utile — il resto
+            # degli errori resta gestito come prima, invariato.
+            error_str = str(e)
+            if '429' in error_str or 'quota' in error_str.lower() or 'rate limit' in error_str.lower():
+                raise HTTPException(
+                    status_code=429,
+                    detail="Limite di richieste della API Gemini raggiunto (quota gratuita esaurita per il momento) — riprova tra qualche decina di secondi."
+                )
+            if 'timeout' in error_str.lower() or 'deadline' in error_str.lower():
+                raise HTTPException(
+                    status_code=504,
+                    detail="La chiamata alla API Gemini ha impiegato troppo tempo (oltre 20s) — probabilmente per un limite di quota raggiunto poco prima. Riprova tra qualche decina di secondi."
+                )
             raise HTTPException(status_code=500, detail=str(e))
 
     result = {
@@ -1371,7 +2782,13 @@ async def execute_query(request: QueryRequest):
                 query_logger.error(f"❌ Errore Executor: {error_msg}")
                 return {"success": False, "error": error_msg}
 
-        return {
+        # Trasparenza sul risultato (17/09): non blocca né modifica
+        # nulla, vedi _find_unresolved_id_references — solo una nota se
+        # il risultato contiene riferimenti .item.item.XXX_id mai
+        # risolti con un JOIN successivo, così l'utente non deve
+        # indovinare da solo se il risultato è completo.
+        unresolved_refs = _find_unresolved_id_references(actual_results) if isinstance(actual_results, list) else []
+        response = {
             "success": True,
             "jcoql_query": jcoql_query,
             "count": actual_count,
@@ -1379,6 +2796,14 @@ async def execute_query(request: QueryRequest):
             "database": target_db,
             "mongo_query": None
         }
+        if unresolved_refs:
+            examples_str = ", ".join(f"{path} = {val!r}" for path, val in unresolved_refs)
+            response["warning"] = (
+                f"Il risultato contiene riferimenti non risolti dentro un elemento espanso "
+                f"(es. {examples_str}) — se ti aspettavi anche i dati collegati a quel "
+                f"riferimento, potrebbe mancare un JOIN successivo nella query."
+            )
+        return response
 
     except Exception as e:
         import traceback

@@ -20,7 +20,31 @@ export default function DatabaseSelector({ onDatabasesChange, selectedDatabases,
   // ================== STATE ==================
 
   const [availableDatabases, setAvailableDatabases] = useState([]);
-  const [multiSelected, setMultiSelected] = useState(new Set(['jcoql_test']));
+  // FIX (17/08, correzione della correzione di ieri): il precedente
+  // useEffect che sincronizzava multiSelected dal prop selectedDatabases
+  // non funzionava per un problema di timing — in React, gli effect dei
+  // componenti FIGLI partono prima di quelli del genitore. Quando questo
+  // effect girava, App.jsx non aveva ancora letto il localStorage e il
+  // prop selectedDatabases valeva ancora il default ['jcoql_test'], non
+  // il valore vero appena ripristinato. Invece di rincorrere il timing
+  // degli effect, si legge il localStorage direttamente qui, in modo
+  // sincrono, nell'inizializzatore di useState — che gira una sola volta,
+  // durante il primissimo render, indipendentemente da quando/se il
+  // genitore fa la propria lettura. Stessa chiave usata in App.jsx.
+  const [multiSelected, setMultiSelected] = useState(() => {
+    try {
+      const saved = localStorage.getItem('jcoql_selected_databases');
+      if (saved) {
+        const parsed = JSON.parse(saved);
+        if (Array.isArray(parsed) && parsed.length > 0) {
+          return new Set(parsed);
+        }
+      }
+    } catch (err) {
+      console.warn('Errore lettura database selezionati da localStorage:', err);
+    }
+    return new Set(['jcoql_test']);
+  });
   const [joinMode, setJoinMode] = useState(false);
   const [joinConfig, setJoinConfig] = useState({
     db1: 'jcoql_test',
@@ -157,10 +181,24 @@ export default function DatabaseSelector({ onDatabasesChange, selectedDatabases,
       
       setAvailableDatabases(dbNames);
 
-      // Se c'è almeno un database, impostalo come default
-      if (dbNames.length > 0) {
-        setMultiSelected(new Set([dbNames[0]]));
-      }
+      // FIX (17/08): prima resettava SEMPRE multiSelected al solo primo
+      // database della lista — anche al primo montaggio, sovrascrivendo
+      // la selezione appena ripristinata dal localStorage (vedi
+      // l'inizializzatore di multiSelected sopra). Ora preserva la
+      // selezione corrente se è ancora valida (i database selezionati
+      // esistono ancora in quelli appena scaricati) — resetta al primo
+      // database SOLO se la selezione corrente è vuota o non contiene più
+      // nessun database realmente esistente (es. dopo che uno è stato
+      // rimosso). Così "aggiungi/rimuovi database" e "Ricarica Database"
+      // continuano a comportarsi come prima quando serve, ma il mount
+      // iniziale non cancella più il ripristino.
+      setMultiSelected((prevSelected) => {
+        const stillValid = new Set([...prevSelected].filter((db) => dbNames.includes(db)));
+        if (stillValid.size > 0) {
+          return stillValid;
+        }
+        return dbNames.length > 0 ? new Set([dbNames[0]]) : new Set();
+      });
     } catch (err) {
       setError(`Errore caricamento database: ${err.message}`);
       console.error(err);
@@ -460,7 +498,13 @@ export default function DatabaseSelector({ onDatabasesChange, selectedDatabases,
             <span key={db} className="badge">{db}</span>
           ))}
         </div>
-        {joinConfig && (
+        {/* FIX (17/08): il controllo era solo "joinConfig &&" — ma
+            joinConfig qui è sempre un oggetto non-null (inizializzato con
+            valori di default, mai davvero azzerato a null), quindi questa
+            riga compariva SEMPRE, anche a JOIN mai attivato. Il controllo
+            giusto è joinMode, il booleano che riflette davvero se il form
+            è attivo. */}
+        {joinMode && joinConfig && (
           <div className="join-summary">
             <strong>JOIN:</strong> {joinConfig.db1} → {joinConfig.db2}
           </div>

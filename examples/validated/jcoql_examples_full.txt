@@ -88,21 +88,39 @@ MERGE COLLECTIONS hotels, restaurants;
 
 ESEMPIO 12: MERGE con rimozione duplicati
 ----------------------------------------------
-Descrizione: Unisci hotel e ristoranti, rimuovendo eventuali documenti duplicati dal risultato.
+Descrizione: Unisci due sottoinsiemi filtrati di prodotti (scontati, ed elettronici) rimuovendo eventuali documenti presenti in entrambi. Le due collezioni devono derivare dalla stessa collezione originale (stessi _id): MERGE con REMOVE DUPLICATES confronta i documenti per intero, _id incluso — collezioni scorrelate per natura (es. hotels e restaurants) non avrebbero mai _id in comune, quindi non troverebbe mai duplicati da togliere.
 Query:
-MERGE COLLECTIONS hotels, restaurants REMOVE DUPLICATES;
+GET COLLECTION products;
+FILTER CASE WHERE .discount > 0;
+SAVE AS discounted@jcoql_test;
+GET COLLECTION products;
+FILTER CASE WHERE .category = 'electronics';
+SAVE AS electronics@jcoql_test;
+MERGE COLLECTIONS discounted@jcoql_test, electronics@jcoql_test REMOVE DUPLICATES;
 
-ESEMPIO 13: INTERSECT - intersezione tra due collezioni
+ESEMPIO 13: INTERSECT - intersezione tra due sottoinsiemi della stessa collezione
 ----------------------------------------------
-Descrizione: Trova i documenti presenti sia nella collezione hotels sia nella collezione restaurants.
+Descrizione: Prodotti che sono sia scontati sia elettronici (due filtri diversi sulla stessa collezione, poi intersecati). INTERSECT confronta i documenti per intero, _id incluso — funziona correttamente solo quando entrambe le collezioni derivano dalla stessa collezione originale (stessi _id), non tra collezioni scorrelate per natura.
 Query:
-INTERSECT COLLECTIONS hotels, restaurants;
+GET COLLECTION products;
+FILTER CASE WHERE .discount > 0;
+SAVE AS discounted@jcoql_test;
+GET COLLECTION products;
+FILTER CASE WHERE .category = 'electronics';
+SAVE AS electronics@jcoql_test;
+INTERSECT COLLECTIONS discounted@jcoql_test, electronics@jcoql_test;
 
-ESEMPIO 14: SUBTRACT - differenza tra due collezioni
+ESEMPIO 14: SUBTRACT - differenza tra due sottoinsiemi della stessa collezione
 ----------------------------------------------
-Descrizione: Trova i documenti presenti in hotels ma non in restaurants.
+Descrizione: Prodotti scontati che NON sono elettronici (stessa logica di INTERSECT sopra, ma per differenza). Stesso vincolo: entrambe le collezioni devono derivare dalla stessa collezione originale.
 Query:
-SUBTRACT COLLECTIONS hotels, restaurants;
+GET COLLECTION products;
+FILTER CASE WHERE .discount > 0;
+SAVE AS discounted@jcoql_test;
+GET COLLECTION products;
+FILTER CASE WHERE .category = 'electronics';
+SAVE AS electronics@jcoql_test;
+SUBTRACT COLLECTIONS discounted@jcoql_test, electronics@jcoql_test;
 
 ESEMPIO 15: SAVE AS - salva il risultato come nuova collezione
 ----------------------------------------------
@@ -116,7 +134,7 @@ ESEMPIO 16: SAVE AS dopo un filtro
 Descrizione: Filtra gli ordini con priorità urgente e salva il risultato come nuova collezione.
 Query:
 GET COLLECTION orders;
-FILTER CASE WHERE .priority = 'urgent' KEEP OTHERS;
+FILTER CASE WHERE .priority = 'urgent';
 SAVE AS urgentOrders@jcoql_test;
 
 ESEMPIO 17: Prodotti con sconto elevato
@@ -124,56 +142,56 @@ ESEMPIO 17: Prodotti con sconto elevato
 Descrizione: Prodotti con uno sconto superiore al 20%.
 Query:
 GET COLLECTION products;
-FILTER CASE WHERE .discount > 20 KEEP OTHERS;
+FILTER CASE WHERE .discount > 20;
 
 ESEMPIO 18: Prodotti biologici con buon rating
 ----------------------------------------------
 Descrizione: Prodotti biologici con una valutazione superiore a 4.
 Query:
 GET COLLECTION products;
-FILTER CASE WHERE .organic = true AND .rating > 4 KEEP OTHERS;
+FILTER CASE WHERE .organic = TRUE AND .rating > 4;
 
 ESEMPIO 19: Prodotti di una marca specifica
 ----------------------------------------------
 Descrizione: Prodotti della marca HP.
 Query:
 GET COLLECTION products;
-FILTER CASE WHERE .brand = 'HP' KEEP OTHERS;
+FILTER CASE WHERE .brand = 'HP';
 
 ESEMPIO 20: Ristoranti aperti con una cucina specifica
 ----------------------------------------------
 Descrizione: Ristoranti aperti con cucina giapponese.
 Query:
 GET COLLECTION restaurants;
-FILTER CASE WHERE .status = 'open' AND .cuisine = 'Japanese' KEEP OTHERS;
+FILTER CASE WHERE .status = 'open' AND .cuisine = 'Japanese';
 
 ESEMPIO 21: Ristoranti con posti all'aperto senza glutine
 ----------------------------------------------
 Descrizione: Ristoranti con posti a sedere all'aperto e menu senza glutine.
 Query:
 GET COLLECTION restaurants;
-FILTER CASE WHERE .outdoor_seating = true AND .gluten_free_menu = true KEEP OTHERS;
+FILTER CASE WHERE .outdoor_seating = TRUE AND .gluten_free_menu = TRUE;
 
 ESEMPIO 22: Hotel in una città
 ----------------------------------------------
 Descrizione: Hotel situati a Milano.
 Query:
 GET COLLECTION hotels;
-FILTER CASE WHERE .location.city = 'Milano' KEEP OTHERS;
+FILTER CASE WHERE .location.city = 'Milano';
 
 ESEMPIO 23: Ordini urgenti di importo elevato
 ----------------------------------------------
 Descrizione: Ordini con priorità urgente e totale superiore a 500.
 Query:
 GET COLLECTION orders;
-FILTER CASE WHERE .priority = 'urgent' AND .total > 500 KEEP OTHERS;
+FILTER CASE WHERE .priority = 'urgent' AND .total > 500;
 
 ESEMPIO 24: Ordini con numero di tracciamento assegnato
 ----------------------------------------------
 Descrizione: Ordini che hanno un numero di tracciamento registrato.
 Query:
 GET COLLECTION orders;
-FILTER CASE WHERE FIELD .tracking_number ISNOTNULL KEEP OTHERS;
+FILTER CASE WHERE FIELD .tracking_number ISNOTNULL;
 
 ESEMPIO 25: GROUP con ordinamento all'interno del gruppo
 ----------------------------------------------
@@ -190,14 +208,13 @@ GET COLLECTION products;
 GROUP PARTITION .price > 500 BY .category INTO .expensive
       PARTITION .price <= 500 BY .category INTO .cheap;
 
-ESEMPIO 27: EXPAND su più array nello stesso comando
+ESEMPIO 27: Espandere più array diversi dello stesso documento
 ----------------------------------------------
-Descrizione: Espandi sia le recensioni sia i tag di ciascun prodotto, mantenendo anche i prodotti senza questi campi.
+Descrizione: Espandi sia le recensioni sia i tag di ciascun prodotto, una riga per ogni combinazione. Richiede due EXPAND separati in sequenza, non due UNPACK nello stesso EXPAND — verificato nel codice del motore che con più UNPACK nello stesso comando solo il primo che soddisfa la condizione viene eseguito per ciascun documento, gli altri mai.
 Query:
 GET COLLECTION products;
-EXPAND UNPACK TRUE ARRAY .reviews TO .review
-       UNPACK TRUE ARRAY .tags TO .tag
-KEEP OTHERS;
+EXPAND UNPACK TRUE ARRAY .reviews TO .review;
+EXPAND UNPACK TRUE ARRAY .tags TO .tag;
 
 ESEMPIO 28: MERGE su più di due database
 ----------------------------------------------
@@ -222,3 +239,53 @@ SAVE AS chaintemp2@jcoql_test;
 USE DB jcoql_test ON DEFAULT SERVER;
 JOIN OF COLLECTIONS chaintemp2@jcoql_test AS c, products@jcoql_test AS d
 CASE WHERE .c.item.item.product_id = .d._id;
+
+ESEMPIO 30: GENERATE dentro un JOIN
+----------------------------------------------
+Descrizione: Ordini con il nome dell'utente che li ha effettuati, aggiunto come nuovo campo (non solo unito come sotto-documento).
+Query:
+USE DB jcoql_test ON DEFAULT SERVER;
+JOIN OF COLLECTIONS orders@jcoql_test AS a, users@jcoql_test AS b
+CASE WHERE .a.user_id = .b._id GENERATE ADD FIELDS { .nome_utente: .b.name };
+
+ESEMPIO 31: GENERATE dentro un GROUP
+----------------------------------------------
+Descrizione: Prodotti raggruppati per categoria, aggiungendo a ogni gruppo un campo con il nome della categoria.
+Query:
+USE DB jcoql_test ON DEFAULT SERVER;
+GET COLLECTION products;
+GROUP PARTITION TRUE BY .category INTO .items GENERATE ADD FIELDS { .categoria_riassunto: .category };
+
+ESEMPIO 32: Cercare un valore dentro un array (richiede EXPAND prima del FILTER)
+----------------------------------------------
+Descrizione: Film in cui compare un attore specifico (il cast è un array — cercare direttamente .cast = 'nome' non funziona, un array non è mai uguale a un valore singolo anche se lo contiene).
+Query:
+GET COLLECTION movies;
+EXPAND UNPACK TRUE ARRAY .cast TO .actor;
+FILTER CASE WHERE .actor.item = 'Tom Hanks';
+
+ESEMPIO 33: EXPAND su un array seguito da un JOIN sul campo srotolato (caso semplice, un solo JOIN)
+----------------------------------------------
+Descrizione: Prodotti con le recensioni, e con i dati dell'utente che ha scritto ciascuna recensione (il riferimento all'utente è dentro un array "reviews" di ogni prodotto, in un campo chiamato "user" — non "user_id" — quindi serve EXPAND prima di poter confrontare quel riferimento con users._id). A differenza dell'esempio 29, qui basta un solo JOIN dopo l'EXPAND, non una catena di due.
+Query:
+USE DB jcoql_test ON DEFAULT SERVER;
+GET COLLECTION products;
+EXPAND UNPACK TRUE ARRAY .reviews TO .review;
+SAVE AS chaintemp1@jcoql_test;
+JOIN OF COLLECTIONS chaintemp1@jcoql_test AS a, users@jcoql_test AS b
+CASE WHERE .a.review.item.user = .b._id;
+
+ESEMPIO 34: SAVE TO FILE - esportare il risultato su file invece che su una collezione
+----------------------------------------------
+Descrizione: Esporta i prodotti scontati in un file JSON, invece di salvarli come nuova collezione MongoDB (SAVE AS). Il nome del file va tra apici, nessun @database (non è una collezione).
+Query:
+GET COLLECTION products;
+FILTER CASE WHERE .discount > 0;
+SAVE TO FILE 'prodotti_scontati.json';
+
+ESEMPIO 35: GET COLLECTION FROM FILE - caricare un file esportato in precedenza
+----------------------------------------------
+Descrizione: Carica un archivio ordini salvato in precedenza su file, e mostra solo quelli spediti. Il nome del file va tra apici, nessun @database (non è una collezione MongoDB).
+Query:
+GET COLLECTION FROM FILE 'archivio_ordini.json';
+FILTER CASE WHERE .status = 'shipped';

@@ -10,70 +10,70 @@ ESEMPIO 1: Comparazione Numerica Semplice
 Descrizione: Prodotti con prezzo superiore a 100.
 Query:
 GET COLLECTION products;
-FILTER CASE WHERE .price > 100 KEEP OTHERS;
+FILTER CASE WHERE .price > 100;
 
 ESEMPIO 2: Logica AND
 ----------------------------------------------
 Descrizione: Prodotti di elettronica con prezzo inferiore a 500 e in stock.
 Query:
 GET COLLECTION products;
-FILTER CASE WHERE .category = 'electronics' AND .price < 500 AND .stock > 0 KEEP OTHERS;
+FILTER CASE WHERE .category = 'electronics' AND .price < 500 AND .stock > 0;
 
 ESEMPIO 3: Logica OR
 ----------------------------------------------
 Descrizione: Ristoranti a Roma o Firenze.
 Query:
 GET COLLECTION restaurants;
-FILTER CASE WHERE .city = 'Roma' OR .city = 'Firenze' KEEP OTHERS;
+FILTER CASE WHERE .city = 'Roma' OR .city = 'Firenze';
 
 ESEMPIO 4: Range Numerico con Estremi Inclusi
 ----------------------------------------------
 Descrizione: Prezzo tra 50 e 150 euro, estremi inclusi.
 Query:
 GET COLLECTION products;
-FILTER CASE WHERE .price IN_RANGE [ 50 , 150 ] KEEP OTHERS;
+FILTER CASE WHERE .price IN_RANGE [ 50 , 150 ];
 
 ESEMPIO 5: Range Numerico con Estremi Esclusi
 ----------------------------------------------
 Descrizione: Sconto strettamente tra 10 e 30 (estremi esclusi).
 Query:
 GET COLLECTION products;
-FILTER CASE WHERE .discount IN_RANGE ( 10 , 30 ) KEEP OTHERS;
+FILTER CASE WHERE .discount IN_RANGE ( 10 , 30 );
 
 ESEMPIO 6: Verifica Assenza Campo (WITHOUT)
 ----------------------------------------------
 Descrizione: Ordini senza numero di tracciamento assegnato.
 Query:
 GET COLLECTION orders;
-FILTER CASE WHERE WITHOUT .tracking_number KEEP OTHERS;
+FILTER CASE WHERE WITHOUT .tracking_number;
 
 ESEMPIO 7: Verifica Presenza Campo (WITH)
 ----------------------------------------------
 Descrizione: Prodotti che hanno una marca registrata.
 Query:
 GET COLLECTION products;
-FILTER CASE WHERE WITH .brand KEEP OTHERS;
+FILTER CASE WHERE WITH .brand;
 
 ESEMPIO 8: Null Check Esplicito (FIELD ... IS NULL)
 ----------------------------------------------
 Descrizione: Prodotti dove il campo marca è esplicitamente null.
 Query:
 GET COLLECTION products;
-FILTER CASE WHERE FIELD .brand IS NULL KEEP OTHERS;
+FILTER CASE WHERE FIELD .brand IS NULL;
 
 ESEMPIO 9: Null Check Esplicito (FIELD ... IS NOT NULL)
 ----------------------------------------------
 Descrizione: Ordini dove il numero di tracciamento è valorizzato.
 Query:
 GET COLLECTION orders;
-FILTER CASE WHERE FIELD .tracking_number IS NOT NULL KEEP OTHERS;
+FILTER CASE WHERE FIELD .tracking_number IS NOT NULL;
 
 ESEMPIO 10: SAVE AS con Database Obbligatorio
 ----------------------------------------------
 Descrizione: Filtra gli hotel a Milano e salva il risultato come nuova collezione.
 Query:
 GET COLLECTION hotels;
-FILTER CASE WHERE .location.city = 'Milano' KEEP OTHERS;
+FILTER CASE WHERE .location.city = 'Milano';
 SAVE AS hotels_milano@jcoql_test;
 
 ESEMPIO 11: Condizioni Complesse con Parentesi
@@ -81,42 +81,42 @@ ESEMPIO 11: Condizioni Complesse con Parentesi
 Descrizione: Query con precedenza esplicita fra AND e OR.
 Query:
 GET COLLECTION products;
-FILTER CASE WHERE ( .category = 'electronics' OR .category = 'sports' ) AND .price < 300 KEEP OTHERS;
+FILTER CASE WHERE ( .category = 'electronics' OR .category = 'sports' ) AND .price < 300;
 
 ESEMPIO 12: Negazione Semplice
 ----------------------------------------------
 Descrizione: Prodotti non della categoria food.
 Query:
 GET COLLECTION products;
-FILTER CASE WHERE NOT .category = 'food' KEEP OTHERS;
+FILTER CASE WHERE NOT .category = 'food';
 
 ESEMPIO 13: Negazione Complessa
 ----------------------------------------------
 Descrizione: Prodotti che non sono contemporaneamente esauriti e senza sconto.
 Query:
 GET COLLECTION products;
-FILTER CASE WHERE NOT ( .stock = 0 AND .discount = 0 ) KEEP OTHERS;
+FILTER CASE WHERE NOT ( .stock = 0 AND .discount = 0 );
 
 ESEMPIO 14: Range con Valori Decimali
 ----------------------------------------------
 Descrizione: Rating dei prodotti tra 3.5 e 4.5.
 Query:
 GET COLLECTION products;
-FILTER CASE WHERE .rating IN_RANGE [ 3.5 , 4.5 ] KEEP OTHERS;
+FILTER CASE WHERE .rating IN_RANGE [ 3.5 , 4.5 ];
 
 ESEMPIO 15: Range Multipli con OR
 ----------------------------------------------
 Descrizione: Totale ordine tra 0 e 50 oppure tra 500 e 1000.
 Query:
 GET COLLECTION orders;
-FILTER CASE WHERE .total IN_RANGE [ 0 , 50 ] OR .total IN_RANGE [ 500 , 1000 ] KEEP OTHERS;
+FILTER CASE WHERE .total IN_RANGE [ 0 , 50 ] OR .total IN_RANGE [ 500 , 1000 ];
 
 ESEMPIO 16: WITHOUT Multiplo con AND
 ----------------------------------------------
 Descrizione: Prodotti senza marca e senza sconto registrati.
 Query:
 GET COLLECTION products;
-FILTER CASE WHERE WITHOUT .brand AND WITHOUT .discount KEEP OTHERS;
+FILTER CASE WHERE WITHOUT .brand AND WITHOUT .discount;
 
 ESEMPIO 17: DROP OTHERS
 ----------------------------------------------
@@ -130,21 +130,21 @@ ESEMPIO 18: Confronto su Campo Annidato
 Descrizione: Hotel nella città di Torino (campo annidato location.city).
 Query:
 GET COLLECTION hotels;
-FILTER CASE WHERE .location.city = 'Torino' KEEP OTHERS;
+FILTER CASE WHERE .location.city = 'Torino';
 
 ESEMPIO 19: SIZE su Array
 ----------------------------------------------
 Descrizione: Ordini con più di 3 articoli nel carrello.
 Query:
 GET COLLECTION orders;
-FILTER CASE WHERE SIZE(.items) > 3 KEEP OTHERS;
+FILTER CASE WHERE SIZE(.items) > 3;
 
 ESEMPIO 20: Uguaglianza Booleana Esplicita
 ----------------------------------------------
 Descrizione: Prodotti biologici con posti a sedere esterni (confronto esplicito con true).
 Query:
 GET COLLECTION restaurants;
-FILTER CASE WHERE .outdoor_seating = true AND .gluten_free_menu = true KEEP OTHERS;
+FILTER CASE WHERE .outdoor_seating = TRUE AND .gluten_free_menu = TRUE;
 
 ESEMPIO 21: GET COLLECTION da una risorsa web
 ----------------------------------------------

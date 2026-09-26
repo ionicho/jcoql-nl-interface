@@ -71,16 +71,16 @@ export default function Favorites({ favorites, onLoad, onDelete }) {
               Nessun risultato per questa ricerca.
             </p>
           ) : (
-            <div className="mt-3 space-y-2 max-h-80 overflow-y-auto">
+            <div className="mt-3 space-y-2 max-h-80 overflow-y-auto overflow-x-hidden">
               {filtered.map((fav) => (
                 <div
                   key={fav.id}
                   className="border border-gray-200 rounded-lg p-3 hover:border-blue-300 transition"
                 >
-                  <div className="flex justify-between items-start gap-2">
+                  <div className="flex justify-between items-start gap-1">
                     <div className="flex-1 min-w-0">
                       {fav.nlQuery && (
-                        <p className="text-sm font-medium text-gray-800 truncate">
+                        <p className="text-sm font-medium text-gray-800 break-words">
                           {fav.nlQuery}
                         </p>
                       )}
@@ -88,18 +88,18 @@ export default function Favorites({ favorites, onLoad, onDelete }) {
                         {fav.jcoqlQuery}
                       </pre>
                     </div>
-                    <div className="flex gap-1 flex-shrink-0">
+                    <div className="flex flex-col gap-1 flex-shrink-0">
                       <button
                         onClick={() => onLoad(fav)}
                         title="Carica nell'executor"
-                        className="px-3 py-1.5 bg-blue-100 hover:bg-blue-200 text-blue-800 rounded text-xs font-medium transition-colors"
+                        className="px-2 py-1 bg-blue-100 hover:bg-blue-200 text-blue-800 rounded text-xs font-medium transition-colors"
                       >
-                        📥 Usa
+                        📥
                       </button>
                       <button
                         onClick={() => onDelete(fav.id)}
                         title="Elimina dai preferiti"
-                        className="px-2 py-1.5 bg-red-50 hover:bg-red-100 text-red-700 rounded text-xs transition-colors"
+                        className="px-2 py-1 bg-red-50 hover:bg-red-100 text-red-700 rounded text-xs transition-colors"
                       >
                         🗑️
                       </button>

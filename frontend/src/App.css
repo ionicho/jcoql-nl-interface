@@ -144,6 +144,33 @@ html, body {
   min-width: 0;
 }
 
+/* ──────────── FAVORITES COLUMN ──────────── */
+/* Terza colonna, a destra di tutto (17/08) — prima "Salvati" stava sotto
+   "Database" nella sidebar, ma il form del JOIN (con tutti i suoi campi)
+   può allungarsi parecchio, spingendo i preferiti molto più in basso e
+   rendendoli scomodi da raggiungere senza scorrere. Una colonna propria,
+   indipendente dall'altezza della sidebar, risolve alla radice. */
+.favorites-column {
+  flex: 0 0 24%;
+  min-width: 0; /* senza questo, il contenuto lungo può impedire il restringimento
+                   della colonna e il testo non va a capo correttamente */
+  max-height: calc(100vh - 50px);
+  overflow-y: auto;
+  overflow-x: hidden;
+  scrollbar-width: thin; /* Firefox: barra sottile invece di quella larga di default */
+  position: sticky;
+  top: 25px;
+}
+
+/* Chrome/Edge/Safari: stessa barra sottile (scrollbar-width non li copre) */
+.favorites-column::-webkit-scrollbar {
+  width: 6px;
+}
+.favorites-column::-webkit-scrollbar-thumb {
+  background-color: rgba(0, 0, 0, 0.25);
+  border-radius: 3px;
+}
+
 /* ════════════════════ FOOTER ════════════════════ */
 .app-footer {
   background: #2c3e50;
@@ -172,6 +199,13 @@ html, body {
   .sidebar {
     flex: 1;
     position: static;
+  }
+
+  .favorites-column {
+    flex: 1;
+    position: static;
+    max-height: none;
+    overflow-y: visible;
   }
 
   .main-content {
