@@ -64,6 +64,10 @@ Permettere agli utenti di interrogare database MongoDB usando **linguaggio natur
 │    il risultato è riletto da MongoDB e la collection       │
 │    cancellata subito dopo — è il motore stesso a calcolare │
 │    il risultato, non una ricostruzione lato Python          │
+│  • Modalità alternativa "solo conteggio" (opzionale, per   │
+│    collezioni grandi): nessun SAVE AS aggiunto, si legge    │
+│    solo il conteggio già stampato su stdout dal motore      │
+│    (vedi sezione "Scalabilità" più sotto)                   │
 └──────────────────┬────────────────────────────────────────┘
                    ↓
 ┌─────────────────────────────────────────────────────────┐
@@ -77,6 +81,8 @@ Permettere agli utenti di interrogare database MongoDB usando **linguaggio natur
 │  • Documenti JSON, sintassi JCoQL+ completa eseguita        │
 │  • Conteggio reale (non limitato ai documenti visualizzati) │
 │  • Query preferite salvabili e ricercabili (localStorage)   │
+│  • Cronologia automatica delle ultime 50 query eseguite,    │
+│    successo o errore (localStorage, stesso pattern)         │
 └─────────────────────────────────────────────────────────┘
 ```
 
@@ -180,7 +186,7 @@ Di default è spento, per non intasare la console durante un uso normale.
 - **Build:** Vite
 - **Routing:** React Router
 - **HTTP:** Axios
-- **Persistenza locale:** localStorage (query preferite)
+- **Persistenza locale:** localStorage (query preferite, cronologia automatica ultime 50 query)
 
 ---
 
@@ -267,6 +273,40 @@ lato Python (vedi architettura sopra).
 
 ---
 
+## Scalabilità su collezioni di grandi dimensioni
+
+Ogni query (tranne `GET COLLECTION`) riceve normalmente il `SAVE AS` automatico
+descritto sopra — l'unico modo per rileggere dal browser un risultato che il
+motore altrimenti calcola solo in memoria e stampa come mero conteggio su
+stdout. Anche per un comando di sola lettura, questo comporta una scrittura
+reale su MongoDB dell'intero risultato prima di poterlo rileggere.
+
+Su collezioni grandi o con documenti complessi, questa scrittura può diventare
+il vero collo di bottiglia, indipendentemente dal costo di calcolo del comando
+stesso. Verificato dal vivo: un `GROUP PARTITION` su ~21.000 documenti
+falliva con `Payload document size is larger than maximum of 16777216` (limite
+BSON di MongoDB, 16MB) nonostante il calcolo si completasse in ~25s — a
+fallire era il salvataggio del gruppo risultante, non il calcolo.
+
+Per questi casi, una modalità alternativa (checkbox "📊 Solo conteggio
+(database grandi)" nel pannello query) esegue la query così com'è, senza
+alcun `SAVE AS` aggiunto, leggendo solo il conteggio che il motore stampa
+comunque su stdout — nessuna lettura o scrittura extra su MongoDB. Verificato
+dal vivo su due casi distinti:
+- **Risolve** il caso sopra (GROUP + EXPAND sul limite BSON): con questa
+  modalità l'esecuzione completa con successo, 25 gruppi, nessun errore.
+- **Non risolve** un JOIN completamente senza filtro tra due collezioni
+  grandi (~50.000 × ~21.000 documenti): qui il costo dominante è il calcolo
+  combinatorio stesso (confronto nested-loop non indicizzato), non la
+  persistenza — né la modalità normale né quella "solo conteggio" completano
+  in tempi ragionevoli.
+
+Le due classi di collo di bottiglia — persistenza del risultato vs calcolo
+combinatorio del motore — sono quindi distinte e richiedono mitigazioni
+diverse; solo la prima è affrontata da questa modalità.
+
+---
+
 ## Riparazioni deterministiche
 
 Durante lo sviluppo alcuni errori di generazione si sono ripresentati più volte in modo
@@ -330,8 +370,9 @@ class ExecutorFactory:
   Il controllo di disallineamento di tipo (sezione sopra) intercetta il caso più comune e
   forza un altro tentativo, ma non garantisce che il tentativo successivo sia corretto —
   resta un limite del ragionamento del modello linguistico, non del meccanismo di verifica.
-  Per questo l'interfaccia mantiene anche un JOIN manuale (form dedicato, non generato da
-  LLM), dove l'utente specifica direttamente i campi di collegamento.
+  L'interfaccia non offre più un form dedicato per costruire un JOIN nativo dalla sidebar
+  (rimosso perché ridondante — un JOIN resta comunque scrivibile a mano o generabile via
+  NL nel pannello query, con lo stesso motore e la stessa sintassi cross-database).
 - **`INTERSECT`/`SUBTRACT`**: l'uguaglianza fra documenti (basata sul contenuto,
   esclusa `_id`) è verificata solo su collezioni prive di sovrapposizione reale.
 - **Modelli LLM locali**: nei test comparativi, Llama e Gemma mostrano un tasso di
@@ -384,7 +425,8 @@ jcoql-nl-interface/
 │   │   ├── App.jsx
 │   │   ├── QueryExecutor.jsx       # Pannello unico: input, query editabile, risultati
 │   │   ├── Favorites.jsx           # Query preferite, ricerca, localStorage
-│   │   ├── DatabaseSelector.jsx    # Include anche il JOIN manuale (fallback)
+│   │   ├── History.jsx             # Cronologia automatica (max 50), localStorage
+│   │   ├── DatabaseSelector.jsx    # Selezione multi-database, scoperta schema
 │   │   └── Dashboard.jsx
 │   └── package.json
 │
