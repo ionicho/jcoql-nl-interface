@@ -11,12 +11,20 @@
  * stata rimossa — selezionare un solo database nella modalità "Multipli"
  * (che è rimasta l'unica) fa esattamente la stessa cosa, non c'era motivo
  * di tenere due modalità per lo stesso risultato.
+ *
+ * NOTA (27/09): rimosso anche il form di "JOIN nativo tra database"
+ * (checkbox "Usa JOIN tra database" + configurazione chiavi/alias),
+ * ritenuto non necessario — un JOIN resta comunque possibile scrivendo
+ * a mano (o generando via NL) un comando JOIN OF COLLECTIONS nel pannello
+ * query di QueryExecutor, indipendentemente da questo componente.
+ * onDatabasesChange ora passa solo l'elenco dei database selezionati,
+ * non più un secondo parametro di configurazione join.
  */
 
 import React, { useState, useEffect } from 'react';
 import './DatabaseSelector.css';
 
-export default function DatabaseSelector({ onDatabasesChange, selectedDatabases, resetJoinSignal }) {
+export default function DatabaseSelector({ onDatabasesChange, selectedDatabases }) {
   // ================== STATE ==================
 
   const [availableDatabases, setAvailableDatabases] = useState([]);
@@ -45,17 +53,6 @@ export default function DatabaseSelector({ onDatabasesChange, selectedDatabases,
     }
     return new Set(['jcoql_test']);
   });
-  const [joinMode, setJoinMode] = useState(false);
-  const [joinConfig, setJoinConfig] = useState({
-    db1: 'jcoql_test',
-    db2: '',
-    joinType: 'INNER',
-    joinKey: '',
-    db2JoinKey: '',
-    alias1: '',
-    alias2: ''
-  });
-  const [showJoinForm, setShowJoinForm] = useState(false);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [removingDb, setRemovingDb] = useState(null); //per rimozione di un database
@@ -137,7 +134,7 @@ export default function DatabaseSelector({ onDatabasesChange, selectedDatabases,
           const newSet = new Set(multiSelected);
           newSet.delete(dbName);
           setMultiSelected(newSet);
-          onDatabasesChange(Array.from(newSet), null);
+          onDatabasesChange(Array.from(newSet));
         }
         
         alert(`✅ Database '${dbName}' scollegato`);
@@ -221,79 +218,8 @@ export default function DatabaseSelector({ onDatabasesChange, selectedDatabases,
 
     setMultiSelected(newSet);
 
-    // Se disabilita un DB usato nel join, resetta
-    if (joinMode && (!newSet.has(joinConfig.db1) || !newSet.has(joinConfig.db2))) {
-      setJoinMode(false);
-      setShowJoinForm(false);
-    }
-
     // Notifica parent
-    onDatabasesChange(Array.from(newSet), joinMode ? joinConfig : null);
-  };
-
-  /**
-   * Toggle join mode
-   */
-  const handleJoinToggle = (enabled) => {
-    setJoinMode(enabled);
-    setShowJoinForm(enabled);
-
-    if (!enabled) {
-      setJoinConfig({
-        db1: 'jcoql_test',
-        db2: '',
-        joinType: 'INNER',
-        joinKey: '',
-        db2JoinKey: '',
-        alias1: '',
-        alias2: ''
-      });
-    }
-
-    onDatabasesChange(Array.from(multiSelected), enabled ? joinConfig : null);
-  };
-
-  /**
-   * Disattiva il JOIN quando richiesto da fuori questo componente (es. dal
-   * banner "Modalità JOIN attiva" mostrato in QueryExecutor, per il caso in
-   * cui il checkbox qui sotto resti attivo per una richiesta successiva
-   * che non c'entra col JOIN — problema notato più volte durante i test).
-   * resetJoinSignal è un contatore: ad ogni incremento (mai al montaggio
-   * iniziale, quando vale 0) disattiva il JOIN esattamente come farebbe
-   * l'utente togliendo la spunta qui, tenendo sincronizzato anche lo stato
-   * posseduto da App.jsx.
-   */
-  useEffect(() => {
-    if (resetJoinSignal > 0 && joinMode) {
-      handleJoinToggle(false);
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [resetJoinSignal]);
-
-  /**
-   * Aggiorna join config
-   */
-  const handleJoinConfigChange = (field, value) => {
-    const newConfig = { ...joinConfig, [field]: value };
-    setJoinConfig(newConfig);
-    onDatabasesChange(Array.from(multiSelected), newConfig);
-  };
-
-  /**
-   * Valida join config
-   *
-   * NOTA (13/08): joinKey/db2JoinKey non sono più obbligatorie — JCoQL+
-   * accetta un JOIN OF COLLECTIONS senza nessuna condizione dopo (prodotto
-   * cartesiano completo tra le due collezioni), quindi lasciarle vuote è
-   * un caso legittimo, non un form incompleto. L'unico requisito reale è
-   * avere due database diversi selezionati.
-   */
-  const isJoinValid = () => {
-    return (
-      joinConfig.db1 &&
-      joinConfig.db2 &&
-      joinConfig.db1 !== joinConfig.db2
-    );
+    onDatabasesChange(Array.from(newSet));
   };
 
   // ================== RENDER ==================
@@ -341,106 +267,6 @@ export default function DatabaseSelector({ onDatabasesChange, selectedDatabases,
               ))
             )}
           </div>
-
-          {/* Join options (solo se 2+ database) */}
-          {multiSelected.size >= 2 && (
-            <div className="join-section">
-              <label className="checkbox-label">
-                <input
-                  type="checkbox"
-                  checked={joinMode}
-                  onChange={(e) => handleJoinToggle(e.target.checked)}
-                />
-                <span>Usa JOIN tra database</span>
-              </label>
-
-              {/* Join form */}
-              {joinMode && (
-                <div className="join-form">
-                  {/* Il selettore "Tipo JOIN" è stato tolto: con un solo
-                      tipo supportato (INNER — JCoQL+ non ha un concetto
-                      nativo di LEFT/RIGHT/FULL OUTER JOIN, vedi
-                      join_executor.py), un menu con una sola opzione non
-                      serviva a nulla se non a occupare spazio. joinType
-                      resta fissato a 'INNER' internamente (vedi lo stato
-                      iniziale di joinConfig). */}
-                  <div className="form-group">
-                    <label>Database 1:</label>
-                    <select
-                      value={joinConfig.db1}
-                      onChange={(e) => handleJoinConfigChange('db1', e.target.value)}
-                    >
-                      {Array.from(multiSelected).map(db => (
-                        <option key={db} value={db}>{db}</option>
-                      ))}
-                    </select>
-                  </div>
-
-                  <div className="form-group">
-                    <label>Alias per {joinConfig.db1} (opzionale):</label>
-                    <input
-                      type="text"
-                      placeholder="es: t1 — vuoto = nessun AS nella query"
-                      value={joinConfig.alias1}
-                      onChange={(e) => handleJoinConfigChange('alias1', e.target.value)}
-                    />
-                  </div>
-
-                  <div className="form-group">
-                    <label>Join Key in {joinConfig.db1} (opzionale):</label>
-                    <input
-                      type="text"
-                      placeholder="es: .user_id — vuoto = JOIN senza condizione"
-                      value={joinConfig.joinKey}
-                      onChange={(e) => handleJoinConfigChange('joinKey', e.target.value)}
-                    />
-                  </div>
-
-                  <div className="form-group">
-                    <label>Database 2:</label>
-                    <select
-                      value={joinConfig.db2}
-                      onChange={(e) => handleJoinConfigChange('db2', e.target.value)}
-                    >
-                      <option value="">-- Seleziona --</option>
-                      {Array.from(multiSelected)
-                        .filter(db => db !== joinConfig.db1)
-                        .map(db => (
-                          <option key={db} value={db}>{db}</option>
-                        ))}
-                    </select>
-                  </div>
-
-                  {joinConfig.db2 && (
-                    <>
-                      <div className="form-group">
-                        <label>Alias per {joinConfig.db2} (opzionale):</label>
-                        <input
-                          type="text"
-                          placeholder="es: t2 — vuoto = nessun AS nella query"
-                          value={joinConfig.alias2}
-                          onChange={(e) => handleJoinConfigChange('alias2', e.target.value)}
-                        />
-                      </div>
-                      <div className="form-group">
-                        <label>Join Key in {joinConfig.db2} (opzionale):</label>
-                        <input
-                          type="text"
-                          placeholder="es: .id — vuoto = JOIN senza condizione"
-                          value={joinConfig.db2JoinKey}
-                          onChange={(e) => handleJoinConfigChange('db2JoinKey', e.target.value)}
-                        />
-                      </div>
-                    </>
-                  )}
-
-                  <div className={`join-status ${isJoinValid() ? 'valid' : 'invalid'}`}>
-                    {isJoinValid() ? '✅ Valido' : '⚠️ Seleziona due database diversi'}
-                  </div>
-                </div>
-              )}
-            </div>
-          )}
       </div>
 
       {/* ──────────── ADD DATABASE FORM ──────────── */}
@@ -498,17 +324,6 @@ export default function DatabaseSelector({ onDatabasesChange, selectedDatabases,
             <span key={db} className="badge">{db}</span>
           ))}
         </div>
-        {/* FIX (17/08): il controllo era solo "joinConfig &&" — ma
-            joinConfig qui è sempre un oggetto non-null (inizializzato con
-            valori di default, mai davvero azzerato a null), quindi questa
-            riga compariva SEMPRE, anche a JOIN mai attivato. Il controllo
-            giusto è joinMode, il booleano che riflette davvero se il form
-            è attivo. */}
-        {joinMode && joinConfig && (
-          <div className="join-summary">
-            <strong>JOIN:</strong> {joinConfig.db1} → {joinConfig.db2}
-          </div>
-        )}
       </div>
 
       {/* ──────────── REFRESH BUTTON ──────────── */}

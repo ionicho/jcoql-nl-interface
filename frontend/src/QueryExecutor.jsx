@@ -31,10 +31,10 @@ import './QueryExecutor.css';
 // ==========================================
 export default function QueryExecutor({
   selectedDatabases = [],
-  joinConfig = null,
-  onDisableJoin = () => {},
   favoriteToLoad = null,
-  onSaveFavorite = () => {}
+  onSaveFavorite = () => {},
+  historyToLoad = null,
+  onAddHistory = () => {}
 }) {
 
   // --- STATI DEL COMPONENTE ---
@@ -43,6 +43,15 @@ export default function QueryExecutor({
   const [isGenerating, setIsGenerating] = useState(false);
   const [isExecuting, setIsExecuting] = useState(false);
   const [results, setResults] = useState(null);
+
+  // Modalità "database di grandi dimensioni / risultato non necessario"
+  // (26/09): quando attiva, il backend non accoda il SAVE AS automatico
+  // usato per rileggere i documenti dal browser (vedi execute_count_only()
+  // in jco_framework_executor_v2.py) - evita il costo di scrittura isolato
+  // come collo di bottiglia su collezioni grandi, ma restituisce solo il
+  // conteggio, non i documenti. Persiste per query successive nella stessa
+  // sessione finché non la si disattiva a mano.
+  const [countOnly, setCountOnly] = useState(false);
 
   // Campo "Query in Linguaggio Naturale": si adatta all'altezza del testo
   // scritto, invece di restare a una riga fissa. Il ref serve per leggere
@@ -80,6 +89,18 @@ export default function QueryExecutor({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [favoriteToLoad]);
 
+  // Cronologia (27/09): stesso meccanismo a segnale di favoriteToLoad
+  // sopra — cambia ad ogni click su "📥" nella cronologia, anche sulla
+  // stessa voce due volte di fila (_loadTs, vedi App.jsx). Le voci di
+  // cronologia hanno gli stessi campi jcoqlQuery/nlQuery dei preferiti,
+  // quindi riusa lo stesso handler invece di duplicarlo.
+  useEffect(() => {
+    if (historyToLoad) {
+      handleLoadFavorite(historyToLoad);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [historyToLoad]);
+
   // ==========================================
   // 3. HANDLERS (FUNZIONI LOGICHE)
   // ==========================================
@@ -94,17 +115,13 @@ export default function QueryExecutor({
     setError('');
     setResults(null);
     setGenerationInfo(null);
-    // FIX (26/09): mancava qui — l'unico setJcoqlQuery('') nel file era
-    // quello di handleDisableJoinClick (riga ~259), una funzione diversa.
-    // Senza questo, la vecchia query restava a schermo finché la nuova
-    // non arrivava dalla risposta, sovrascrivendola senza un intervallo
-    // vuoto visibile nel mezzo.
+    // FIX (26/09): mancava qui — senza questo, la vecchia query restava a
+    // schermo finché la nuova non arrivava dalla risposta, sovrascrivendola
+    // senza un intervallo vuoto visibile nel mezzo.
     setJcoqlQuery('');
 
-    // Nota: a differenza di handleExecute sotto, questa chiamata a
-    // /api/generate non invia joinConfig — il join tra due database
-    // avviene solo in fase di esecuzione. Manda però ora anche l'intera
-    // lista selectedDatabases (non solo il primo) — necessaria perché
+    // Nota: manda anche l'intera lista selectedDatabases (non solo il primo)
+    // — necessaria perché
     // l'LLM possa generare correttamente un MERGE multi-database con i
     // nomi VERI dei database selezionati, invece di indovinarli (bug
     // osservato il 14/08: senza questo, l'LLM confondeva nomi di
@@ -160,6 +177,24 @@ export default function QueryExecutor({
     }
   };
 
+  // Cronologia (27/09): registra OGNI esecuzione tentata da qui, riuscita
+  // o no — a differenza dei Preferiti (salvataggio manuale), l'idea è un
+  // log completo di cosa è stato lanciato, per poter ricaricare anche una
+  // query fallita e correggerla, non solo rivedere i successi. Se in
+  // futuro si preferisce loggare solo i successi, basta non chiamarla nel
+  // ramo di errore/catch sotto.
+  const recordHistory = (success, extra = {}) => {
+    onAddHistory({
+      id: Date.now() + Math.random(),
+      nlQuery: nlQuery.trim(),
+      jcoqlQuery: (extra.executedQuery ?? jcoqlQuery).trim(),
+      timestamp: new Date().toISOString(),
+      success,
+      count: extra.count ?? null,
+      countOnly
+    });
+  };
+
   // Unico handler di esecuzione (prima ce n'erano due identici, uno per
   // modalità — non serviva, il pannello query è condiviso ora).
   const handleExecute = async () => {
@@ -181,7 +216,7 @@ export default function QueryExecutor({
         jcoql_query: jcoqlQuery,
         databases: selectedDatabases,
         database_name: selectedDatabases[0],
-        join_config: joinConfig
+        count_only: countOnly
       });
 
       const data = response.data;
@@ -197,26 +232,27 @@ export default function QueryExecutor({
         }
         setResults({ ...data, results: parsedResults });
 
-        // Riallinea il pannello alla query REALMENTE eseguita: per un JOIN
-        // nativo data.jcoql_query è già completa (USE DB per entrambi i
-        // database inclusi, costruita dal backend); per le altre query
-        // ricostruiamo lo stesso USE DB che execute() ha usato davvero
-        // (data.database). Così quello che vedi/modifichi qui è sempre
-        // esattamente quello che è appena girato sul motore, non più il
-        // solo comando nudo restituito dalla generazione.
-        // Stesso controllo anti-duplicazione di handleGenerate: data.jcoql_query
-        // può già contenere il proprio USE DB (è lo stesso testo che era nel
-        // pannello quando hai premuto "Esegui").
+        // Riallinea il pannello alla query REALMENTE eseguita: ricostruiamo
+        // lo stesso USE DB che execute() ha usato davvero (data.database),
+        // così quello che vedi/modifichi qui è sempre esattamente quello
+        // che è appena girato sul motore, non più il solo comando nudo
+        // restituito dalla generazione. Stesso controllo anti-duplicazione
+        // di handleGenerate: data.jcoql_query può già contenere il proprio
+        // USE DB (è lo stesso testo che era nel pannello quando hai
+        // premuto "Esegui").
         const alreadyHasUseDb = /^\s*USE\s+DB\b/i.test(data.jcoql_query || '');
-        const executedFull = (data.join_config || alreadyHasUseDb)
+        const executedFull = alreadyHasUseDb
           ? data.jcoql_query
           : `USE DB ${data.database || selectedDatabases[0] || 'N/A'} ON DEFAULT SERVER;\n${data.jcoql_query}`;
         if (data.jcoql_query) setJcoqlQuery(executedFull);
+        recordHistory(true, { executedQuery: executedFull, count: data.count });
       } else {
         setError('Errore esecuzione: ' + data.error);
+        recordHistory(false);
       }
     } catch (err) {
       setError('Errore esecuzione: ' + (err.response?.data?.detail || err.message));
+      recordHistory(false);
     } finally {
       setIsExecuting(false);
     }
@@ -253,22 +289,6 @@ export default function QueryExecutor({
     setError('');
   };
 
-  // FIX (16/08): "Disattiva JOIN" spegneva solo il meccanismo di
-  // costruzione automatica (joinConfig), ma non toccava il testo già nel
-  // pannello — se quel testo era già una query JOIN completa (finita lì
-  // per il riallineamento post-esecuzione), continuava a essere eseguita
-  // come tale anche a JOIN "disattivato", perché il percorso diretto
-  // esegue qualunque testo valido gli venga dato, indipendentemente da
-  // joinConfig. Il pannello va svuotato insieme alla disattivazione,
-  // altrimenti resta un residuo che sembra ignorare la disattivazione.
-  const handleDisableJoinClick = () => {
-    setJcoqlQuery('');
-    setGenerationInfo(null);
-    setResults(null);
-    setError('');
-    onDisableJoin();
-  };
-
   // ==========================================
   // 4. RENDER DELL'INTERFACCIA (JSX)
   // ==========================================
@@ -287,31 +307,6 @@ export default function QueryExecutor({
           Genera ed esegui query JCoQL su MongoDB
         </p>
       </div>
-
-      {/* --- AVVISO MODALITÀ JOIN ATTIVA ---
-          joinConfig è uno stato "persistente" nella sidebar (resta attivo
-          finché non lo si disattiva esplicitamente, anche passando a una
-          richiesta che non c'entra nulla col JOIN) — osservato più volte
-          durante i test che una query semplice finiva dirottata verso il
-          JOIN senza che fosse ovvio perché. Prima l'unico indizio era il
-          checkbox nella sidebar, facile da perdere di vista con
-          l'attenzione sul pannello principale — questo banner sta proprio
-          lì, in cima, e permette di disattivarlo senza tornare in sidebar. */}
-      {joinConfig && (
-        <div className="bg-amber-50 border border-amber-300 rounded-lg px-4 py-3 flex justify-between items-center gap-3 flex-wrap">
-          <p className="text-sm text-amber-800">
-            Modalità JOIN attiva: <strong>{joinConfig.db1}</strong> ↔{' '}
-            <strong>{joinConfig.db2 || '(database 2 non ancora scelto)'}</strong>.
-            Ogni esecuzione da qui userà questo JOIN, anche per una richiesta non correlata.
-          </p>
-          <button
-            onClick={handleDisableJoinClick}
-            className="px-3 py-1.5 bg-amber-200 hover:bg-amber-300 text-amber-900 rounded text-xs font-medium transition-colors flex-shrink-0"
-          >
-            Disattiva JOIN
-          </button>
-        </div>
-      )}
 
       {/* --- INPUT: LINGUAGGIO NATURALE (unico in tutta l'app, sempre visibile) ---
           Tolta la scelta tra "modalità" — prima costringeva a passare da una
@@ -378,7 +373,13 @@ export default function QueryExecutor({
           <label className="block text-sm font-medium text-gray-700">
             Query JCoQL+
           </label>
-          <div className="flex items-center gap-2">
+          {/* flex-wrap + justify-end (27/09): prima questo gruppo non
+              andava mai a capo — se non ci stava tutto in una riga (facile
+              con "✅ Valida" + "Tentativi: N" visibili insieme a
+              Salva/checkbox/Esegui), i pulsanti finivano tagliati o
+              spingevano oltre il bordo del box invece di scendere in modo
+              ordinato su una seconda riga. */}
+          <div className="flex items-center gap-2 flex-wrap justify-end">
             {generationInfo && (
               <>
                 <span
@@ -404,6 +405,17 @@ export default function QueryExecutor({
             >
               ⭐ Salva
             </button>
+            <label
+              className="flex items-center gap-1.5 text-xs text-gray-600 cursor-pointer select-none"
+              title="Non salva il risultato in una collezione temporanea per mostrarlo qui - mostra solo il numero di documenti prodotti. Da usare su collezioni grandi (es. JOIN/GROUP su dataset con decine di migliaia di documenti), dove salvare l'intero risultato solo per leggerlo è il vero collo di bottiglia."
+            >
+              <input
+                type="checkbox"
+                checked={countOnly}
+                onChange={(e) => setCountOnly(e.target.checked)}
+              />
+              📊 Solo conteggio (database grandi)
+            </label>
             <button
               onClick={handleExecute}
               disabled={isExecuting || !jcoqlQuery.trim()}
@@ -510,6 +522,17 @@ export default function QueryExecutor({
           {results.count === 0 ? (
             <div className="text-center py-8 text-gray-500">
               Nessun risultato trovato
+            </div>
+          ) : results.results.length === 0 ? (
+            // Modalità "solo conteggio" (26/09): il motore ha prodotto
+            // results.count documenti ma non ne è stato letto/mostrato
+            // nessuno qui - per come funziona execute_count_only(), è
+            // l'esito atteso, non un errore o un caso da confondere con
+            // "nessun risultato trovato" sopra (quello è per count === 0).
+            <div className="text-center py-8 text-gray-500 text-sm">
+              📊 Modalità solo conteggio attiva: {results.count} documenti prodotti dal motore,
+              contenuto non recuperato. Se la query conteneva un SAVE AS esplicito verso una
+              collezione con un nome a tua scelta, puoi ispezionarla con MongoDB Compass.
             </div>
           ) : (
             <div className="space-y-4 max-h-96 overflow-y-auto border border-gray-100 rounded p-2 bg-gray-50">

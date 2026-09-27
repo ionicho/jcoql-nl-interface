@@ -11,6 +11,7 @@ import DatabaseSelector from './DatabaseSelector'
 import QueryExecutor from './QueryExecutor'
 import Dashboard from './Dashboard'
 import Favorites, { loadFavorites, persistFavorites } from './Favorites'
+import History, { loadHistory, persistHistory, MAX_HISTORY_ENTRIES } from './History'
 import './App.css'
 
 // ==========================================
@@ -30,17 +31,11 @@ function MainInterface() {
   // --- STATI LOCALI ---
   const [selectedLlm, setSelectedLlm] = useState('gemini') 
   
-  // Stati del Database (Singolo/Multiplo + Join) gestiti da DatabaseSelector
+  // Stati del Database (Multiplo) gestiti da DatabaseSelector — il JOIN
+  // nativo tra database, che viveva qui come joinConfig, è stato rimosso
+  // (27/09, ritenuto non necessario): resta possibile un JOIN scritto a
+  // mano/generato via NL nel pannello query, indipendente da questo stato.
   const [selectedDatabases, setSelectedDatabases] = useState(['jcoql_test'])
-  const [joinConfig, setJoinConfig] = useState(null)
-
-  // Segnale per disattivare il JOIN da un punto diverso dalla sidebar (il
-  // banner "Modalità JOIN attiva" in QueryExecutor) — un contatore che, ad
-  // ogni incremento, dice a DatabaseSelector di togliere la spunta come se
-  // l'avesse tolta l'utente stesso, mantenendo sincronizzati entrambi gli
-  // stati (quello qui e quello interno a DatabaseSelector).
-  const [joinResetSignal, setJoinResetSignal] = useState(0)
-  const handleDisableJoin = () => setJoinResetSignal((s) => s + 1)
 
   // Preferiti: spostati qui da QueryExecutor.jsx (16/08 → 17/08) per poter
   // mostrare il pannello nella sidebar, sotto "Database" — prima stava in
@@ -62,6 +57,23 @@ function MainInterface() {
   const handleSaveFavorite = (newFavorite) => setFavorites([newFavorite, ...favorites])
   const handleDeleteFavorite = (id) => setFavorites(favorites.filter((f) => f.id !== id))
 
+  // Cronologia: stesso schema dei Preferiti sopra, ma il "salva" non è
+  // un'azione dell'utente — QueryExecutor chiama onAddHistory ad OGNI
+  // esecuzione (riuscita o no), tramite handleAddHistory qui sotto, che
+  // aggiunge in testa e taglia a MAX_HISTORY_ENTRIES (50, in History.jsx)
+  // scartando le voci più vecchie in eccesso.
+  const [history, setHistory] = useState(() => loadHistory())
+  useEffect(() => {
+    persistHistory(history)
+  }, [history])
+  const [historyToLoad, setHistoryToLoad] = useState(null)
+  const handleLoadHistoryRequest = (item) => setHistoryToLoad({ ...item, _loadTs: Date.now() })
+  const handleAddHistory = (entry) =>
+    setHistory((prev) => [entry, ...prev].slice(0, MAX_HISTORY_ENTRIES))
+  const handleDeleteHistoryItem = (id) =>
+    setHistory((prev) => prev.filter((h) => h.id !== id))
+  const handleClearHistory = () => setHistory([])
+
   // --- STATO PARSER ATTIVO (letto dal backend, non più hardcoded) ---
   const [activeParser, setActiveParser] = useState(null)
 
@@ -76,10 +88,12 @@ function MainInterface() {
   useEffect(() => {
     try {
       const savedDb = localStorage.getItem('jcoql_selected_databases')
-      const savedJoin = localStorage.getItem('jcoql_join_config')
-      
+
       if (savedDb) setSelectedDatabases(JSON.parse(savedDb))
-      if (savedJoin) setJoinConfig(JSON.parse(savedJoin))
+      // Pulizia (27/09): la chiave del vecchio JOIN nativo non si legge
+      // più — la si rimuove anche da localStorage se era rimasta da una
+      // sessione precedente, invece di lasciarla lì inutilizzata.
+      localStorage.removeItem('jcoql_join_config')
     } catch (err) {
       console.warn('Errore caricamento configurazioni salvate:', err)
     }
@@ -106,18 +120,12 @@ function MainInterface() {
   }
 
   // --- HANDLER: GESTIONE UNIFICATA DATABASE (Da DatabaseSelector) ---
-  const handleDatabasesChange = (databases, join) => {
+  const handleDatabasesChange = (databases) => {
     setSelectedDatabases(databases)
-    setJoinConfig(join)
-    
+
     // Salva in localStorage per persistenza
     try {
       localStorage.setItem('jcoql_selected_databases', JSON.stringify(databases))
-      if (join) {
-        localStorage.setItem('jcoql_join_config', JSON.stringify(join))
-      } else {
-        localStorage.removeItem('jcoql_join_config')
-      }
     } catch (err) {
       console.warn('Errore salvataggio in localStorage:', err)
     }
@@ -189,10 +197,9 @@ function MainInterface() {
         
         {/* ──────────── SIDEBAR (Sinistra) ──────────── */}
         <aside className="sidebar">
-          <DatabaseSelector 
+          <DatabaseSelector
             onDatabasesChange={handleDatabasesChange}
             selectedDatabases={selectedDatabases}
-            resetJoinSignal={joinResetSignal}
           />
         </aside>
 
@@ -206,11 +213,11 @@ function MainInterface() {
           <section className="bg-white rounded-lg shadow p-6">
             <QueryExecutor
               selectedDatabases={selectedDatabases}
-              joinConfig={joinConfig}
               llmModel={selectedLlm}
-              onDisableJoin={handleDisableJoin}
               favoriteToLoad={favoriteToLoad}
               onSaveFavorite={handleSaveFavorite}
+              historyToLoad={historyToLoad}
+              onAddHistory={handleAddHistory}
             />
           </section>
 
@@ -227,6 +234,17 @@ function MainInterface() {
             onLoad={handleLoadFavoriteRequest}
             onDelete={handleDeleteFavorite}
           />
+          {/* Cronologia (27/09): stessa colonna dei Preferiti, subito sotto
+              — richiesto esplicitamente "grande come preferiti... la
+              metterei proprio sotto questi ultimi". */}
+          <div style={{ marginTop: '16px' }}>
+            <History
+              history={history}
+              onLoad={handleLoadHistoryRequest}
+              onDelete={handleDeleteHistoryItem}
+              onClear={handleClearHistory}
+            />
+          </div>
         </aside>
       </div>
 

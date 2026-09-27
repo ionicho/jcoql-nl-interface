@@ -1,11 +1,14 @@
 /**
  * App.css - Layout Sidebar + Main Content
- * 
+ *
  * Struttura:
  * - Header (top, full width con selettore LLM e Dashboard button)
- * - Layout a 2 colonne:
- *   - Sidebar (28%, database selection)
- *   - Main (72%, query executor)
+ * - Layout a 3 colonne:
+ *   - Sidebar (22%, database selection — ristretta il 27/09 per dare più
+ *     spazio alla colonna centrale, il box "Database" non ha comunque
+ *     bisogno di molta larghezza)
+ *   - Main (flessibile, query executor — riceve lo spazio guadagnato)
+ *   - Favorites column (24%, preferiti + cronologia)
  * - Footer (bottom, full width)
  */
 
@@ -129,7 +132,7 @@ html, body {
 
 /* ──────────── SIDEBAR ──────────── */
 .sidebar {
-  flex: 0 0 28%;
+  flex: 0 0 22%;
   display: flex;
   flex-direction: column;
   gap: 20px;
