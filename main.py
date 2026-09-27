@@ -235,71 +235,114 @@ def _fix_array_field_filter(query: str, current_schema: dict) -> str:
     filtraggio a stadi (EXPAND+FILTER su un campo, poi SAVE AS, poi
     EXPAND+FILTER sul successivo) risolverebbe anche quello, ma non è
     implementato in automatico.
+
+    FIX (26/09): la versione precedente usava filter_pattern.search(query)
+    e coll_match = re.search(...) — un solo match ciascuno, sempre il
+    PRIMO della query. Con più blocchi FILTER nella stessa query (tipico
+    quando si costruiscono due sottoinsiemi separati prima di un
+    INTERSECT/MERGE/SUBTRACT), se il primo FILTER non toccava un campo
+    array (es. perché referenziava già un campo espanso, .expanded_x.item)
+    la funzione usciva subito senza mai esaminare i FILTER successivi —
+    osservato dal vivo: un INTERSECT tra due sottoinsiemi di products,
+    il primo costruito via EXPAND, il secondo con `.reviews.user = valore`
+    diretto mai corretto, quindi sempre vuoto (il motore rifiuta sempre
+    quel confronto), e di conseguenza l'INTERSECT sempre a 0 documenti
+    anche quando i documenti in comune esistevano davvero. Ora si scorrono
+    TUTTI i blocchi FILTER della query, ciascuno controllato contro la
+    collection realmente attiva in quel punto (l'ultimo GET COLLECTION
+    incontrato prima della sua posizione, utile perché una query può
+    cambiare collection a metà, es. due blocchi "GET COLLECTION products"
+    separati per costruire i due lati di un INTERSECT), e le riscritture
+    vengono applicate dalla fine della query verso l'inizio per non
+    invalidare gli offset dei match precedenti.
     """
-    coll_match = re.search(r'GET\s+COLLECTION\s+(\w+)\s*;', query, re.IGNORECASE)
-    if not coll_match:
+    get_coll_pattern = re.compile(r'GET\s+COLLECTION\s+(\w+)\s*;', re.IGNORECASE)
+    get_matches = list(get_coll_pattern.finditer(query))
+    if not get_matches:
         return query
-    collection_name = coll_match.group(1)
 
-    coll_schema = (current_schema or {}).get(collection_name, {})
-    coll_fields = coll_schema.get('fields', {}) if isinstance(coll_schema, dict) else {}
-
-    array_fields = set()
-    for field_name, field_info in coll_fields.items():
-        if '.' in field_name:
-            # Ambito limitato ai campi di primo livello — un campo array
-            # annidato dentro un oggetto richiederebbe un percorso EXPAND
-            # più complesso, non gestito qui.
-            continue
-        types = field_info.get('types', []) if isinstance(field_info, dict) else []
-        if 'array' in types:
-            array_fields.add(field_name)
-
-    if not array_fields:
-        return query
+    def collection_at(pos):
+        active = None
+        for gm in get_matches:
+            if gm.start() <= pos:
+                active = gm.group(1)
+            else:
+                break
+        return active
 
     filter_pattern = re.compile(
         r'FILTER\s+(CASE|CASES)\s+WHERE\s+(.+?)\s*(KEEP\s+OTHERS|DROP\s+OTHERS)?\s*;',
         re.IGNORECASE | re.DOTALL
     )
-    m = filter_pattern.search(query)
-    if not m:
+    filter_matches = list(filter_pattern.finditer(query))
+    if not filter_matches:
         return query
 
-    case_kw, condition_text, _others_kw = m.groups()
+    replacements = []
+    for fm in filter_matches:
+        collection_name = collection_at(fm.start())
+        if not collection_name:
+            continue
 
-    # FIX (19/09): il controllo originale riconosceva solo il confronto
-    # DIRETTO sull'intero campo array (.campo = valore) — non copriva
-    # l'accesso a un SOTTOCAMPO dentro ogni elemento (.campo.sottoCampo,
-    # es. .reviews.rating) con un operatore DIVERSO da =/!= (es. <, >).
-    # Osservato dal vivo: "NOT (.reviews.rating < 3)" senza EXPAND, mai
-    # intercettato da questo controllo, perché non è un confronto diretto
-    # sull'array e non usa =/!=. Il pattern ora cattura un sottopercorso
-    # opzionale dopo il nome del campo, e qualunque operatore di
-    # confronto (non solo =/!=) — !=/<=/>= prima di =/</> nell'alternanza,
-    # così l'operatore più lungo vince quando entrambi potrebbero
-    # combaciare parzialmente.
-    used_array_fields = [
-        field for field in array_fields
-        if re.search(rf'\.{re.escape(field)}\b(?:\.\w+)*\s*(?:!=|<=|>=|=|<|>)', condition_text)
-    ]
-    if not used_array_fields:
+        coll_schema = (current_schema or {}).get(collection_name, {})
+        coll_fields = coll_schema.get('fields', {}) if isinstance(coll_schema, dict) else {}
+
+        array_fields = set()
+        for field_name, field_info in coll_fields.items():
+            if '.' in field_name:
+                # Ambito limitato ai campi di primo livello — un campo array
+                # annidato dentro un oggetto richiederebbe un percorso EXPAND
+                # più complesso, non gestito qui.
+                continue
+            types = field_info.get('types', []) if isinstance(field_info, dict) else []
+            if 'array' in types:
+                array_fields.add(field_name)
+
+        if not array_fields:
+            continue
+
+        case_kw, condition_text, _others_kw = fm.groups()
+
+        # FIX (19/09): il controllo originale riconosceva solo il confronto
+        # DIRETTO sull'intero campo array (.campo = valore) — non copriva
+        # l'accesso a un SOTTOCAMPO dentro ogni elemento (.campo.sottoCampo,
+        # es. .reviews.rating) con un operatore DIVERSO da =/!= (es. <, >).
+        # Osservato dal vivo: "NOT (.reviews.rating < 3)" senza EXPAND, mai
+        # intercettato da questo controllo, perché non è un confronto diretto
+        # sull'array e non usa =/!=. Il pattern ora cattura un sottopercorso
+        # opzionale dopo il nome del campo, e qualunque operatore di
+        # confronto (non solo =/!=) — !=/<=/>= prima di =/</> nell'alternanza,
+        # così l'operatore più lungo vince quando entrambi potrebbero
+        # combaciare parzialmente.
+        used_array_fields = [
+            field for field in array_fields
+            if re.search(rf'\.{re.escape(field)}\b(?:\.\w+)*\s*(?:!=|<=|>=|=|<|>)', condition_text)
+        ]
+        if not used_array_fields:
+            continue
+
+        expand_lines = []
+        new_condition = condition_text
+        for field in used_array_fields:
+            dest_name = f"expanded_{field}"
+            expand_lines.append(f"EXPAND UNPACK TRUE ARRAY .{field} TO .{dest_name};")
+            new_condition = re.sub(
+                rf'\.{re.escape(field)}\b((?:\.\w+)*)(\s*(?:!=|<=|>=|=|<|>))',
+                f'.{dest_name}.item\\1\\2',
+                new_condition
+            )
+
+        new_filter_block = f"FILTER {case_kw} WHERE {new_condition};"
+        replacement = "\n".join(expand_lines) + "\n" + new_filter_block
+        replacements.append((fm.start(), fm.end(), replacement))
+
+    if not replacements:
         return query
 
-    expand_lines = []
-    new_condition = condition_text
-    for field in used_array_fields:
-        dest_name = f"expanded_{field}"
-        expand_lines.append(f"EXPAND UNPACK TRUE ARRAY .{field} TO .{dest_name};")
-        new_condition = re.sub(
-            rf'\.{re.escape(field)}\b((?:\.\w+)*)(\s*(?:!=|<=|>=|=|<|>))',
-            f'.{dest_name}.item\\1\\2',
-            new_condition
-        )
-
-    new_filter_block = f"FILTER {case_kw} WHERE {new_condition};"
-    replacement = "\n".join(expand_lines) + "\n" + new_filter_block
-    return query[:m.start()] + replacement + query[m.end():]
+    result = query
+    for start, end, replacement in sorted(replacements, key=lambda r: r[0], reverse=True):
+        result = result[:start] + replacement + result[end:]
+    return result
 
 
 def _stage_multi_expand_filter(query: str, current_db: str) -> str:
@@ -1252,6 +1295,15 @@ class QueryRequest(BaseModel):
     database_name: Optional[str] = None
     databases: List[str] = ["jcoql_test"]
     join_config: Optional[dict] = None
+    # Modalità "database di grandi dimensioni / risultato non necessario"
+    # (vedi jco_framework_executor_v2.py: execute_count_only()). Quando True,
+    # non viene accodato il SAVE AS automatico usato per rileggere i
+    # documenti dal browser: si ottiene solo il conteggio stampato dal
+    # motore su stdout, evitando il costo di persistenza su MongoDB isolato
+    # come collo di bottiglia su collezioni grandi. Il risultato completo
+    # resta comunque ispezionabile a mano su Compass se la query contiene un
+    # SAVE AS scritto esplicitamente dall'utente (quello non viene toccato).
+    count_only: bool = False
 
 # ==============================================================================
 # LIFECYCLE EVENTS
@@ -2629,6 +2681,7 @@ async def execute_query(request: QueryRequest):
         databases = request.databases or []
         database_name = request.database_name
         join_config = request.join_config
+        count_only = bool(request.count_only)
         
         if not jcoql_query:
             return {"success": False, "error": "Query vuota"}
@@ -2730,7 +2783,19 @@ async def execute_query(request: QueryRequest):
         query_logger.info(f"📦 Database Attivo: {target_db}") 
 
         # 4. Esecuzione passando il database target dinamico
-        execution_result = executor.execute(jcoql_query)
+        # Modalità "database di grandi dimensioni / risultato non necessario"
+        # (count_only): salta il SAVE AS automatico usato per rileggere i
+        # documenti dal browser, restituisce solo il conteggio stampato dal
+        # motore - vedi execute_count_only() in jco_framework_executor_v2.py.
+        # hasattr: l'executor alternativo python_translator.py non ha questo
+        # metodo (non ne ha bisogno, legge già sempre da pymongo diretto) -
+        # in quel caso il flag viene ignorato silenziosamente, comportamento
+        # equivalente a count_only=False.
+        if count_only and hasattr(executor, 'execute_count_only'):
+            query_logger.info("📊 Modalità count-only attiva (nessun SAVE AS automatico)")
+            execution_result = executor.execute_count_only(jcoql_query)
+        else:
+            execution_result = executor.execute(jcoql_query)
         exec_elapsed = time.time() - exec_start_time
         query_logger.info(f"⏱️ Esecuzione completata in {exec_elapsed:.3f}s")
 

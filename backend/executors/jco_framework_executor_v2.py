@@ -1280,71 +1280,377 @@ class JCoFrameworkExecutor:
             print(f"[JCoFrameworkExecutor] WARNING lettura risultato (auto SAVE AS) fallita: {e}")
             return {'doc_count': 0, 'results': [], 'text': ''}
 
+    def _run_engine(self, wrapped_query, timeout=30, log_query=None):
+        """
+        Scrive i file che il motore J-CO si aspetta di leggere (prolog, query,
+        properties di connessione, classpath) e lancia il subprocess Java.
+
+        Fattorizzato da execute() (era tutto inline lì) per essere condiviso
+        anche da execute_count_only() (vedi sotto, modalità "database di
+        grandi dimensioni / risultato non necessario") — stessa identica
+        logica di setup per entrambi i percorsi, cambia solo il testo di
+        `wrapped_query` (con o senza il SAVE AS automatico accodato) e il
+        `timeout`. Nessun comportamento del percorso esistente è stato
+        modificato in questa estrazione.
+
+        `log_query` è la query così come l'ha scritta l'utente/l'LLM, PRIMA
+        di un eventuale SAVE AS accodato automaticamente — usata solo per le
+        stampe di debug (quali parole chiave contiene, se serve il raw debug).
+        Se omesso, si usa `wrapped_query` stesso (comando in cui coincidono).
+
+        Restituisce l'oggetto subprocess.CompletedProcess così com'è; il
+        chiamante decide come interpretare stdout/returncode.
+        """
+        if log_query is None:
+            log_query = wrapped_query
+
+        query_file = self.data_path / "query.jcoql"
+        prolog_file = self.data_path / "prolog.jcoql"
+        conn_props = self.data_path / "mongodb_connection.properties"
+        main_props = self.data_path / "mongodb_test.properties"
+
+        # NOTA: questo primo blocco (File 1) scrive due file che, un
+        # po' più sotto (File 2, "conn_props"/"main_props"), vengono
+        # RISCRITTI DA CAPO con contenuto equivalente ma dinamico e
+        # portabile. "properties_file" e "connection_file" qui sotto
+        # risolvono esattamente agli stessi percorsi di "main_props" e
+        # "conn_props" (stessa self.data_path, stesso nome file) — la
+        # scrittura qui è quindi sempre sovrascritta prima che il
+        # subprocess Java venga lanciato, e resta innocua nella
+        # pratica. Ma "properties_content" sotto contiene un percorso
+        # Windows ASSOLUTO hardcoded (C:/Users/nicho/...) — se in
+        # futuro questo primo blocco diventasse l'unico a scrivere il
+        # file (es. rimuovendo per errore la riscrittura successiva),
+        # il subprocess fallirebbe silenziosamente su qualunque
+        # macchina diversa da quella con quell'esatto nome utente
+        # Windows. Il blocco try/except sotto ingoia comunque
+        # qualunque errore di scrittura senza loggarlo.
+        # File 1: mongodb_test.properties
+        properties_file = os.path.join(os.path.expanduser("~"), ".data", ".zunTestScripts", "mongodb_test.properties")
+        properties_content = f"""fileInProlog=C:/Users/nicho/.data/.zunTestScripts/prolog.jcoql
+        fileInTest=C:/Users/nicho/.data/.zunTestScripts/query.jcoql
+        testName=PythonAutomatedTest
+        keyPropertyFile=C:/Users/nicho/.data/.zunTestScripts/mongodb_connection.properties
+        default.server=localhost
+        server.localhost.uri=mongodb://localhost:27017/{self.database_name}
+        server.localhost.database={self.database_name}
+        mongodb.uri=mongodb://localhost:27017/{self.database_name}
+        mongodb.database={self.database_name}
+        mongo.db={self.database_name}
+        database={self.database_name}
+        toScreen=true
+        """
+
+        # File 2: mongodb_connection.properties
+        connection_file = os.path.join(os.path.expanduser("~"), ".data", ".zunTestScripts", "mongodb_connection.properties")
+        connection_content = f"""mongodb.database={self.database_name}
+        mongodb.uri=mongodb://localhost:27017/{self.database_name}
+        """
+
+        try:
+            with open(properties_file, 'w') as f:
+                f.write(properties_content)
+            with open(connection_file, 'w') as f:
+                f.write(connection_content)
+        except Exception as e:
+            pass
+
+        # FIX: se wrapped_query inizia già con un proprio USE DB (sempre
+        # più comune ora che il pannello frontend mostra/manda la query
+        # completa, USE DB incluso — vedi QueryExecutor.jsx), scrivere
+        # comunque qui un secondo USE DB di default è ridondante: non
+        # è un errore (una USE DB ripetuta viene solo "sostituita"),
+        # ma inutile — soprattutto visibile nei log dove la stessa riga
+        # compare due volte di fila. Il prolog resta come fallback per
+        # le query che NON specificano già un database di partenza.
+        # (Un eventuale SAVE AS accodato in coda a wrapped_query non
+        # cambia mai l'inizio della stringa, quindi questo controllo dà
+        # lo stesso risultato sia con che senza quel SAVE AS.)
+        query_already_has_use_db = bool(re.match(r'^\s*USE\s+DB\b', wrapped_query, re.IGNORECASE))
+        prolog_content = "" if query_already_has_use_db else f"USE DB {self.database_name} ON DEFAULT SERVER;\n"
+        prolog_file.write_text(prolog_content, encoding='utf-8')
+
+        # Stampa SEMPRE (non solo con JCOQL_DEBUG) la query completa e
+        # reale che viene mandata al motore, prolog incluso — così in
+        # PowerShell vedi esattamente cosa è stato eseguito, comprese
+        # tutte le USE DB necessarie, senza dover attivare il debug.
+        print("=" * 60)
+        print("QUERY INVIATA AL MOTORE J-CO (prolog + query):")
+        print(prolog_content.rstrip())
+        print(wrapped_query)
+        print("=" * 60)
+
+        query_file.write_text(wrapped_query, encoding='utf-8')
+
+        # URI con database
+        parsed = urlparse(self.mongo_uri)
+        mongo_uri_with_db = f"{parsed.scheme or 'mongodb'}://{parsed.netloc}/{self.database_name}"
+
+        # Scrittura properties di connessione
+        conn_props.write_text(
+            "default.server=localhost\n"
+            f"server.localhost.uri={mongo_uri_with_db}\n"
+            f"server.localhost.database={self.database_name}\n"
+            f"mongo.uri={self.mongo_uri}\n"
+            f"mongodb.uri={mongo_uri_with_db}\n"
+            f"mongo.db={self.database_name}\n"
+            f"mongodb.database={self.database_name}\n"
+            f"dbName={self.database_name}\n"
+            f"database={self.database_name}\n"
+            "mongo.useSSL=false\n",
+            encoding='utf-8'
+        )
+
+        prolog_abs = str(prolog_file.resolve()).replace('\\', '/')
+        query_abs = str(query_file.resolve()).replace('\\', '/')
+        conn_abs = str(conn_props.resolve()).replace('\\', '/')
+
+        # Scrittura del file principale delle properties
+        main_props.write_text(
+            f"fileInProlog={prolog_abs}\n"
+            f"fileInTest={query_abs}\n"
+            "testName=PythonAutomatedTest\n"
+            f"keyPropertyFile={conn_abs}\n"
+            "default.server=localhost\n"
+            f"server.localhost.uri={mongo_uri_with_db}\n"
+            f"server.localhost.database={self.database_name}\n"
+            f"mongodb.uri={mongo_uri_with_db}\n"
+            f"mongodb.database={self.database_name}\n"
+            f"mongo.db={self.database_name}\n"
+            f"database={self.database_name}\n"
+            f"server.localhost.database={self.database_name}\n"
+            "toScreen=true\n",
+            encoding='utf-8'
+        )
+
+        # Classpath
+        gradle_cache = Path.home() / ".gradle/caches/modules-2/files-2.1"
+        jar_patterns = [
+            (gradle_cache / "com.fasterxml.jackson.core/jackson-databind", "jackson-databind-*.jar"),
+            (gradle_cache / "com.fasterxml.jackson.core/jackson-core", "jackson-core-*.jar"),
+            (gradle_cache / "com.fasterxml.jackson.core/jackson-annotations", "jackson-annotations-*.jar"),
+
+            # --- ANTLR & LOGGING ---
+            (gradle_cache / "org.antlr/antlr-runtime", "antlr-runtime-*.jar"),
+            (gradle_cache / "org.slf4j/slf4j-api", "slf4j-api-*.jar"),
+            (gradle_cache / "org.slf4j/slf4j-log4j12", "slf4j-log4j12-*.jar"),
+            (gradle_cache / "log4j/log4j", "log4j-*.jar"),
+            (gradle_cache / "commons-logging/commons-logging", "commons-logging-*.jar"),
+
+            # --- MONGODB ---
+            (gradle_cache / "org.mongodb/bson", "bson-*.jar"),
+            (gradle_cache / "org.mongodb/mongodb-driver-core", "mongodb-driver-core-*.jar"),
+            (gradle_cache / "org.mongodb/mongodb-driver-sync", "mongodb-driver-sync-*.jar"),
+            (gradle_cache / "org.mongodb/mongodb-driver", "mongodb-driver-*.jar"),
+            (gradle_cache / "org.mongodb/mongo-java-driver", "mongo-java-driver-*.jar"),
+
+            # --- SPRING FRAMEWORK ---
+            (gradle_cache / "org.springframework/spring-core", "spring-core-*.jar"),
+            (gradle_cache / "org.springframework/spring-context", "spring-context-*.jar"),
+            (gradle_cache / "org.springframework/spring-aop", "spring-aop-*.jar"),
+            (gradle_cache / "org.springframework/spring-beans", "spring-beans-*.jar"),
+            (gradle_cache / "org.springframework/spring-expression", "spring-expression-*.jar"),
+            (gradle_cache / "org.springframework/spring-jcl", "spring-jcl-*.jar"),
+        ]
+
+        classpath_parts = [
+            str(self.jco_base),
+            str(self.jco_base / "config"),
+            # FIX 2 agosto 2026: mancavano le cartelle "resources" (contengono conf/servers.properties
+            # e altri file di risorse) - solo "classes" era presente. Senza queste, getResourceAsStream
+            # in ParserLauncher.java trovava (nella migliore delle ipotesi) risorse vecchie impacchettate
+            # in un JAR non aggiornato sotto build/libs/*, invece dei file sorgente freschi.
+            # Messe PRIMA dei JAR cosi' le risorse fresche hanno sempre la precedenza.
+            str(self.jco_base / "jcoql-engine/build/resources/main"),
+            str(self.jco_base / "jcoql-engine-mongodb/build/resources/main"),
+            str(self.jco_base / "jcoql-model/build/resources/main"),
+            str(self.jco_base / "jcoql-engine/build/classes/java/main"),
+            str(self.jco_base / "jcoql-model/build/classes/java/main"),
+            str(self.jco_base / "jcoql-engine-mongodb/build/classes/java/main"),
+
+            str(self.jco_base / "jcoql-engine/build/libs/*"),
+            str(self.jco_base / "jcoql-engine-mongodb/build/libs/*"),
+            str(self.jco_base / "jcoql-model/lib/*"),
+            str(self.jco_base / "jcoql-ds-core/lib/*"),
+            str(self.jco_base / "jcoql-engine/lib/*"),
+        ]
+
+        for base_path, pattern in jar_patterns:
+            if Path(base_path).exists():
+                latest = self._get_latest_jar(Path(base_path), pattern)
+                if latest:
+                    classpath_parts.append(latest)
+
+        classpath = os.pathsep.join(classpath_parts)
+
+        cmd = [
+            'java',
+            '-Xmx512m',
+            f'-Dmongodb.database={self.database_name}',
+            f'-Dmongo.db={self.database_name}',
+            f'-Ddatabase={self.database_name}',
+            '-cp', classpath,
+            'jco.ql.engine.JcoScriptLauncher',
+            str(main_props.resolve())
+        ]
+
+        result = subprocess.run(cmd, cwd=str(self.jco_base), capture_output=True,
+                              text=True, timeout=timeout, encoding='utf-8', errors='replace')
+
+        # Log diagnostico dell'output grezzo di Java per comandi diversi da GET COLLECTION
+        # (JOIN/GROUP/EXPAND/MERGE/INTERSECT/SUBTRACT/SAVE), attivo solo con
+        # JCOQL_DEBUG=true (vedi interruttore in cima al file).
+        _q_upper = log_query.upper()
+        _needs_raw_debug = (
+            "GROUP PARTITION" in _q_upper or "EXPAND UNPACK" in _q_upper
+            or "SAVE AS" in _q_upper or "SAVE TO FILE" in _q_upper
+            or "MERGE COLLECTIONS" in _q_upper or "INTERSECT COLLECTIONS" in _q_upper
+            or "SUBTRACT COLLECTIONS" in _q_upper
+        )
+        if JCOQL_DEBUG and ("GET COLLECTION" not in _q_upper or _needs_raw_debug):
+            print("=" * 60)
+            print("DEBUG RAW JAVA STDOUT (comando non-GET COLLECTION):")
+            print(f"   returncode: {result.returncode}")
+            print(f"   stdout:\n{result.stdout}")
+            print(f"   stderr:\n{result.stderr}")
+            print("=" * 60)
+
+        return result
+
+    def _extract_readable_error(self, result):
+        """
+        Estrae un messaggio d'errore leggibile dallo stdout Java, invece del
+        generico "Failed" che non dice nulla di utile all'utente (vedi indagine
+        SAVE AS: senza questo, ogni fallimento appariva identico e indistinguibile).
+        Fattorizzato da execute() per essere condiviso anche da execute_count_only().
+        """
+        readable_error = None
+        exc_match = re.search(
+            r'ECCEZIONE:\s*\n(.+?)(?:\n\*ZUN|\n---|\Z)',
+            result.stdout, re.DOTALL
+        )
+        if exc_match:
+            readable_error = exc_match.group(1).strip().split('\n')[0]
+        if not readable_error:
+            err_line_match = re.search(r'\[.+?\]\s*Error:\s*(.+)', result.stdout)
+            if err_line_match:
+                readable_error = err_line_match.group(1).strip()
+        return readable_error or result.stderr or "Errore sconosciuto durante l'esecuzione"
+
+    # Pattern di conteggio stampati dal motore J-CO su stdout per i comandi che,
+    # in execute() (percorso normale), richiederebbero un SAVE AS per poter
+    # essere letti (vedi docstring del modulo). Usati solo da execute_count_only().
+    #
+    # ATTENZIONE - stato di verifica per singolo pattern:
+    # - JOIN OF COLLECTIONS e GROUP PARTITION: CONFERMATI empiricamente, erano
+    #   già incrociati col conteggio reale nel vecchio _parse_output() (non più
+    #   in uso nel percorso normale, ma il confronto era stato fatto dal vivo).
+    # - EXPAND UNPACK, MERGE/INTERSECT/SUBTRACT COLLECTIONS: MAI confermati su
+    #   un'esecuzione reale - il vecchio _parse_output() li segnava esplicitamente
+    #   come "nomi plausibili per analogia". Vanno verificati al primo test live
+    #   in questa nuova modalità e corretti se il motore stampa un'altra dicitura.
+    _COUNT_PATTERNS = [
+        (r'JOIN\s+OF\s+COLLECTIONS', r'\[Join Of Collections\]\s+executed:\s+(\d+)\s+documents generated'),
+        (r'GROUP\s+PARTITION', r'\[Group\]\s+executed:\s+(\d+)\s+documents grouped'),
+        (r'EXPAND\s+UNPACK', r'\[Expand\]\s+executed:\s+(\d+)'),                        # NON confermato
+        (r'MERGE\s+COLLECTIONS', r'\[Merge Collections\]\s+executed:\s+(\d+)'),         # NON confermato
+        (r'INTERSECT\s+COLLECTIONS', r'\[Intersect Collections\]\s+executed:\s+(\d+)'),  # NON confermato
+        (r'SUBTRACT\s+COLLECTIONS', r'\[Subtract Collections\]\s+executed:\s+(\d+)'),    # NON confermato
+    ]
+
+    def execute_count_only(self, jcoql_query, timeout=300):
+        """
+        Modalità "database di grandi dimensioni / risultato non necessario":
+        NON accoda alcun SAVE AS automatico alla query, a differenza di
+        execute(). La query gira esattamente come scritta (compresi eventuali
+        SAVE AS che contiene già lei stessa - es. i "chaintempN" per join
+        concatenati, o un SAVE AS esplicito scritto dall'utente: quelli
+        restano invariati, continuano a scrivere realmente su MongoDB come
+        previsto, non li tocchiamo).
+
+        Perché ha senso: senza il nostro SAVE AS finale, per un comando
+        diverso da GET COLLECTION il motore J-CO non scrive mai il risultato
+        completo su MongoDB (vedi docstring del modulo e commento su
+        JoinExecutor.java: pipeline.addCollection(outCollection) resta in
+        memoria) - calcola tutto e stampa solo il conteggio su stdout. Qui lo
+        leggiamo da lì: zero letture o scritture aggiuntive su MongoDB da
+        parte nostra, quindi elimina il costo di persistenza isolato come
+        vero collo di bottiglia su collezioni grandi (JOIN/GROUP su
+        sample_mflix - vedi valutazione Cap. 9).
+
+        Cosa NON risolve: se il calcolo del motore stesso è combinatorialmente
+        pesante (es. un JOIN non filtrato tra due collezioni enormi, senza
+        condizione selettiva), il tempo lo consuma comunque il motore prima
+        di poter stampare un conteggio qualsiasi - lì questa modalità non
+        cambia nulla. Per questo il timeout di default è molto più alto
+        (300s) di quello del percorso normale (30s), ma resta un limite fisso,
+        non una garanzia di completamento.
+        """
+        try:
+            result = self._run_engine(jcoql_query, timeout=timeout)
+
+            if result.returncode == 0 and "ECCEZIONE:" not in result.stdout:
+                # Pulizia best-effort delle eventuali chaintempN interne alla
+                # query (join concatenati) - nel percorso normale la fa
+                # _read_temp_result() dopo la lettura; qui non c'è nessuna
+                # lettura da MongoDB, quindi va fatta esplicitamente anche
+                # sul ramo di successo.
+                self._cleanup_chaintemp_collections(jcoql_query)
+
+                doc_count = None
+                for keyword_pattern, count_pattern in self._COUNT_PATTERNS:
+                    if re.search(keyword_pattern, jcoql_query, re.IGNORECASE):
+                        m = re.search(count_pattern, result.stdout, re.IGNORECASE)
+                        if m:
+                            doc_count = int(m.group(1))
+                        break
+
+                if doc_count is not None:
+                    text = ''
+                else:
+                    # Il comando non è tra quelli con pattern noto, oppure il
+                    # pattern atteso non ha trovato corrispondenza nel vero
+                    # stdout (probabile per i pattern "NON confermati" sopra).
+                    # Non inventiamo un numero - lo diciamo esplicitamente,
+                    # stesso principio già seguito in _read_temp_result().
+                    generic_match = re.search(r'\[.+?\]\s*executed:\s*(\d+)', result.stdout, re.IGNORECASE)
+                    if generic_match:
+                        doc_count = int(generic_match.group(1))
+                        text = ("Conteggio letto con pattern generico, non ancora confermato per "
+                                "questo comando specifico - verifica l'output grezzo Java "
+                                "(JCOQL_DEBUG=true) se il numero sembra sbagliato.")
+                    else:
+                        return {
+                            'success': True,
+                            'jcoql_query': jcoql_query,
+                            'count': 0,
+                            'results': [],
+                            'text': ("Eseguito, ma nessun conteggio riconoscibile nell'output del "
+                                     "motore - controlla l'output grezzo Java (JCOQL_DEBUG=true)."),
+                            'executor': 'jco_framework_count_only'
+                        }
+
+                return {
+                    'success': True,
+                    'jcoql_query': jcoql_query,
+                    'count': doc_count,
+                    'results': [],
+                    'text': text,
+                    'executor': 'jco_framework_count_only'
+                }
+            else:
+                self._cleanup_chaintemp_collections(jcoql_query)
+                return {
+                    'success': False,
+                    'error': self._extract_readable_error(result),
+                    'executor': 'jco_framework_count_only'
+                }
+        except Exception as e:
+            self._cleanup_chaintemp_collections(jcoql_query)
+            return {'success': False, 'error': str(e), 'executor': 'jco_framework_count_only'}
+
     def execute(self, jcoql_query):
         try:
-            query_file = self.data_path / "query.jcoql"
-            prolog_file = self.data_path / "prolog.jcoql"
-            conn_props = self.data_path / "mongodb_connection.properties"
-            main_props = self.data_path / "mongodb_test.properties"
-            
-            # NOTA: questo primo blocco (File 1) scrive due file che, un
-            # po' più sotto (File 2, "conn_props"/"main_props"), vengono
-            # RISCRITTI DA CAPO con contenuto equivalente ma dinamico e
-            # portabile. "properties_file" e "connection_file" qui sotto
-            # risolvono esattamente agli stessi percorsi di "main_props" e
-            # "conn_props" (stessa self.data_path, stesso nome file) — la
-            # scrittura qui è quindi sempre sovrascritta prima che il
-            # subprocess Java venga lanciato, e resta innocua nella
-            # pratica. Ma "properties_content" sotto contiene un percorso
-            # Windows ASSOLUTO hardcoded (C:/Users/nicho/...) — se in
-            # futuro questo primo blocco diventasse l'unico a scrivere il
-            # file (es. rimuovendo per errore la riscrittura successiva),
-            # il subprocess fallirebbe silenziosamente su qualunque
-            # macchina diversa da quella con quell'esatto nome utente
-            # Windows. Il blocco try/except sotto ingoia comunque
-            # qualunque errore di scrittura senza loggarlo.
-            # File 1: mongodb_test.properties
-            properties_file = os.path.join(os.path.expanduser("~"), ".data", ".zunTestScripts", "mongodb_test.properties")
-            properties_content = f"""fileInProlog=C:/Users/nicho/.data/.zunTestScripts/prolog.jcoql
-            fileInTest=C:/Users/nicho/.data/.zunTestScripts/query.jcoql
-            testName=PythonAutomatedTest
-            keyPropertyFile=C:/Users/nicho/.data/.zunTestScripts/mongodb_connection.properties
-            default.server=localhost
-            server.localhost.uri=mongodb://localhost:27017/{self.database_name}
-            server.localhost.database={self.database_name}
-            mongodb.uri=mongodb://localhost:27017/{self.database_name}
-            mongodb.database={self.database_name}
-            mongo.db={self.database_name}
-            database={self.database_name}
-            toScreen=true
-            """
-
-            # File 2: mongodb_connection.properties
-            connection_file = os.path.join(os.path.expanduser("~"), ".data", ".zunTestScripts", "mongodb_connection.properties")
-            connection_content = f"""mongodb.database={self.database_name}
-            mongodb.uri=mongodb://localhost:27017/{self.database_name}
-            """
-
-            try:
-                with open(properties_file, 'w') as f:
-                    f.write(properties_content)
-                with open(connection_file, 'w') as f:
-                    f.write(connection_content)
-            except Exception as e:
-                pass
-
-            # FIX: se jcoql_query inizia già con un proprio USE DB (sempre
-            # più comune ora che il pannello frontend mostra/manda la query
-            # completa, USE DB incluso — vedi QueryExecutor.jsx), scrivere
-            # comunque qui un secondo USE DB di default è ridondante: non
-            # è un errore (una USE DB ripetuta viene solo "sostituita"),
-            # ma inutile — soprattutto visibile nei log dove la stessa riga
-            # compare due volte di fila. Il prolog resta come fallback per
-            # le query che NON specificano già un database di partenza.
-            query_already_has_use_db = bool(re.match(r'^\s*USE\s+DB\b', jcoql_query, re.IGNORECASE))
-            prolog_content = "" if query_already_has_use_db else f"USE DB {self.database_name} ON DEFAULT SERVER;\n"
-            prolog_file.write_text(prolog_content, encoding='utf-8')
-
             # STRATEGIA "auto SAVE AS" (vedi docstring del modulo): accodiamo in modo
             # trasparente un SAVE AS verso una collection temporanea con nome univoco
             # per richiesta (uuid4, per evitare che due richieste concorrenti si
@@ -1367,150 +1673,7 @@ class JCoFrameworkExecutor:
                 wrapped_query += ';'
             wrapped_query += f"\nSAVE AS {temp_collection_name}@{self.database_name};"
 
-            # Stampa SEMPRE (non solo con JCOQL_DEBUG) la query completa e
-            # reale che viene mandata al motore, prolog incluso — così in
-            # PowerShell vedi esattamente cosa è stato eseguito, comprese
-            # tutte le USE DB necessarie, senza dover attivare il debug.
-            print("=" * 60)
-            print("QUERY INVIATA AL MOTORE J-CO (prolog + query):")
-            print(prolog_content.rstrip())
-            print(wrapped_query)
-            print("=" * 60)
-
-            query_file.write_text(wrapped_query, encoding='utf-8')
-            
-            # URI con database
-            parsed = urlparse(self.mongo_uri)
-            mongo_uri_with_db = f"{parsed.scheme or 'mongodb'}://{parsed.netloc}/{self.database_name}"
-            
-            # Scrittura properties di connessione
-            conn_props.write_text(
-                "default.server=localhost\n"
-                f"server.localhost.uri={mongo_uri_with_db}\n"
-                f"server.localhost.database={self.database_name}\n"
-                f"mongo.uri={self.mongo_uri}\n"
-                f"mongodb.uri={mongo_uri_with_db}\n"
-                f"mongo.db={self.database_name}\n"
-                f"mongodb.database={self.database_name}\n"
-                f"dbName={self.database_name}\n"
-                f"database={self.database_name}\n"
-                "mongo.useSSL=false\n",
-                encoding='utf-8'
-            )
-            
-            prolog_abs = str(prolog_file.resolve()).replace('\\', '/')
-            query_abs = str(query_file.resolve()).replace('\\', '/')
-            conn_abs = str(conn_props.resolve()).replace('\\', '/')
-
-            # Scrittura del file principale delle properties
-            main_props.write_text(
-                f"fileInProlog={prolog_abs}\n"
-                f"fileInTest={query_abs}\n"
-                "testName=PythonAutomatedTest\n"
-                f"keyPropertyFile={conn_abs}\n"
-                "default.server=localhost\n"
-                f"server.localhost.uri={mongo_uri_with_db}\n"
-                f"server.localhost.database={self.database_name}\n"
-                f"mongodb.uri={mongo_uri_with_db}\n"
-                f"mongodb.database={self.database_name}\n"
-                f"mongo.db={self.database_name}\n"
-                f"database={self.database_name}\n"
-                f"server.localhost.database={self.database_name}\n"
-                "toScreen=true\n",
-                encoding='utf-8'
-            )
-            
-            # Classpath
-            gradle_cache = Path.home() / ".gradle/caches/modules-2/files-2.1"
-            jar_patterns = [
-                (gradle_cache / "com.fasterxml.jackson.core/jackson-databind", "jackson-databind-*.jar"),
-                (gradle_cache / "com.fasterxml.jackson.core/jackson-core", "jackson-core-*.jar"),
-                (gradle_cache / "com.fasterxml.jackson.core/jackson-annotations", "jackson-annotations-*.jar"),
-                
-                # --- ANTLR & LOGGING ---
-                (gradle_cache / "org.antlr/antlr-runtime", "antlr-runtime-*.jar"),
-                (gradle_cache / "org.slf4j/slf4j-api", "slf4j-api-*.jar"),
-                (gradle_cache / "org.slf4j/slf4j-log4j12", "slf4j-log4j12-*.jar"),
-                (gradle_cache / "log4j/log4j", "log4j-*.jar"),
-                (gradle_cache / "commons-logging/commons-logging", "commons-logging-*.jar"),
-                
-                # --- MONGODB ---
-                (gradle_cache / "org.mongodb/bson", "bson-*.jar"),
-                (gradle_cache / "org.mongodb/mongodb-driver-core", "mongodb-driver-core-*.jar"),
-                (gradle_cache / "org.mongodb/mongodb-driver-sync", "mongodb-driver-sync-*.jar"),
-                (gradle_cache / "org.mongodb/mongodb-driver", "mongodb-driver-*.jar"),
-                (gradle_cache / "org.mongodb/mongo-java-driver", "mongo-java-driver-*.jar"),
-                
-                # --- SPRING FRAMEWORK ---
-                (gradle_cache / "org.springframework/spring-core", "spring-core-*.jar"),
-                (gradle_cache / "org.springframework/spring-context", "spring-context-*.jar"),
-                (gradle_cache / "org.springframework/spring-aop", "spring-aop-*.jar"),
-                (gradle_cache / "org.springframework/spring-beans", "spring-beans-*.jar"),
-                (gradle_cache / "org.springframework/spring-expression", "spring-expression-*.jar"),
-                (gradle_cache / "org.springframework/spring-jcl", "spring-jcl-*.jar"),
-            ]
-            
-            classpath_parts = [
-                str(self.jco_base),
-                str(self.jco_base / "config"),
-                # FIX 2 agosto 2026: mancavano le cartelle "resources" (contengono conf/servers.properties
-                # e altri file di risorse) - solo "classes" era presente. Senza queste, getResourceAsStream
-                # in ParserLauncher.java trovava (nella migliore delle ipotesi) risorse vecchie impacchettate
-                # in un JAR non aggiornato sotto build/libs/*, invece dei file sorgente freschi.
-                # Messe PRIMA dei JAR cosi' le risorse fresche hanno sempre la precedenza.
-                str(self.jco_base / "jcoql-engine/build/resources/main"),
-                str(self.jco_base / "jcoql-engine-mongodb/build/resources/main"),
-                str(self.jco_base / "jcoql-model/build/resources/main"),
-                str(self.jco_base / "jcoql-engine/build/classes/java/main"),
-                str(self.jco_base / "jcoql-model/build/classes/java/main"),
-                str(self.jco_base / "jcoql-engine-mongodb/build/classes/java/main"),
-                
-                str(self.jco_base / "jcoql-engine/build/libs/*"),
-                str(self.jco_base / "jcoql-engine-mongodb/build/libs/*"),
-                str(self.jco_base / "jcoql-model/lib/*"),
-                str(self.jco_base / "jcoql-ds-core/lib/*"),
-                str(self.jco_base / "jcoql-engine/lib/*"),
-            ]
-            
-            for base_path, pattern in jar_patterns:
-                if Path(base_path).exists():
-                    latest = self._get_latest_jar(Path(base_path), pattern)
-                    if latest:
-                        classpath_parts.append(latest)
-            
-            classpath = os.pathsep.join(classpath_parts)
-
-            cmd = [
-                'java',
-                '-Xmx512m',
-                f'-Dmongodb.database={self.database_name}',
-                f'-Dmongo.db={self.database_name}',
-                f'-Ddatabase={self.database_name}',
-                '-cp', classpath,
-                'jco.ql.engine.JcoScriptLauncher',
-                str(main_props.resolve())
-            ]
-            
-            result = subprocess.run(cmd, cwd=str(self.jco_base), capture_output=True,
-                                  text=True, timeout=30, encoding='utf-8', errors='replace')
-
-            # Log diagnostico dell'output grezzo di Java per comandi diversi da GET COLLECTION
-            # (JOIN/GROUP/EXPAND/MERGE/INTERSECT/SUBTRACT/SAVE), attivo solo con
-            # JCOQL_DEBUG=true (vedi interruttore in cima al file).
-            _q_upper = jcoql_query.upper()
-            _needs_raw_debug = (
-                "GROUP PARTITION" in _q_upper or "EXPAND UNPACK" in _q_upper
-                or "SAVE AS" in _q_upper or "SAVE TO FILE" in _q_upper
-                or "MERGE COLLECTIONS" in _q_upper or "INTERSECT COLLECTIONS" in _q_upper
-                or "SUBTRACT COLLECTIONS" in _q_upper
-            )
-            if JCOQL_DEBUG and ("GET COLLECTION" not in _q_upper or _needs_raw_debug):
-                print("=" * 60)
-                print("DEBUG RAW JAVA STDOUT (comando non-GET COLLECTION):")
-                print(f"   returncode: {result.returncode}")
-                print(f"   stdout:\n{result.stdout}")
-                print(f"   stderr:\n{result.stderr}")
-                print("=" * 60)
+            result = self._run_engine(wrapped_query, timeout=30, log_query=jcoql_query)
 
             if result.returncode == 0 and "ECCEZIONE:" not in result.stdout:
                 # Legge il vero risultato dal motore invece di ricostruirlo in
@@ -1536,25 +1699,9 @@ class JCoFrameworkExecutor:
                 # Pulizia best-effort delle eventuali chaintempN già create
                 # prima del fallimento (vedi _cleanup_chaintemp_collections).
                 self._cleanup_chaintemp_collections(jcoql_query)
-
-                # Estrae un messaggio d'errore leggibile dallo stdout Java, invece del
-                # generico "Failed" che non dice nulla di utile all'utente (vedi indagine
-                # SAVE AS: senza questo, ogni fallimento appariva identico e indistinguibile).
-                readable_error = None
-                exc_match = re.search(
-                    r'ECCEZIONE:\s*\n(.+?)(?:\n\*ZUN|\n---|\Z)',
-                    result.stdout, re.DOTALL
-                )
-                if exc_match:
-                    readable_error = exc_match.group(1).strip().split('\n')[0]
-                if not readable_error:
-                    err_line_match = re.search(r'\[.+?\]\s*Error:\s*(.+)', result.stdout)
-                    if err_line_match:
-                        readable_error = err_line_match.group(1).strip()
-                error_message = readable_error or result.stderr or "Errore sconosciuto durante l'esecuzione"
                 return {
                     'success': False,
-                    'error': error_message,
+                    'error': self._extract_readable_error(result),
                     'executor': 'jco_framework'
                 }
         except Exception as e:
