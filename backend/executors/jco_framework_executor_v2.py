@@ -1542,20 +1542,27 @@ class JCoFrameworkExecutor:
     # essere letti (vedi docstring del modulo). Usati solo da execute_count_only().
     #
     # ATTENZIONE - stato di verifica per singolo pattern:
-    # - JOIN OF COLLECTIONS e GROUP PARTITION: CONFERMATI empiricamente, erano
-    #   già incrociati col conteggio reale nel vecchio _parse_output() (non più
-    #   in uso nel percorso normale, ma il confronto era stato fatto dal vivo).
-    # - EXPAND UNPACK, MERGE/INTERSECT/SUBTRACT COLLECTIONS: MAI confermati su
-    #   un'esecuzione reale - il vecchio _parse_output() li segnava esplicitamente
-    #   come "nomi plausibili per analogia". Vanno verificati al primo test live
-    #   in questa nuova modalità e corretti se il motore stampa un'altra dicitura.
+    # (27/09) Tutti e sei confermati, non solo dal vivo (JOIN/GROUP) ma anche
+    # a livello di source per gli altri quattro: il testo tra parentesi è
+    # instructionName, una stringa letterale hardcoded nel costruttore di
+    # ciascuna classe Instruction in jcoql-official (jco.ql.parser.model.*,
+    # es. instructionName = "Expand" in Expand.java) - non calcolata a
+    # runtime, quindi senza ambiguità residua. Letti insieme ai rispettivi
+    # *Executor.java in jco-framework (la riga JMH.addJCOMessage("[" +
+    # command.getInstruction().getInstructionName() + "] executed:\t" + ...)):
+    #   Expand                -> "[Expand] executed:\tN documents loaded"
+    #   Merge Collections     -> "[Merge Collections] executed:\tN merged"
+    #   Intersect Collections -> "[Intersect Collections] executed:\tN documents generated"
+    #   Subtract Collections  -> "[Subtract Collections] executed:\tN documents"
+    # Il testo dopo "executed:\s+(\d+)" cambia da comando a comando ma non è
+    # necessario richiederlo nel pattern: si catturano solo le cifre.
     _COUNT_PATTERNS = [
         (r'JOIN\s+OF\s+COLLECTIONS', r'\[Join Of Collections\]\s+executed:\s+(\d+)\s+documents generated'),
         (r'GROUP\s+PARTITION', r'\[Group\]\s+executed:\s+(\d+)\s+documents grouped'),
-        (r'EXPAND\s+UNPACK', r'\[Expand\]\s+executed:\s+(\d+)'),                        # NON confermato
-        (r'MERGE\s+COLLECTIONS', r'\[Merge Collections\]\s+executed:\s+(\d+)'),         # NON confermato
-        (r'INTERSECT\s+COLLECTIONS', r'\[Intersect Collections\]\s+executed:\s+(\d+)'),  # NON confermato
-        (r'SUBTRACT\s+COLLECTIONS', r'\[Subtract Collections\]\s+executed:\s+(\d+)'),    # NON confermato
+        (r'EXPAND\s+UNPACK', r'\[Expand\]\s+executed:\s+(\d+)\s+documents loaded'),
+        (r'MERGE\s+COLLECTIONS', r'\[Merge Collections\]\s+executed:\s+(\d+)\s+merged'),
+        (r'INTERSECT\s+COLLECTIONS', r'\[Intersect Collections\]\s+executed:\s+(\d+)\s+documents generated'),
+        (r'SUBTRACT\s+COLLECTIONS', r'\[Subtract Collections\]\s+executed:\s+(\d+)\s+documents'),
     ]
 
     def execute_count_only(self, jcoql_query, timeout=300):
@@ -1608,16 +1615,17 @@ class JCoFrameworkExecutor:
                 if doc_count is not None:
                     text = ''
                 else:
-                    # Il comando non è tra quelli con pattern noto, oppure il
-                    # pattern atteso non ha trovato corrispondenza nel vero
-                    # stdout (probabile per i pattern "NON confermati" sopra).
+                    # Il comando non è tra i sei con pattern noto e confermato
+                    # sopra (es. FILTER, USE DB, o un comando futuro non
+                    # ancora coperto), oppure - caso limite - il motore ha
+                    # stampato qualcosa di diverso dal solito per uno dei sei.
                     # Non inventiamo un numero - lo diciamo esplicitamente,
                     # stesso principio già seguito in _read_temp_result().
                     generic_match = re.search(r'\[.+?\]\s*executed:\s*(\d+)', result.stdout, re.IGNORECASE)
                     if generic_match:
                         doc_count = int(generic_match.group(1))
-                        text = ("Conteggio letto con pattern generico, non ancora confermato per "
-                                "questo comando specifico - verifica l'output grezzo Java "
+                        text = ("Conteggio letto con pattern generico, non specifico per "
+                                "questo comando - verifica l'output grezzo Java "
                                 "(JCOQL_DEBUG=true) se il numero sembra sbagliato.")
                     else:
                         return {
