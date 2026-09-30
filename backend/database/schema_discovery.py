@@ -69,7 +69,7 @@ class MongoSchemaDiscoverer:
             # Recupera dinamicamente le collezioni del database corrente
             collection_names = self.database.list_collection_names()
 
-            # FIX (16/08): esclude le collection temporanee interne
+            # Esclude le collection temporanee interne
             # (nlquery*, chaintemp*) dalla scoperta dello schema — se una
             # di queste fosse rimasta per caso in MongoDB nel momento esatto
             # in cui questa scansione parte (es. un vecchio residuo da
@@ -162,12 +162,11 @@ class MongoSchemaDiscoverer:
     def _extract_fields(self, doc: dict, fields_info: dict, prefix: str = ""):
         """Estrae tutti i campi da un documento in modo ricorsivo."""
         for key, value in doc.items():
-            # FIX (15/08): _id veniva escluso dallo schema mostrato all'LLM
-            # nel prompt — ma è spesso l'identificativo vero usato come
-            # chiave di join (es. products._id, non un separato
-            # "product_id"), e l'LLM, non sapendo che esiste, indovinava
-            # un altro campo (osservato: .d.name invece di .d._id in un
-            # JOIN concatenato). Non c'è più motivo di nasconderlo.
+            # _id non va escluso dallo schema mostrato all'LLM nel prompt:
+            # è spesso l'identificativo vero usato come chiave di join
+            # (es. products._id, non un separato "product_id"), e l'LLM,
+            # non sapendo che esiste, indovina un altro campo (osservato:
+            # .d.name invece di .d._id in un JOIN concatenato).
 
             # Costruisci il percorso del campo (es: "address.city")
             field_path = f"{prefix}.{key}" if prefix else key

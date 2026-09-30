@@ -40,12 +40,12 @@ export default function Favorites({ favorites, onLoad, onDelete }) {
   });
 
   return (
-    <div className="bg-white rounded-lg shadow-md p-6">
+    <div className="bg-yellow-100 rounded-lg shadow-md p-6">
       <button
         onClick={() => setExpanded(!expanded)}
-        className="w-full flex justify-between items-center text-left"
+        className="w-full flex justify-between items-center text-left bg-yellow-100 appearance-none border-none"
       >
-        <span className="text-lg font-bold text-gray-800">
+        <span className="text-lg font-bold text-yellow-800">
           ⭐ Query Preferite ({favorites.length})
         </span>
         <span className="text-gray-400">{expanded ? '▲' : '▼'}</span>
@@ -58,7 +58,7 @@ export default function Favorites({ favorites, onLoad, onDelete }) {
             value={search}
             onChange={(e) => setSearch(e.target.value)}
             placeholder="Cerca nei preferiti..."
-            className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-sm"
+            className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#007bff] focus:border-transparent text-sm"
           />
 
           {favorites.length === 0 ? (
@@ -75,7 +75,7 @@ export default function Favorites({ favorites, onLoad, onDelete }) {
               {filtered.map((fav) => (
                 <div
                   key={fav.id}
-                  className="border border-gray-200 rounded-lg p-3 hover:border-blue-300 transition"
+                  className="border border-[#dbeeff] rounded-lg p-3 hover:border-[#8fc4ff] transition"
                 >
                   <div className="flex justify-between items-start gap-1">
                     <div className="flex-1 min-w-0">
@@ -92,7 +92,7 @@ export default function Favorites({ favorites, onLoad, onDelete }) {
                       <button
                         onClick={() => onLoad(fav)}
                         title="Carica nell'executor"
-                        className="px-2 py-1 bg-blue-100 hover:bg-blue-200 text-blue-800 rounded text-xs font-medium transition-colors"
+                        className="px-2 py-1 bg-[#e7f3ff] hover:bg-[#cfe8ff] text-[#0056b3] rounded text-xs font-medium transition-colors"
                       >
                         📥
                       </button>

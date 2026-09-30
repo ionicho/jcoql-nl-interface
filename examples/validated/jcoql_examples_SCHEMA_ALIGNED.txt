@@ -2,9 +2,9 @@ Titolo: Hotel a Roma
 Descrizione: Hotel nella città di Roma
 Query: GET COLLECTION hotels; FILTER CASE WHERE .location.city = 'Roma' KEEP OTHERS;
 
-Titolo: Utenti con un certo user_id
-Descrizione: Utente con identificativo numerico specifico
-Query: GET COLLECTION users; FILTER CASE WHERE .user_id = 1 KEEP OTHERS;
+Titolo: Utente con un identificativo specifico
+Descrizione: Utente con un preciso _id (su questa collezione NON esiste un campo separato "user_id" sugli utenti stessi — è l'identificativo standard del documento, _id, quello giusto qui; "user_id" esiste solo come riferimento su ALTRE collezioni, es. orders.user_id, che punta a questo stesso _id — non va confuso con un campo proprio degli utenti).
+Query: GET COLLECTION users; FILTER CASE WHERE ._id = 'user_001' KEEP OTHERS;
 
 Titolo: Hotel a Milano
 Descrizione: Hotel nella città di Milano

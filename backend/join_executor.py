@@ -1,25 +1,21 @@
 """
 JoinExecutor - Costruisce ed esegue un JOIN nativo JCoQL+ tra database diversi
 
-STORIA (perché questo file è cambiato): la versione precedente eseguiva la
-STESSA query separatamente su due database ed eseguiva il merge (INNER/LEFT/
-RIGHT/FULL) qui in Python, perché generare la sintassi nativa "JOIN OF
-COLLECTIONS" via LLM da linguaggio naturale si era rivelato inaffidabile.
-Da quando il resto del progetto usa la strategia "auto SAVE AS" (vedi
-jco_framework_executor_v2.py) per leggere sempre il risultato VERO calcolato
-dal motore invece di ricostruirlo in Python, ha senso applicare la stessa
-logica anche qui: quando l'utente configura un JOIN dal form della sidebar
-(non scrivendo lui stesso la sintassi, che restava il problema originale),
-possiamo costruire noi algoritmicamente la query nativa completa — con tutti
-gli USE DB necessari — a partire dai campi già strutturati del form, e
-lasciare che sia il motore a fare il lavoro vero.
+Perché costruire la sintassi algoritmicamente invece di generarla via LLM:
+generare la sintassi nativa "JOIN OF COLLECTIONS" via LLM da linguaggio
+naturale si è rivelato inaffidabile. Il JOIN configurato dal form della
+sidebar parte invece da campi già strutturati (non testo libero scritto
+dall'utente), quindi qui si costruisce direttamente, algoritmicamente, la
+query nativa completa — con tutti gli USE DB necessari — e si lascia che
+sia il motore a fare il lavoro vero (stessa filosofia della strategia
+"auto SAVE AS" in jco_framework_executor_v2.py: leggere sempre il
+risultato VERO calcolato dal motore, non ricostruirlo in Python).
 
-Verificato manualmente (13/08) che la sintassi costruita qui funziona:
+Esempio della sintassi costruita:
     USE DB db1 ON DEFAULT SERVER;
     USE DB db2 ON DEFAULT SERVER;
     JOIN OF COLLECTIONS coll@db1 AS t1, coll@db2 AS t2
     CASE WHERE .t1.campo = .t2.campo;
-ha restituito i documenti reali attesi (5 documenti, verificato dal browser).
 
 SOLO INNER JOIN — decisione presa consapevolmente, non una limitazione
 temporanea: la grammatica JCoQL+ non ha un concetto di LEFT/RIGHT/FULL OUTER
@@ -90,7 +86,7 @@ class JoinExecutor:
         perché. Per qualunque altro valore la funzione ritorna un errore
         esplicito invece di costruire una query comunque.
 
-        joinKey/db2JoinKey sono OPZIONALI (13/08): la grammatica JCoQL+
+        joinKey/db2JoinKey sono OPZIONALI: la grammatica JCoQL+
         rende la clausola CASE WHERE dentro un JOIN facoltativa — un JOIN
         senza condizione è sintatticamente valido ed esegue un prodotto
         cartesiano completo fra le due collezioni (comportamento già
@@ -102,7 +98,7 @@ class JoinExecutor:
         la coppia completa per costruire una condizione di uguaglianza) e
         si procede come se nessuna fosse stata data.
 
-        alias1/alias2 sono OPZIONALI (13/08): la grammatica JCoQL+ rende
+        alias1/alias2 sono OPZIONALI: la grammatica JCoQL+ rende
         "AS alias" facoltativo in collectionReferenceRule. Se lasciati
         vuoti, la reference viene scritta senza AS. ATTENZIONE: se le due
         collection hanno lo STESSO NOME (caso comune per confrontare la
@@ -114,10 +110,9 @@ class JoinExecutor:
         la richiesta esplicita era di non imporre AS — la responsabilità
         di evitare la collisione resta a chi compila il form.
 
-        La collection viene estratta da jcoql_query (stesso presupposto
-        della versione precedente: la query di partenza è un semplice
-        "GET COLLECTION <nome>; ..." — si assume la STESSA collection
-        presente in entrambi i database, come nell'implementazione originale).
+        La collection viene estratta da jcoql_query, assumendo che la query
+        di partenza sia un semplice "GET COLLECTION <nome>; ..." — si
+        assume la STESSA collection presente in entrambi i database.
 
         Returns:
             (query_completa, db1, db2, None) in caso di successo, oppure
@@ -219,14 +214,13 @@ class JoinExecutor:
             join_logger.warning(f"JOIN non costruito: {build_error}")
             return [], None, build_error
 
-        # FIX (16/08): questo percorso non passava mai dalla validazione
-        # standard (self.parser.validate) prima di eseguire — a differenza
-        # del percorso normale/diretto, che la esegue sempre prima di
-        # chiamare l'executor. Scoperto perché un JOIN tra due collezioni
-        # con lo stesso nome senza alias veniva eseguito comunque da qui
-        # (il motore è più permissivo del validatore), producendo un
-        # silenzioso "0 risultati" invece del vero errore semantico che il
-        # parser ufficiale segnala esplicitamente per questo caso
+        # Validazione esplicita necessaria qui: questo percorso, a
+        # differenza di quello normale/diretto, non passerebbe altrimenti
+        # mai da self.parser.validate prima di eseguire. Senza, un JOIN tra
+        # due collezioni con lo stesso nome senza alias verrebbe eseguito
+        # comunque (il motore è più permissivo del validatore), producendo
+        # un silenzioso "0 risultati" invece del vero errore semantico che
+        # il parser ufficiale segnala esplicitamente per questo caso
         # ("Collections in JOIN must have different names or aliases").
         is_valid, validation_errors = self.parser.validate(native_query)
         if not is_valid:

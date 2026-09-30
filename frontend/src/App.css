@@ -20,7 +20,12 @@
 
 html, body {
   font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
-  background: #f5f7fa;
+  /* Bianco, non grigio: con lo sfondo grigio si vede una fascia grigia
+     sotto Cronologia/Preferiti quando la colonna sticky (che riserva
+     sempre tutta l'altezza della viewport) non è riempita dai due
+     pannelli chiusi. Header/footer non sono toccati: hanno un background
+     proprio, indipendente da questo. */
+  background: #ffffff;
   color: #333;
 }
 
@@ -85,13 +90,12 @@ html, body {
   color: white;
 }
 
-/* --- CONTENITORE PULSANTI HEADER (Dashboard + Upload Dati) ---
-   FIX: prima .dashboard-btn era "position: absolute" con coordinate fisse,
-   pensato per UN solo pulsante. Aggiungendo "Upload Dati" con la stessa
-   classe, i due Link finivano esattamente sovrapposti nello stesso punto
-   (e quello sopra, in ordine DOM, intercettava tutti i click). Ora il
-   posizionamento assoluto è sul contenitore, i pulsanti dentro sono in
-   flex normale. */
+/* --- CONTENITORE PULSANTI HEADER (Guida + Dashboard) ---
+   Il posizionamento assoluto è su questo contenitore (.header-actions),
+   non sui singoli pulsanti dentro (che sono in flex normale): con
+   "position: absolute" e le stesse coordinate fisse su ogni pulsante,
+   più pulsanti finirebbero esattamente sovrapposti nello stesso punto
+   (e quello sopra, in ordine DOM, intercetterebbe tutti i click). */
 .header-actions {
   position: absolute;
   top: 15px;
@@ -148,11 +152,8 @@ html, body {
 }
 
 /* ──────────── FAVORITES COLUMN ──────────── */
-/* Terza colonna, a destra di tutto (17/08) — prima "Salvati" stava sotto
-   "Database" nella sidebar, ma il form del JOIN (con tutti i suoi campi)
-   può allungarsi parecchio, spingendo i preferiti molto più in basso e
-   rendendoli scomodi da raggiungere senza scorrere. Una colonna propria,
-   indipendente dall'altezza della sidebar, risolve alla radice. */
+/* Terza colonna, a destra di tutto — indipendente dall'altezza della
+   sidebar a sinistra. */
 .favorites-column {
   flex: 0 0 24%;
   min-width: 0; /* senza questo, il contenuto lungo può impedire il restringimento

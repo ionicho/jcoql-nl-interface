@@ -8,26 +8,11 @@ import './QueryExecutor.css';
 // ==========================================
 // 2. DEFINIZIONE COMPONENTE
 //
-// NOTA (14/08) — Ristrutturazione sostanziale su richiesta esplicita:
-// - Prima esisteva un secondo input in linguaggio naturale in App.jsx
-//   (sopra questo componente), che duplicava esattamente quello qui
-//   sotto (stessa chiamata a /api/generate, stesso risultato) — rimosso,
-//   questo è ora l'UNICO punto di generazione.
-// - Prima l'esito della generazione (valida/invalida, tentativi, errori)
-//   si vedeva in App.jsx, mentre i risultati dell'esecuzione si vedevano
-//   qui sotto, in due blocchi separati della pagina — ora è un unico
-//   pannello di output: la query corrente (editabile, sia che arrivi da
-//   NL sia scritta a mano), l'esito della generazione se presente, e i
-//   risultati dell'esecuzione, tutti nello stesso posto.
-// - handleExecute e handleExecuteDirect erano due funzioni identiche
-//   (lo diceva già un commento in questo file) — unificate in una sola,
-//   dato che ora c'è un solo pannello query condiviso.
-// - Il pulsante "Copia Query" in App.jsx è sparito insieme al blocco che
-//   lo conteneva — non aveva più senso da quando la query generata finiva
-//   già da sola nel pannello sottostante.
-// - (14/08, secondo giro) tolta anche la scelta tra "modalità" NL/Diretta:
-//   prima bisognava cambiare tab per vedere l'una o l'altra, ora l'input
-//   NL e il pannello query sono sempre entrambi visibili insieme.
+// Unico componente di generazione ed esecuzione in tutta l'app (non
+// duplicarlo altrove — vedi il commento corrispondente in App.jsx): un
+// solo pannello di output con la query corrente (editabile, sia che
+// arrivi da NL sia scritta a mano), l'esito della generazione se
+// presente, e i risultati dell'esecuzione, tutti nello stesso posto.
 // ==========================================
 export default function QueryExecutor({
   selectedDatabases = [],
@@ -44,8 +29,8 @@ export default function QueryExecutor({
   const [isExecuting, setIsExecuting] = useState(false);
   const [results, setResults] = useState(null);
 
-  // Modalità "database di grandi dimensioni / risultato non necessario"
-  // (26/09): quando attiva, il backend non accoda il SAVE AS automatico
+  // Modalità "database di grandi dimensioni / risultato non necessario":
+  // quando attiva, il backend non accoda il SAVE AS automatico
   // usato per rileggere i documenti dal browser (vedi execute_count_only()
   // in jco_framework_executor_v2.py) - evita il costo di scrittura isolato
   // come collo di bottiglia su collezioni grandi, ma restituisce solo il
@@ -76,10 +61,10 @@ export default function QueryExecutor({
   // pannello di output unificato insieme alla query.
   const [generationInfo, setGenerationInfo] = useState(null);
 
-  // Preferiti: stato e persistenza spostati in App.jsx (17/08), il
-  // pannello ora vive nella sidebar sotto "Database", non più qui in
-  // fondo. "Carica" arriva da fuori tramite favoriteToLoad (un segnale,
-  // cambia ad ogni click anche sulla stessa preferita — vedi App.jsx);
+  // Preferiti: stato e persistenza vivono in App.jsx (pannello nella
+  // sidebar, sotto "Database"). "Carica" arriva da fuori tramite
+  // favoriteToLoad (un segnale, cambia ad ogni click anche sulla stessa
+  // preferita — vedi App.jsx);
   // "Salva" resta un'azione locale (il pulsante è qui vicino alla query
   // corrente) ma il risultato va su tramite onSaveFavorite.
   useEffect(() => {
@@ -89,7 +74,7 @@ export default function QueryExecutor({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [favoriteToLoad]);
 
-  // Cronologia (27/09): stesso meccanismo a segnale di favoriteToLoad
+  // Cronologia: stesso meccanismo a segnale di favoriteToLoad
   // sopra — cambia ad ogni click su "📥" nella cronologia, anche sulla
   // stessa voce due volte di fila (_loadTs, vedi App.jsx). Le voci di
   // cronologia hanno gli stessi campi jcoqlQuery/nlQuery dei preferiti,
@@ -115,17 +100,16 @@ export default function QueryExecutor({
     setError('');
     setResults(null);
     setGenerationInfo(null);
-    // FIX (26/09): mancava qui — senza questo, la vecchia query restava a
-    // schermo finché la nuova non arrivava dalla risposta, sovrascrivendola
-    // senza un intervallo vuoto visibile nel mezzo.
+    // Senza questo, la vecchia query resta a schermo finché la nuova non
+    // arriva dalla risposta, sovrascrivendola senza un intervallo vuoto
+    // visibile nel mezzo.
     setJcoqlQuery('');
 
     // Nota: manda anche l'intera lista selectedDatabases (non solo il primo)
-    // — necessaria perché
-    // l'LLM possa generare correttamente un MERGE multi-database con i
-    // nomi VERI dei database selezionati, invece di indovinarli (bug
-    // osservato il 14/08: senza questo, l'LLM confondeva nomi di
-    // collection con nomi di database).
+    // — necessaria perché l'LLM possa generare correttamente un MERGE
+    // multi-database con i nomi VERI dei database selezionati, invece di
+    // indovinarli (senza questo, l'LLM confondeva nomi di collection con
+    // nomi di database).
     try {
       const response = await axios.post('http://localhost:8000/api/generate', {
         nl_query: nlQuery,
@@ -158,26 +142,27 @@ export default function QueryExecutor({
       setGenerationInfo({
         is_valid: response.data.is_valid,
         attempts: response.data.attempts,
-        validation_errors: response.data.validation_errors || []
+        validation_errors: response.data.validation_errors || [],
+        // Stesso schema di execution_time_seconds su /api/execute
+        generationTimeSeconds: response.data.generation_time_seconds ?? null
       });
 
       if (!response.data.is_valid) {
         setError('Query generata non valida — vedi i dettagli sopra.');
       }
     } catch (err) {
-      // FIX (17/09): usava solo err.message (il messaggio generico di
-      // Axios, es. "Request failed with status code 500") — mai il
-      // dettaglio vero che il backend manda in err.response.data.detail
-      // (es. il caso specifico del limite di quota Gemini, ora gestito
-      // lì con un messaggio chiaro). Preferisce il dettaglio quando c'è,
-      // torna al messaggio generico solo se manca.
+      // Preferisce il dettaglio vero che il backend manda in
+      // err.response.data.detail (es. il caso specifico del limite di
+      // quota Gemini, gestito lì con un messaggio chiaro) al messaggio
+      // generico di Axios (err.message, es. "Request failed with status
+      // code 500"), tornando a quest'ultimo solo se il dettaglio manca.
       setError('Errore generazione: ' + (err.response?.data?.detail || err.message));
     } finally {
       setIsGenerating(false);
     }
   };
 
-  // Cronologia (27/09): registra OGNI esecuzione tentata da qui, riuscita
+  // Cronologia: registra OGNI esecuzione tentata da qui, riuscita
   // o no — a differenza dei Preferiti (salvataggio manuale), l'idea è un
   // log completo di cosa è stato lanciato, per poter ricaricare anche una
   // query fallita e correggerla, non solo rivedere i successi. Se in
@@ -191,12 +176,11 @@ export default function QueryExecutor({
       timestamp: new Date().toISOString(),
       success,
       count: extra.count ?? null,
-      countOnly
+      countOnly,
+      elapsedSeconds: extra.elapsedSeconds ?? null
     });
   };
 
-  // Unico handler di esecuzione (prima ce n'erano due identici, uno per
-  // modalità — non serviva, il pannello query è condiviso ora).
   const handleExecute = async () => {
     if (!jcoqlQuery.trim()) {
       setError('Nessuna query JCoQL da eseguire');
@@ -245,10 +229,10 @@ export default function QueryExecutor({
           ? data.jcoql_query
           : `USE DB ${data.database || selectedDatabases[0] || 'N/A'} ON DEFAULT SERVER;\n${data.jcoql_query}`;
         if (data.jcoql_query) setJcoqlQuery(executedFull);
-        recordHistory(true, { executedQuery: executedFull, count: data.count });
+        recordHistory(true, { executedQuery: executedFull, count: data.count, elapsedSeconds: data.execution_time_seconds });
       } else {
         setError('Errore esecuzione: ' + data.error);
-        recordHistory(false);
+        recordHistory(false, { elapsedSeconds: data.execution_time_seconds });
       }
     } catch (err) {
       setError('Errore esecuzione: ' + (err.response?.data?.detail || err.message));
@@ -271,9 +255,10 @@ export default function QueryExecutor({
     if (!jcoqlQuery.trim()) return;
     const newFavorite = {
       id: Date.now(),
-      // Senza più il concetto di "modalità", salviamo qualunque testo NL
-      // sia presente al momento del salvataggio, indipendentemente da come
-      // si è arrivati alla query JCoQL corrente (generata o scritta a mano).
+      // Salviamo qualunque testo NL sia presente al momento del
+      // salvataggio, indipendentemente da come si è arrivati alla query
+      // JCoQL corrente (generata o scritta a mano) — vedi HelpGuide per
+      // il caso in cui i due box non sono più allineati tra loro.
       nlQuery: nlQuery.trim(),
       jcoqlQuery: jcoqlQuery.trim(),
       timestamp: new Date().toISOString()
@@ -293,14 +278,17 @@ export default function QueryExecutor({
   // 4. RENDER DELL'INTERFACCIA (JSX)
   // ==========================================
   return (
-    <div className="max-w-6xl mx-auto p-6 space-y-6">
+    // Niente p-6 qui: App.jsx racchiude già questo componente in
+    // <section className="bg-white rounded-lg shadow p-6"> — con un p-6
+    // anche qui il padding raddoppierebbe (48px) sopra "Query Executor",
+    // contro il singolo padding di "Database" nella sidebar.
+    <div className="max-w-6xl mx-auto space-y-6">
 
       {/* --- HEADER ---
-          Prima era un riquadro grande con sfondo sfumato (text-3xl) che
-          competeva visivamente con il vero titolo dell'app ("JCoQL+
-          Natural Language Interface" in alto) — rimpicciolito per
-          rispecchiare lo stesso stile/dimensione del titolo "🗄️ Database"
-          nella sidebar (18px, blu, riga sotto). */}
+          Stesso stile/dimensione del titolo "🗄️ Database" nella sidebar
+          (18px, blu, riga sotto), per non competere visivamente con il
+          vero titolo dell'app ("JCoQL+ Natural Language Interface" in
+          alto). */}
       <div>
         <h2 className="qe-header-title">🔍 Query Executor</h2>
         <p className="qe-header-subtitle">
@@ -308,10 +296,7 @@ export default function QueryExecutor({
         </p>
       </div>
 
-      {/* --- INPUT: LINGUAGGIO NATURALE (unico in tutta l'app, sempre visibile) ---
-          Tolta la scelta tra "modalità" — prima costringeva a passare da una
-          tab all'altra per vedere l'input NL o il pannello query diretta,
-          ora sono entrambi sempre a schermo insieme. */}
+      {/* --- INPUT: LINGUAGGIO NATURALE (unico in tutta l'app, sempre visibile) --- */}
       <div className="bg-white rounded-lg shadow-md p-6">
         <label className="block text-sm font-medium text-gray-700 mb-2">
           Query in Linguaggio Naturale
@@ -331,7 +316,7 @@ export default function QueryExecutor({
             }}
             placeholder="Es: Prodotti di elettronica con sconto maggiore del 20%"
             rows={2}
-            className="flex-1 px-4 py-3 leading-relaxed border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent resize-none overflow-y-auto"
+            className="flex-1 px-4 py-3 leading-relaxed border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#007bff] focus:border-transparent resize-none overflow-y-auto"
             style={{ maxHeight: '200px', minHeight: '60px' }}
           />
           {nlQuery && (
@@ -348,38 +333,114 @@ export default function QueryExecutor({
             onClick={handleGenerate}
             disabled={isGenerating}
             style={{
-              backgroundColor: isGenerating ? '#9ca3af' : '#2563eb',
-              color: '#ffffff',
+              backgroundColor: isGenerating ? '#9ca3af' : '#e7f3ff',
+              color: isGenerating ? '#ffffff' : '#0056b3',
               cursor: isGenerating ? 'not-allowed' : 'pointer',
-              opacity: isGenerating ? 0.8 : 1
+              opacity: isGenerating ? 0.8 : 1,
+              boxShadow: '0 4px 6px -1px rgba(0, 0, 0, 0.25), 0 2px 4px -2px rgba(0, 0, 0, 0.2)',
+              border: 'none',
+              WebkitAppearance: 'none',
+              MozAppearance: 'none',
+              appearance: 'none'
             }}
-            className="px-6 py-3 rounded-lg font-medium transition-colors shadow-sm"
+            // Stesse classi Tailwind di ⭐ Salva (py-2 text-sm), non valori
+            // px scritti a mano in stile inline (padding/fontSize/
+            // lineHeight) — unico modo per essere certi di ottenere
+            // ESATTAMENTE la sua stessa altezza invece di ricalcolarla a
+            // mano. Solo l'orizzontale (px-6) resta più largo di Salva
+            // (px-3).
+            className="px-6 py-2 rounded-lg text-sm font-semibold transition-colors"
           >
-            {isGenerating ? '⏳ Generazione...' : '🤖 Genera'}
+            {isGenerating ? '⏳ Generazione...' : '✦ Genera'}
           </button>
         </div>
       </div>
 
       {/* --- PANNELLO QUERY UNIFICATO ---
-          Sempre visibile (prima appariva/spariva a seconda della modalità
-          scelta). Unico posto in tutta l'app dove si vede/modifica la
+          Unico posto in tutta l'app dove si vede/modifica la
           query corrente, sia che sia stata generata da NL sia scritta o
           incollata a mano. Sempre editabile: la query generata finisce già
           qui pronta per essere eseguita (o corretta a mano prima di farlo),
           senza bisogno di copiarla da nessuna parte — e allo stesso tempo
           è anche l'input diretto, se preferisci scrivere JCoQL+ a mano. */}
       <div className="bg-white rounded-lg shadow-md p-6">
-        <div className="flex justify-between items-center mb-3 flex-wrap gap-2">
-          <label className="block text-sm font-medium text-gray-700">
+        {/* Tre righe indipendenti, ognuna sul proprio blocco a piena
+            larghezza (niente flex condiviso tra label e pulsanti) — così
+            nessun elemento di una riga può
+            spingere o far andare a capo quelli di un'altra:
+            riga 1 = solo la label "Query JCoQL+";
+            riga 2 = Salva / checkbox "Solo conteggio" / Esegui;
+            riga 3 = Valida/Tentativi/tempo di generazione, sempre presente
+            nel DOM (anche senza generationInfo, vedi minHeight sotto) così
+            non collassa/appare a scatto quando si scrive la query a mano
+            invece di generarla — resta lì come spazio bianco fisso. */}
+        <div className="mb-3">
+          <label className="block text-sm font-medium text-gray-700 mb-2">
             Query JCoQL+
           </label>
-          {/* flex-wrap + justify-end (27/09): prima questo gruppo non
-              andava mai a capo — se non ci stava tutto in una riga (facile
-              con "✅ Valida" + "Tentativi: N" visibili insieme a
-              Salva/checkbox/Esegui), i pulsanti finivano tagliati o
-              spingevano oltre il bordo del box invece di scendere in modo
-              ordinato su una seconda riga. */}
-          <div className="flex items-center gap-2 flex-wrap justify-end">
+          {/* I tre elementi (checkbox, Salva, Esegui) distribuiti lungo
+              tutta la riga, con "Esegui su MongoDB" fino al bordo destro
+              del box. */}
+          <div className="flex items-center justify-between flex-wrap gap-2 mb-2">
+            <label
+              className="flex items-center gap-2.5 text-xs text-gray-600 cursor-pointer select-none"
+              title="Non salva il risultato in una collezione temporanea per mostrarlo qui - mostra solo il numero di documenti prodotti. Da usare su collezioni grandi (es. JOIN/GROUP su dataset con decine di migliaia di documenti), dove salvare l'intero risultato solo per leggerlo è il vero collo di bottiglia."
+            >
+              {/* Il gap del flex container non produce spazio visibile
+                  qui perché il testo dopo <input/> è un nodo di testo
+                  "nudo", non un elemento — avvolto in uno <span> con
+                  margin-left esplicito (più affidabile del solo gap su
+                  un nodo di testo) per garantire lo spazio. */}
+              <input
+                type="checkbox"
+                checked={countOnly}
+                onChange={(e) => setCountOnly(e.target.checked)}
+              />
+              <span style={{ marginLeft: '6px' }}>Solo conteggio (database grandi)</span>
+            </label>
+            {jcoqlQuery.trim() && (
+              <button
+                onClick={handleSaveFavorite}
+                title="Salva questa query nei preferiti"
+                style={{
+                  border: 'none',
+                  WebkitAppearance: 'none',
+                  MozAppearance: 'none',
+                  appearance: 'none',
+                  cursor: 'pointer',
+                  boxShadow: '0 4px 6px -1px rgba(0, 0, 0, 0.25), 0 2px 4px -2px rgba(0, 0, 0, 0.2)'
+                }}
+                className="px-3 py-2 bg-yellow-100 hover:bg-yellow-200 text-yellow-800 rounded-lg text-sm font-medium transition-colors"
+              >
+                ⭐ Salva
+              </button>
+            )}
+            <button
+              onClick={handleExecute}
+              disabled={isExecuting || !jcoqlQuery.trim()}
+              style={{
+                backgroundColor: isExecuting ? '#9ca3af' : '#e7f3ff',
+                color: isExecuting ? '#ffffff' : '#0056b3',
+                cursor: isExecuting ? 'not-allowed' : 'pointer',
+                opacity: isExecuting || !jcoqlQuery.trim() ? 0.7 : 1,
+                boxShadow: '0 4px 6px -1px rgba(0, 0, 0, 0.25), 0 2px 4px -2px rgba(0, 0, 0, 0.2)',
+                border: 'none',
+                WebkitAppearance: 'none',
+                MozAppearance: 'none',
+                appearance: 'none'
+              }}
+              // Stesso motivo di ✦ Genera sopra — stesse classi
+              // Tailwind di ⭐ Salva (py-2 text-sm) per l'altezza, solo px-5
+              // più largo in orizzontale.
+              className="px-5 py-2 rounded-lg text-sm font-semibold transition-colors"
+            >
+              {isExecuting ? '⏳ Esecuzione...' : '► Esegui su MongoDB'}
+            </button>
+          </div>
+          <div
+            className="flex items-center gap-4 flex-wrap"
+            style={{ minHeight: '26px' }}
+          >
             {generationInfo && (
               <>
                 <span
@@ -394,50 +455,26 @@ export default function QueryExecutor({
                 <span className="text-xs text-gray-500">
                   Tentativi: {generationInfo.attempts}
                 </span>
+                {typeof generationInfo.generationTimeSeconds === 'number' && (
+                  <span className="text-xs text-gray-500">
+                    ⏱️ {generationInfo.generationTimeSeconds}s
+                  </span>
+                )}
               </>
             )}
-            <button
-              onClick={handleSaveFavorite}
-              disabled={!jcoqlQuery.trim()}
-              title="Salva questa query nei preferiti"
-              style={{ opacity: jcoqlQuery.trim() ? 1 : 0.5 }}
-              className="px-3 py-2 bg-yellow-100 hover:bg-yellow-200 text-yellow-800 rounded-lg text-sm font-medium transition-colors"
-            >
-              ⭐ Salva
-            </button>
-            <label
-              className="flex items-center gap-1.5 text-xs text-gray-600 cursor-pointer select-none"
-              title="Non salva il risultato in una collezione temporanea per mostrarlo qui - mostra solo il numero di documenti prodotti. Da usare su collezioni grandi (es. JOIN/GROUP su dataset con decine di migliaia di documenti), dove salvare l'intero risultato solo per leggerlo è il vero collo di bottiglia."
-            >
-              <input
-                type="checkbox"
-                checked={countOnly}
-                onChange={(e) => setCountOnly(e.target.checked)}
-              />
-              📊 Solo conteggio (database grandi)
-            </label>
-            <button
-              onClick={handleExecute}
-              disabled={isExecuting || !jcoqlQuery.trim()}
-              style={{
-                backgroundColor: isExecuting ? '#9ca3af' : '#16a34a',
-                color: '#ffffff',
-                cursor: isExecuting ? 'not-allowed' : 'pointer',
-                opacity: isExecuting || !jcoqlQuery.trim() ? 0.7 : 1
-              }}
-              className="px-4 py-2 rounded-lg font-medium transition-colors shadow-sm"
-            >
-              {isExecuting ? '⏳ Esecuzione...' : '▶️ Esegui su MongoDB'}
-            </button>
           </div>
         </div>
 
+        {/* Bordo grigio e anello blu del focus in un unico bordo che
+            cambia solo colore, invece di due livelli distinti (border +
+            box-shadow separato) che non combaciano esattamente ai
+            bordi. */}
         <textarea
           value={jcoqlQuery}
           onChange={(e) => handleQueryEdit(e.target.value)}
           placeholder="Es: GET COLLECTION hotels; FILTER CASE WHERE .location.city = 'Milano' KEEP OTHERS;"
           rows={6}
-          className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent font-mono text-sm"
+          className="w-full px-4 py-3 border-2 border-gray-300 rounded-lg focus:outline-none focus:border-[#007bff] font-mono text-sm"
         />
 
         {generationInfo && !generationInfo.is_valid && generationInfo.validation_errors.length > 0 && (
@@ -452,7 +489,7 @@ export default function QueryExecutor({
         )}
 
         <p className="mt-2 text-xs text-gray-500">
-          💡 Tip: Puoi incollare qui il codice JCoQL per testare modifiche manuali senza usare l&apos;AI.
+          💡 Tip: Puoi incollare, modificare o scrivere qui il codice JCoQL per lavorare direttamente, senza passare dall&apos;AI.
         </p>
       </div>
 
@@ -469,16 +506,21 @@ export default function QueryExecutor({
           <div className="flex justify-between items-center mb-4">
             <h2 className="text-xl font-bold text-gray-800">
               📊 Risultati ({results.count} documenti)
+              {typeof results.execution_time_seconds === 'number' && (
+                <span className="ml-2 text-sm font-normal text-gray-500">
+                  ⏱️ {results.execution_time_seconds}s
+                </span>
+              )}
             </h2>
             <div className="text-sm text-gray-500 flex gap-3 flex-wrap justify-end">
-              {/* FIX: prima mostrava solo results.database (un singolo nome,
-                  in pratica sempre selectedDatabases[0]) — fuorviante per
+              {/* Elenca TUTTI i database dichiarati con USE DB nella query
+                  realmente eseguita (results.jcoql_query), non solo
+                  results.database (un singolo nome, in pratica sempre
+                  selectedDatabases[0]) — quello sarebbe fuorviante per
                   query che toccano più database (MERGE, join concatenati),
-                  dava l'impressione che tutto arrivasse da un solo database.
-                  Ora elenca TUTTI i database dichiarati con USE DB nella
-                  query realmente eseguita (results.jcoql_query). Non dice
-                  da quale DI QUESTI proviene ogni singolo documento (il
-                  motore non lo traccia, vedi discussione) — solo quali
+                  dando l'impressione che tutto arrivi da un solo database.
+                  Non dice da quale DI QUESTI proviene ogni singolo
+                  documento (il motore non lo traccia) — solo quali
                   database sono stati coinvolti in totale. */}
               {(() => {
                 const dbs = [...new Set(
@@ -488,7 +530,7 @@ export default function QueryExecutor({
                 )];
                 const shown = dbs.length > 0 ? dbs : [results.database || selectedDatabases[0] || 'N/A'];
                 return shown.map((db) => (
-                  <span key={db} className="inline-block bg-blue-100 text-blue-800 px-3 py-1 rounded">
+                  <span key={db} className="inline-block bg-[#e7f3ff] text-[#0056b3] px-3 py-1 rounded">
                     📦 {db}
                   </span>
                 ));
@@ -496,11 +538,11 @@ export default function QueryExecutor({
             </div>
           </div>
 
-          {/* La query realmente eseguita (USE DB incluso) non si ripete più
-              qui: dopo un'esecuzione riuscita, handleExecute riallinea già
-              il pannello "Query JCoQL+" sopra a questo stesso testo — un
-              'unico posto dove vederla/modificarla, non due copie identiche
-              in due punti diversi della pagina. */}
+          {/* La query realmente eseguita (USE DB incluso) non compare qui:
+              dopo un'esecuzione riuscita, handleExecute riallinea già il
+              pannello "Query JCoQL+" sopra a questo stesso testo — un
+              unico posto dove vederla/modificarla, non due copie
+              identiche in due punti diversi della pagina. */}
 
           {results.text && (
             <div className="mb-4 bg-green-50 border border-green-200 text-green-800 px-4 py-3 rounded-lg text-sm">
@@ -508,7 +550,7 @@ export default function QueryExecutor({
             </div>
           )}
 
-          {/* Trasparenza sul risultato (17/09): il backend segnala qui
+          {/* Trasparenza sul risultato: il backend segnala qui
               (results.warning) quando trova riferimenti .item.item.XXX_id
               mai risolti da un JOIN successivo — non un errore, non blocca
               nulla, solo un'informazione in più perché non c'è modo per
@@ -524,7 +566,7 @@ export default function QueryExecutor({
               Nessun risultato trovato
             </div>
           ) : results.results.length === 0 ? (
-            // Modalità "solo conteggio" (26/09): il motore ha prodotto
+            // Modalità "solo conteggio": il motore ha prodotto
             // results.count documenti ma non ne è stato letto/mostrato
             // nessuno qui - per come funziona execute_count_only(), è
             // l'esito atteso, non un errore o un caso da confondere con
@@ -539,7 +581,7 @@ export default function QueryExecutor({
               {results.results.map((doc, index) => (
                 <div
                   key={doc._id || index}
-                  className="bg-white rounded-lg p-4 border border-gray-200 hover:border-blue-300 transition shadow-sm"
+                  className="bg-white rounded-lg p-4 border border-gray-200 hover:border-[#8fc4ff] transition shadow-sm"
                 >
                   <div className="flex justify-between items-start mb-2">
                     {doc._id !== undefined && (
@@ -547,7 +589,7 @@ export default function QueryExecutor({
                         ID: {doc._id}
                       </span>
                     )}
-                    <span className="text-xs bg-blue-100 text-blue-800 px-2 py-1 rounded">
+                    <span className="text-xs bg-[#e7f3ff] text-[#0056b3] px-2 py-1 rounded">
                       Documento #{index + 1}
                     </span>
                   </div>

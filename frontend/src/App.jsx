@@ -12,6 +12,8 @@ import QueryExecutor from './QueryExecutor'
 import Dashboard from './Dashboard'
 import Favorites, { loadFavorites, persistFavorites } from './Favorites'
 import History, { loadHistory, persistHistory, MAX_HISTORY_ENTRIES } from './History'
+import HelpGuide from './HelpGuide'
+import ToastContainer, { showToast } from './Toast'
 import './App.css'
 
 // ==========================================
@@ -31,23 +33,19 @@ function MainInterface() {
   // --- STATI LOCALI ---
   const [selectedLlm, setSelectedLlm] = useState('gemini') 
   
-  // Stati del Database (Multiplo) gestiti da DatabaseSelector — il JOIN
-  // nativo tra database, che viveva qui come joinConfig, è stato rimosso
-  // (27/09, ritenuto non necessario): resta possibile un JOIN scritto a
-  // mano/generato via NL nel pannello query, indipendente da questo stato.
+  // Stato dei database selezionati (multiplo), gestito da DatabaseSelector.
+  // Non include configurazione di JOIN: un JOIN resta comunque possibile
+  // scrivendo a mano o generando via NL un comando nel pannello query di
+  // QueryExecutor, indipendentemente da questo stato.
   const [selectedDatabases, setSelectedDatabases] = useState(['jcoql_test'])
 
-  // Preferiti: spostati qui da QueryExecutor.jsx (16/08 → 17/08) per poter
-  // mostrare il pannello nella sidebar, sotto "Database" — prima stava in
-  // fondo al pannello principale, che con risultati lunghi finiva molto in
-  // basso, scomodo da raggiungere. "Salva" resta un'azione avviata da
-  // dentro QueryExecutor (il pulsante è lì, vicino alla query corrente),
-  // quindi passata giù come callback; "Carica" invece nasce nella sidebar
-  // e deve arrivare a QueryExecutor — usa lo stesso meccanismo a segnale
-  // già impiegato per la disattivazione del JOIN sopra: un valore che
-  // cambia ad ogni click (mai lo stesso riferimento due volte, altrimenti
-  // cliccare due volte di fila la stessa preferita non farebbe scattare
-  // l'effect in QueryExecutor la seconda volta).
+  // Preferiti: "Salva" è un'azione avviata da dentro QueryExecutor (il
+  // pulsante è lì, vicino alla query corrente), passata giù come callback;
+  // "Carica" invece nasce da qui (sidebar) e deve arrivare a QueryExecutor
+  // — usa un meccanismo a segnale: un valore che cambia ad ogni click (mai
+  // lo stesso riferimento due volte, altrimenti cliccare due volte di fila
+  // la stessa preferita non farebbe scattare l'effect in QueryExecutor la
+  // seconda volta).
   const [favorites, setFavorites] = useState(() => loadFavorites())
   useEffect(() => {
     persistFavorites(favorites)
@@ -90,9 +88,9 @@ function MainInterface() {
       const savedDb = localStorage.getItem('jcoql_selected_databases')
 
       if (savedDb) setSelectedDatabases(JSON.parse(savedDb))
-      // Pulizia (27/09): la chiave del vecchio JOIN nativo non si legge
-      // più — la si rimuove anche da localStorage se era rimasta da una
-      // sessione precedente, invece di lasciarla lì inutilizzata.
+      // Rimuove anche da localStorage l'eventuale chiave del vecchio JOIN
+      // nativo (non più letta in nessun punto del codice), nel caso fosse
+      // rimasta da una sessione precedente.
       localStorage.removeItem('jcoql_join_config')
     } catch (err) {
       console.warn('Errore caricamento configurazioni salvate:', err)
@@ -115,7 +113,7 @@ function MainInterface() {
       }
     } catch (error) {
       console.error('Errore durante il cambio LLM:', error)
-      alert('Errore nel cambio LLM')
+      showToast('Errore nel cambio LLM', 'error')
     }
   }
 
@@ -131,13 +129,9 @@ function MainInterface() {
     }
   }
 
-  // --- MUTATION REACT QUERY: GENERAZIONE QUERY JCoQL ---
-  // NOTA (14/08): questa mutation e l'intera sezione "Input Linguaggio
-  // Naturale" che la usava sono state rimosse da qui — duplicavano
-  // esattamente la stessa generazione già presente dentro QueryExecutor.jsx
-  // (stessa chiamata a /api/generate, stesso risultato mostrato due volte
-  // in due punti diversi della pagina). QueryExecutor è ora l'unico punto
-  // di generazione ed esecuzione in tutta l'app.
+  // La generazione ed esecuzione delle query vive interamente dentro
+  // QueryExecutor.jsx: è l'unico punto dell'app che chiama /api/generate,
+  // non duplicarla qui.
 
   // ==========================================
   // RENDER DELL'INTERFACCIA
@@ -170,6 +164,7 @@ function MainInterface() {
           </div>
 
           <div className="header-actions">
+            <HelpGuide />
             <Link to="/dashboard" className="dashboard-btn">
               📊 Dashboard
             </Link>
@@ -224,19 +219,15 @@ function MainInterface() {
         </main>
 
         {/* ──────────── PREFERITI (Destra) ────────────
-            Colonna propria (17/08), non più sotto Database nella sidebar —
-            il form del JOIN può allungarsi parecchio, spingendo i
-            preferiti fuori schermo. Qui l'altezza della sidebar non la
-            tocca mai. */}
+            Colonna propria, indipendente dall'altezza della sidebar a
+            sinistra. */}
         <aside className="favorites-column">
           <Favorites
             favorites={favorites}
             onLoad={handleLoadFavoriteRequest}
             onDelete={handleDeleteFavorite}
           />
-          {/* Cronologia (27/09): stessa colonna dei Preferiti, subito sotto
-              — richiesto esplicitamente "grande come preferiti... la
-              metterei proprio sotto questi ultimi". */}
+          {/* Cronologia: stessa colonna dei Preferiti, subito sotto. */}
           <div style={{ marginTop: '16px' }}>
             <History
               history={history}
@@ -264,6 +255,10 @@ export default function App() {
   return (
     <QueryClientProvider client={queryClient}>
       <BrowserRouter>
+        {/* Montato una sola volta qui fuori (non dentro MainInterface) così
+            resta attivo anche navigando su /dashboard, invece di
+            smontarsi/rimontarsi ad ogni cambio pagina. */}
+        <ToastContainer />
         <Routes>
           <Route path="/" element={<MainInterface />} />
           <Route path="/dashboard" element={<Dashboard />} />

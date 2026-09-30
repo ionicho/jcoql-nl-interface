@@ -1,44 +1,33 @@
 /**
- * DatabaseSelector Component
- * 
- * Consolida:
- * 1. DatabaseManager (singolo database)
- * 2. MultiDatabaseSelector (multipli + JOIN)
- * 
- * In UN unico componente sidebar-friendly.
+ * DatabaseSelector Component — selezione dei database da usare
+ * nell'interfaccia, in un unico pannello sidebar-friendly.
  *
- * NOTA (13/08): la modalità "Singolo" (che duplicava DatabaseManager) è
- * stata rimossa — selezionare un solo database nella modalità "Multipli"
- * (che è rimasta l'unica) fa esattamente la stessa cosa, non c'era motivo
- * di tenere due modalità per lo stesso risultato.
+ * Esiste una sola modalità di selezione (multipla): selezionare un solo
+ * database ha lo stesso effetto di una modalità "singola" dedicata,
+ * quindi non ce n'è una separata.
  *
- * NOTA (27/09): rimosso anche il form di "JOIN nativo tra database"
- * (checkbox "Usa JOIN tra database" + configurazione chiavi/alias),
- * ritenuto non necessario — un JOIN resta comunque possibile scrivendo
- * a mano (o generando via NL) un comando JOIN OF COLLECTIONS nel pannello
- * query di QueryExecutor, indipendentemente da questo componente.
- * onDatabasesChange ora passa solo l'elenco dei database selezionati,
- * non più un secondo parametro di configurazione join.
+ * Non contiene un form di JOIN nativo tra database: un JOIN resta
+ * comunque possibile scrivendo a mano (o generando via NL) un comando
+ * JOIN OF COLLECTIONS nel pannello query di QueryExecutor,
+ * indipendentemente da questo componente. onDatabasesChange passa solo
+ * l'elenco dei database selezionati.
  */
 
 import React, { useState, useEffect } from 'react';
+import { showToast } from './Toast';
 import './DatabaseSelector.css';
 
 export default function DatabaseSelector({ onDatabasesChange, selectedDatabases }) {
   // ================== STATE ==================
 
   const [availableDatabases, setAvailableDatabases] = useState([]);
-  // FIX (17/08, correzione della correzione di ieri): il precedente
-  // useEffect che sincronizzava multiSelected dal prop selectedDatabases
-  // non funzionava per un problema di timing — in React, gli effect dei
-  // componenti FIGLI partono prima di quelli del genitore. Quando questo
-  // effect girava, App.jsx non aveva ancora letto il localStorage e il
-  // prop selectedDatabases valeva ancora il default ['jcoql_test'], non
-  // il valore vero appena ripristinato. Invece di rincorrere il timing
-  // degli effect, si legge il localStorage direttamente qui, in modo
-  // sincrono, nell'inizializzatore di useState — che gira una sola volta,
-  // durante il primissimo render, indipendentemente da quando/se il
-  // genitore fa la propria lettura. Stessa chiave usata in App.jsx.
+  // Letto direttamente da localStorage qui, non con un useEffect: in
+  // React gli effect dei componenti figli partono prima di quelli del
+  // genitore, quindi un effect qui girerebbe prima che App.jsx abbia
+  // letto il proprio localStorage, leggendo ancora il default
+  // ['jcoql_test'] invece del valore reale. L'inizializzatore di
+  // useState gira invece una sola volta, al primissimo render,
+  // indipendentemente dal genitore. Stessa chiave usata in App.jsx.
   const [multiSelected, setMultiSelected] = useState(() => {
     try {
       const saved = localStorage.getItem('jcoql_selected_databases');
@@ -83,7 +72,7 @@ export default function DatabaseSelector({ onDatabasesChange, selectedDatabases 
    */
   const handleAddDatabase = async () => {
     if (!newDbForm.dbName || !newDbForm.databaseName) {
-      alert('Compila tutti i campi!');
+      showToast('Compila tutti i campi!', 'error');
       return;
     }
 
@@ -95,15 +84,15 @@ export default function DatabaseSelector({ onDatabasesChange, selectedDatabases 
       );
 
       if (response.ok) {
-        alert('✅ Database aggiunto!');
+        showToast('Database aggiunto!', 'success');
         setNewDbForm({ dbName: '', mongoUri: 'mongodb://localhost:27017', databaseName: '' });
         setShowAddForm(false);
         loadAvailableDatabases(); // Ricarica lista
       } else {
-        alert('❌ Errore aggiunta database');
+        showToast('Errore aggiunta database', 'error');
       }
     } catch (err) {
-      alert(`Errore: ${err.message}`);
+      showToast(`Errore: ${err.message}`, 'error');
     } finally {
       setLoading(false);
     }
@@ -137,30 +126,31 @@ export default function DatabaseSelector({ onDatabasesChange, selectedDatabases 
           onDatabasesChange(Array.from(newSet));
         }
         
-        alert(`✅ Database '${dbName}' scollegato`);
+        showToast(`Database '${dbName}' scollegato`, 'success');
       } else {
-        alert('❌ Errore durante scollegamento');
+        showToast('Errore durante scollegamento', 'error');
       }
     } catch (err) {
-      alert(`Errore: ${err.message}`);
+      showToast(`Errore: ${err.message}`, 'error');
     } finally {
       setRemovingDb(null);
     }
   };
 
   /**
-   * Carica la lista di database dal server
-
+   * Carica la lista di database dal server.
+   *
    * Nota: questo componente usa fetch() con host "127.0.0.1", mentre
    * App.jsx/QueryExecutor.jsx/Dashboard.jsx usano axios con host
    * "localhost" — stesso backend, due modi diversi di raggiungerlo,
    * senza una costante URL condivisa tra i componenti.
-
-   * Nota: ogni chiamata a questa funzione (al mount, dopo add/remove
-   * database, o dal pulsante "Ricarica Database") reimposta
-   * multiSelected al solo primo database della lista
-   * (dbNames[0]) — una selezione multipla già fatta dall'utente non
-   * viene preservata attraverso un reload della lista.
+   *
+   * Nota: ad ogni chiamata (mount, add/remove database, "Ricarica
+   * Database") la selezione corrente viene preservata se è ancora
+   * valida — cioè se i database selezionati esistono ancora in quelli
+   * appena scaricati. Si resetta al primo database della lista solo se
+   * la selezione risulta vuota o non contiene più nessun database
+   * realmente esistente.
    */
   const loadAvailableDatabases = async () => {
     try {
@@ -178,17 +168,9 @@ export default function DatabaseSelector({ onDatabasesChange, selectedDatabases 
       
       setAvailableDatabases(dbNames);
 
-      // FIX (17/08): prima resettava SEMPRE multiSelected al solo primo
-      // database della lista — anche al primo montaggio, sovrascrivendo
-      // la selezione appena ripristinata dal localStorage (vedi
-      // l'inizializzatore di multiSelected sopra). Ora preserva la
-      // selezione corrente se è ancora valida (i database selezionati
-      // esistono ancora in quelli appena scaricati) — resetta al primo
-      // database SOLO se la selezione corrente è vuota o non contiene più
-      // nessun database realmente esistente (es. dopo che uno è stato
-      // rimosso). Così "aggiungi/rimuovi database" e "Ricarica Database"
-      // continuano a comportarsi come prima quando serve, ma il mount
-      // iniziale non cancella più il ripristino.
+      // Preserva la selezione corrente se è ancora valida (vedi il
+      // commento sopra la funzione); altrimenti prende il primo database
+      // disponibile.
       setMultiSelected((prevSelected) => {
         const stillValid = new Set([...prevSelected].filter((db) => dbNames.includes(db)));
         if (stillValid.size > 0) {
@@ -234,13 +216,13 @@ export default function DatabaseSelector({ onDatabasesChange, selectedDatabases 
 
   return (
     <div className="database-selector">
-      <h2>🗄️ Database</h2>
+      <h2>Database</h2>
 
       {error && <div className="error-box">{error}</div>}
 
       <div className="mode-content">
           {/* Database checkboxes CON BOTTONE RIMUOVI */}
-          <label className="section-label">Database da selezionare:</label>
+          <label className="section-label">Database selezionabili:</label>
           <div className="checkboxes">
             {availableDatabases.length === 0 ? (
               <p className="no-databases">Nessun database disponibile</p>
@@ -282,16 +264,6 @@ export default function DatabaseSelector({ onDatabasesChange, selectedDatabases 
           <h4>Connetti Nuovo Database</h4>
           
           <div className="form-group">
-            <label>Nome Database (interno):</label>
-            <input
-              type="text"
-              placeholder="es: production_db"
-              value={newDbForm.dbName}
-              onChange={(e) => setNewDbForm({...newDbForm, dbName: e.target.value})}
-            />
-          </div>
-
-          <div className="form-group">
             <label>MongoDB URI:</label>
             <input
               type="text"
@@ -309,7 +281,17 @@ export default function DatabaseSelector({ onDatabasesChange, selectedDatabases 
               onChange={(e) => setNewDbForm({...newDbForm, databaseName: e.target.value})}
             />
           </div>
-
+          
+          <div className="form-group">
+            <label>Nome Database (interno):</label>
+            <input
+              type="text"
+              placeholder="es: production_db"
+              value={newDbForm.dbName}
+              onChange={(e) => setNewDbForm({...newDbForm, dbName: e.target.value})}
+            />
+          </div>
+          
           <button onClick={handleAddDatabase} className="connect-btn">
             ✅ Connetti
           </button>
@@ -318,7 +300,7 @@ export default function DatabaseSelector({ onDatabasesChange, selectedDatabases 
 
       {/* ──────────── SUMMARY ──────────── */}
       <div className="summary">
-        <div className="summary-title">📍 Selezionati ({selectedDatabases ? selectedDatabases.length : 0}):</div>
+        <div className="summary-title">Database Selezionati ({selectedDatabases ? selectedDatabases.length : 0}):</div>
         <div className="summary-badges">
           {selectedDatabases && selectedDatabases.map(db => (
             <span key={db} className="badge">{db}</span>
@@ -328,7 +310,7 @@ export default function DatabaseSelector({ onDatabasesChange, selectedDatabases 
 
       {/* ──────────── REFRESH BUTTON ──────────── */}
       <button onClick={loadAvailableDatabases} className="refresh-btn">
-        🔄 Ricarica Database
+        <span style={{ color: '#7c3aed', fontSize: '18px', lineHeight: 1, verticalAlign: 'middle' }}>↻</span> Ricarica Database
       </button>
     </div>
   );

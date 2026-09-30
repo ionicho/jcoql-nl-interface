@@ -20,8 +20,8 @@ codice, e non c'è controllo/messaggio d'errore chiaro se manca):
 """
 import ollama
 
-# FIX (17/09): 'num_ctx' non era mai specificato in nessuna delle due
-# chiamate sotto — senza impostarlo esplicitamente, Ollama usa il default
+# 'num_ctx' va impostato esplicitamente in entrambe le chiamate sotto —
+# senza, Ollama usa il default
 # del runtime, spesso solo 2048 token per molti modelli quantizzati, a
 # prescindere da quanto il modello supporterebbe davvero. Il prompt che
 # main.py costruisce oggi (grammatica JCoQL+ completa, fino a 6 esempi RAG,
@@ -62,7 +62,7 @@ def generate_with_llama(prompt: str, model: str = "llama3.1:8b-instruct-q4_K_M")
                                 # formulazioni diverse a parità di richiesta - vedi
                                 # nota simmetrica in generate_with_gemma sotto
             'top_p': 0.9,
-            'num_predict': 1024,  # Max token output — alzato da 512 (17/09): alcune
+            'num_predict': 1024,  # Max token output — alcune
                                    # delle query più lunghe generate oggi (join
                                    # concatenati, filtraggio a stadi su array) possono
                                    # superare quella soglia, con il rischio di un
@@ -124,9 +124,9 @@ TASK: Generate a JCoQL query to select documents with rating greater than 4.
 Output ONLY the query code, nothing else.
 """
     print("="*70)
-    print("TEST GEMMA 7B:")  # FIX (17/09): diceva "GEMMA 2 9B" — il modello
-                              # davvero richiamato da generate_with_gemma è
-                              # Gemma 1 7B, vedi nota nella funzione sopra.
+    print("TEST GEMMA 7B:")  # Il modello davvero richiamato da
+                              # generate_with_gemma è Gemma 1 7B (non Gemma 2
+                              # 9B) — vedi nota nella funzione sopra.
     print("-"*70)
     gemma_response = generate_with_gemma(test_prompt)
     print(gemma_response)

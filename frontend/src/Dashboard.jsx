@@ -77,7 +77,6 @@ export default function Dashboard() {
                 <p className="text-3xl font-bold text-gray-900 mt-2 capitalize">{stats.executor?.name || 'N/A'}</p>
                 <p className="text-xs text-gray-600 mt-2">✅ Operativo</p>
               </div>
-              <span className="text-3xl">⚙️</span>
             </div>
           </div>
 
@@ -88,7 +87,6 @@ export default function Dashboard() {
                 <p className="text-3xl font-bold text-gray-900 mt-2">{stats.executor?.parser || 'N/A'}</p>
                 <p className="text-xs text-gray-600 mt-2">Attivo su questo server</p>
               </div>
-              <span className="text-3xl">📝</span>
             </div>
           </div>
         </div>
@@ -101,7 +99,6 @@ export default function Dashboard() {
                 <p className="text-xs font-bold text-gray-500 uppercase tracking-widest">Database Connessi</p>
                 <p className="text-3xl font-bold text-gray-900 mt-2">{stats.databases?.count || 0}</p>
               </div>
-              <span className="text-3xl">🗄️</span>
             </div>
           </div>
 
@@ -111,7 +108,6 @@ export default function Dashboard() {
                 <p className="text-xs font-bold text-gray-500 uppercase tracking-widest">Collezioni Totali</p>
                 <p className="text-3xl font-bold text-gray-900 mt-2">{stats.databases?.collections_total || 0}</p>
               </div>
-              <span className="text-3xl">📊</span>
             </div>
           </div>
 
@@ -120,19 +116,19 @@ export default function Dashboard() {
               <div>
                 <p className="text-xs font-bold text-gray-500 uppercase tracking-widest">Uptime</p>
                 <p className="text-3xl font-bold text-gray-900 mt-2">
-                  {Math.floor((stats.system?.uptime_seconds || 0) / 3600)}h
+                  {Math.floor((stats.system?.uptime_seconds || 0) / 3600)}h{' '}
+                  {Math.floor(((stats.system?.uptime_seconds || 0) % 3600) / 60)}m
                 </p>
               </div>
-              <span className="text-3xl">⏱️</span>
             </div>
           </div>
         </div>
 
         {/* ════════════════ DATABASE LIST ════════════════ */}
         <div className="bg-white rounded-lg shadow-md p-6 border border-gray-200">
-          <div className="flex items-center gap-2 mb-6">
-            <span className="text-2xl">🗄️</span>
-            <h2 className="text-xl font-bold text-gray-800">Database Connessi</h2>
+          <div className="flex items-center gap-3 mb-6">
+            <span className="text-3xl">🗄️</span>
+            <h2 className="text-2xl font-bold text-gray-800">Database Connessi</h2>
           </div>
           
           <div className="space-y-3">
@@ -149,9 +145,9 @@ export default function Dashboard() {
 
         {/* ════════════════ LLM AVAILABLE ════════════════ */}
         <div className="bg-white rounded-lg shadow-md p-6 border border-gray-200">
-          <div className="flex items-center gap-2 mb-6">
-            <span className="text-2xl">🤖</span>
-            <h2 className="text-xl font-bold text-gray-800">LLM Disponibili</h2>
+          <div className="flex items-center gap-3 mb-6">
+            <span className="text-3xl" style={{ color: '#0056b3' }}>✦</span>
+            <h2 className="text-2xl font-bold text-gray-800">LLM Disponibili</h2>
           </div>
           
           <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
@@ -180,31 +176,63 @@ export default function Dashboard() {
             feature viene rimossa o smette di funzionare, questa lista
             non se ne accorge da sola, va aggiornata a mano qui.
             "JOIN nativo" descrive il comando JCoQL+ nativo "JOIN OF
-            COLLECTIONS", ma il join realmente eseguito da questa app
-            passa da join_executor.py lato backend, che lo calcola in
-            Python fondendo i risultati di due query separate (vedi
-            commento in cima a quel file) — il comando nativo esiste
-            nella grammatica JCoQL+ ma non è la via presa qui. */}
+            COLLECTIONS" — eseguito davvero dal motore Java nativo del
+            JCo Framework (verificato a livello di sorgente: JoinExecutor.java
+            in jco-framework, istanza JoinCollections in jcoql-official). */}
         <div className="bg-gradient-to-br from-green-50 to-emerald-50 rounded-lg p-8 border border-green-300">
           <div className="flex items-center gap-3 mb-6">
             <span className="text-3xl">✅</span>
             <h2 className="text-2xl font-bold text-gray-800">Features Implementate</h2>
           </div>
-          
+
           <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
             {[
-              { icon: '⚙️', name: 'JCo Framework', desc: 'Official Java implementation' },
-              { icon: '📝', name: 'ANTLR3 Parser', desc: 'Grammar validation' },
-              { icon: '🗄️', name: 'Multi-Database', desc: 'Schema discovery per DB' },
-              { icon: '🔗', name: 'JOIN nativo', desc: 'JOIN OF COLLECTIONS (JCoQL+)' },
-              { icon: '📦', name: 'GROUP', desc: 'Raggruppamento nativo' },
-              { icon: '🧩', name: 'EXPAND', desc: 'Espansione array' },
-              { icon: '➕', name: 'MERGE/INTERSECT/SUBTRACT', desc: 'Operazioni insiemistiche' },
-              { icon: '💾', name: 'SAVE AS/TO FILE', desc: 'Persistenza dei risultati' },
-              { icon: '🏭', name: 'Factory Pattern', desc: 'Plug-and-play architecture' },
+              {  name: 'JCo Framework', desc: 'Official Java implementation' },
+              {  name: 'ANTLR3 Parser', desc: 'Grammar validation' },
+              {  name: 'Multi-Database', desc: 'Schema discovery per DB' },
+              {  name: 'JOIN nativo', desc: 'JOIN OF COLLECTIONS (JCoQL+)' },
+              {  name: 'GROUP', desc: 'Raggruppamento nativo' },
+              {  name: 'EXPAND', desc: 'Espansione array' },
+              {  name: 'MERGE/INTERSECT/SUBTRACT', desc: 'Operazioni insiemistiche' },
+              {  name: 'SAVE AS/TO FILE', desc: 'Persistenza dei risultati' },
+              {  name: 'Factory Pattern', desc: 'Plug-and-play architecture' },
+              {  name: 'Solo conteggio', desc: 'Modalità count-only per collezioni grandi' },
             ].map((feature) => (
               <div key={feature.name} className="bg-white rounded-lg p-4 border border-green-200">
-                <div className="text-2xl mb-2">{feature.icon}</div>
+                <h3 className="font-bold text-gray-800 text-sm mb-1">{feature.name}</h3>
+                <p className="text-xs text-gray-600">{feature.desc}</p>
+              </div>
+            ))}
+          </div>
+        </div>
+
+        {/* ════════════════ NON SUPPORTATI (LATO GENERATIVO) ════════════════ */}
+        {/* Lista statica, verificata confrontando la lista
+            completa dei comandi della grammatica JCoQL+ (le costanti
+            *_INSTRUCTION in Instruction.java, jcoql-official) con il
+            system prompt dell'LLM in main.py: questi comandi ESISTONO
+            nella grammatica e potrebbero essere eseguibili scrivendoli a
+            mano nel pannello query, ma non hanno alcuna sezione di
+            istruzioni/esempi nel prompt — chiedendoli in linguaggio
+            naturale, l'LLM non li genera. Non è la stessa cosa di "non
+            eseguibile": qui si parla solo del lato NL→JCoQL+. */}
+        <div className="bg-gray-50 rounded-lg p-8 border border-gray-300">
+          <div className="flex items-center gap-3 mb-6">
+            <span className="text-3xl">🚫</span>
+            <h2 className="text-2xl font-bold text-gray-800">Non generabili da linguaggio naturale</h2>
+          </div>
+          <p className="text-sm text-gray-600 mb-6">
+            Comandi previsti dalla grammatica JCoQL+ ma senza istruzioni/esempi nel prompt dell'LLM —
+            per usarli serve scriverli a mano nel pannello query.
+          </p>
+
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+            {[
+              {  name: 'TRAJECTORY MATCHING', desc: 'Matching di traiettorie/percorsi geospaziali' },
+              {  name: 'Fuzzy Logic', desc: 'FUZZY OPERATOR/EVALUATOR/MODEL, CRISP EVALUATOR' },
+              {  name: 'JAVA/JAVASCRIPT FUNCTION', desc: 'Funzioni custom incorporate nel comando' },
+            ].map((feature) => (
+              <div key={feature.name} className="bg-white rounded-lg p-4 border border-gray-200">
                 <h3 className="font-bold text-gray-800 text-sm mb-1">{feature.name}</h3>
                 <p className="text-xs text-gray-600">{feature.desc}</p>
               </div>

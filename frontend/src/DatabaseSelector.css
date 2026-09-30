@@ -1,5 +1,9 @@
 /**
  * DatabaseSelector.css - Sidebar Styling
+ *
+ * Palette allineata al resto dell'app: blu dell'header (#007bff/#0056b3)
+ * come colore di brand, stile "chip morbido" (sfondo tenue + testo
+ * saturo) per i pulsanti secondari.
  */
 
 .database-selector {
@@ -16,23 +20,23 @@
   margin: 0;
   font-size: 22px;
   font-weight: 600;
-  color: #2563eb;
+  color: #007bff;
   padding-bottom: 12px;
-  border-bottom: 2px solid #2563eb;
+  border-bottom: 2px solid #007bff;
 }
 
 /* Loading */
 .loading {
   text-align: center;
   padding: 20px;
-  color: #6c757d;
+  color: #6b7280;
 }
 
 /* Error */
 .error-box {
-  background: #f8d7da;
-  border: 1px solid #f5c6cb;
-  color: #721c24;
+  background: #fef2f2;
+  border: 1px solid #fecaca;
+  color: #b91c1c;
   padding: 10px;
   border-radius: 4px;
   font-size: 13px;
@@ -42,7 +46,7 @@
 .mode-tabs {
   display: flex;
   gap: 8px;
-  background: #f8f9fa;
+  background: #f9fafb;
   padding: 6px;
   border-radius: 6px;
 }
@@ -51,13 +55,13 @@
   flex: 1;
   padding: 8px 12px;
   background: white;
-  border: 1px solid #dee2e6;
+  border: 1px solid #e5e7eb;
   border-radius: 4px;
   cursor: pointer;
   font-size: 12px;
   font-weight: 600;
   transition: all 0.2s;
-  color: #6c757d;
+  color: #6b7280;
 }
 
 .tab:hover {
@@ -82,7 +86,7 @@
   display: block;
   font-size: 13px;
   font-weight: 600;
-  color: #333;
+  color: #374151;
 }
 
 .select-db,
@@ -90,7 +94,7 @@
 .form-group select {
   width: 100%;
   padding: 8px 10px;
-  border: 1px solid #ced4da;
+  border: 1px solid #d1d5db;
   border-radius: 4px;
   font-size: 13px;
 }
@@ -101,6 +105,11 @@
   outline: none;
   border-color: #007bff;
   box-shadow: 0 0 0 3px rgba(0, 123, 255, 0.1);
+}
+
+.input-info {
+  font-size: 12px;
+  color: #6b7280;
 }
 
 /* Checkboxes */
@@ -122,7 +131,7 @@
 }
 
 .checkbox-label:hover {
-  background: #f8f9fa;
+  background: #f9fafb;
 }
 
 .checkbox-label input {
@@ -131,7 +140,7 @@
 }
 
 .no-databases {
-  color: #6c757d;
+  color: #6b7280;
   font-size: 12px;
   font-style: italic;
 }
@@ -139,10 +148,11 @@
 .section-label {
   font-size: 12px;
   font-weight: 600;
-  color: #333;
+  color: #374151;
 }
 
-/* Join Section */
+/* Join Section (non più usata dal 27/09 — form JOIN rimosso — ma tenuta
+   per non rompere nulla se referenziata altrove) */
 .join-section {
   background: #e7f3ff;
   border: 1px solid #b3d9ff;
@@ -171,7 +181,7 @@
 .form-group label {
   font-size: 12px;
   font-weight: 600;
-  color: #333;
+  color: #374151;
 }
 
 .join-status {
@@ -183,21 +193,21 @@
 }
 
 .join-status.valid {
-  background: #d4edda;
-  border: 1px solid #c3e6cb;
-  color: #155724;
+  background: #dcfce7;
+  border: 1px solid #bbf7d0;
+  color: #166534;
 }
 
 .join-status.invalid {
-  background: #f8d7da;
-  border: 1px solid #f5c6cb;
-  color: #721c24;
+  background: #fef2f2;
+  border: 1px solid #fecaca;
+  color: #b91c1c;
 }
 
 /* Summary */
 .summary {
-  background: #f8f9fa;
-  border: 1px solid #dee2e6;
+  background: #f9fafb;
+  border: 1px solid #e5e7eb;
   border-radius: 4px;
   padding: 12px;
   display: flex;
@@ -208,7 +218,7 @@
 .summary-title {
   font-size: 12px;
   font-weight: 600;
-  color: #333;
+  color: #374151;
 }
 
 .summary-badges {
@@ -234,13 +244,14 @@
   color: #495057;
 }
 
-/* Refresh Button */
+/* Refresh Button — stesso blu tenue di "+ Aggiungi Database" qui sotto e
+   di 🤖 Genera. */
 .refresh-btn {
-  background: #28a745;
-  color: white;
+  background: #e7f3ff;
+  color: #0056b3;
   border: none;
   padding: 8px;
-  border-radius: 4px;
+  border-radius: 8px;
   font-size: 12px;
   font-weight: 600;
   cursor: pointer;
@@ -248,14 +259,17 @@
 }
 
 .refresh-btn:hover {
-  background: #218838;
+  background: #cfe8ff;
 }
+
+/* Blu tenue come 🤖 Genera/📥 Carica — coerente con le altre azioni
+   "neutre" (non di successo/pericolo) dell'app. */
 .add-db-toggle {
-  background: #ffc107;
-  color: #333;
+  background: #e7f3ff;
+  color: #0056b3;
   border: none;
   padding: 8px;
-  border-radius: 4px;
+  border-radius: 8px;
   cursor: pointer;
   font-size: 12px;
   font-weight: 600;
@@ -263,12 +277,15 @@
 }
 
 .add-db-toggle:hover {
-  background: #ffb300;
+  background: #cfe8ff;
 }
 
+/* Grigio neutro, stesso di .summary più in alto in questo file — il
+   pulsante che apre questo form (.add-db-toggle sopra) è blu, non
+   giallo. */
 .add-db-form {
-  background: #fff3cd;
-  border: 1px solid #ffe69c;
+  background: #f9fafb;
+  border: 1px solid #e5e7eb;
   border-radius: 4px;
   padding: 12px;
   display: flex;
@@ -278,7 +295,7 @@
 
 .add-db-form h4 {
   margin: 0;
-  color: #856404;
+  color: #374151;
   font-size: 12px;
 }
 
@@ -291,29 +308,29 @@
 .add-db-form label {
   font-size: 11px;
   font-weight: 600;
-  color: #333;
+  color: #374151;
 }
 
 .add-db-form input {
   padding: 6px;
-  border: 1px solid #ffe69c;
+  border: 1px solid #d1d5db;
   border-radius: 3px;
   font-size: 11px;
 }
 
 .connect-btn {
-  background: #28a745;
-  color: white;
+  background: #dcfce7;
+  color: #166534;
   border: none;
   padding: 6px;
-  border-radius: 3px;
+  border-radius: 6px;
   cursor: pointer;
   font-size: 11px;
   font-weight: 600;
 }
 
 .connect-btn:hover {
-  background: #218838;
+  background: #bbf7d0;
 }
 
 .checkbox-with-remove {
@@ -322,7 +339,7 @@
   justify-content: space-between;
   padding: 8px;
   border-radius: 4px;
-  background: #f8f9fa;
+  background: #f9fafb;
   gap: 8px;
 }
 
@@ -330,12 +347,16 @@
   background: #e7f3ff;
 }
 
+/* Scollega — bianco a riposo (28/09, corretto dal precedente sfondo
+   rosino: si nota meglio contro il grigio chiaro di .checkbox-with-remove
+   invece di aggiungere un secondo colore "di allarme" al fianco della X),
+   tinta rossa tenue solo in hover come feedback dell'azione. */
 .remove-db-btn {
-  background: #dc3545;
-  color: white;
+  background: #ffffff;
+  color: #b91c1c;
   border: none;
   padding: 4px 8px;
-  border-radius: 3px;
+  border-radius: 6px;
   font-size: 11px;
   cursor: pointer;
   transition: all 0.2s;
@@ -343,7 +364,7 @@
 }
 
 .remove-db-btn:hover:not(:disabled) {
-  background: #c82333;
+  background: #fef2f2;
 }
 
 .remove-db-btn:disabled {

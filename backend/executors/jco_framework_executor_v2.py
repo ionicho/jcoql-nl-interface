@@ -239,13 +239,11 @@ class JCoFrameworkExecutor:
         try:
             from pymongo import MongoClient
 
-            # FIX: prima "client = MongoClient(...)" senza mai chiudere
-            # la connessione (verificato: nessun client.close() in tutto
-            # il file, su 8 punti diversi che aprono una MongoClient) —
-            # ogni JOIN/GROUP/EXPAND/ecc. apriva una connessione Mongo in
-            # più che restava aperta per sempre, fino alla chiusura del
-            # processo. Con "with" la connessione si chiude sempre
-            # all'uscita dal blocco, anche in caso di eccezione.
+            # "with MongoClient(...) as client" chiude sempre la
+            # connessione all'uscita dal blocco, anche in caso di
+            # eccezione — un "client = MongoClient(...)" senza chiusura
+            # esplicita la lascerebbe aperta per sempre, fino alla
+            # chiusura del processo.
             with MongoClient(self.mongo_uri) as client:
                 db1_name = db1 or self.database_name
                 db2_name = db2 or self.database_name
@@ -722,7 +720,7 @@ class JCoFrameworkExecutor:
         # SAVE TO FILE: scrive su un file lato server (Java), non su MongoDB - non c'e' nulla
         # da rileggere via pymongo. Ci basiamo sul messaggio che Java stampa direttamente
         # ("[Save] executed: N documents saved to file <path>"), che include sia il conteggio
-        # sia il percorso. NOTA (lezione dall'indagine SAVE AS): un messaggio di successo di
+        # sia il percorso. Un messaggio di successo di
         # Java non garantisce che il file sia davvero verificabile da qui - il percorso puo'
         # essere relativo alla working directory del processo Java (non necessariamente la
         # stessa del wrapper Python), quindi tentiamo una lettura ma non falliamo se non
@@ -959,13 +957,11 @@ class JCoFrameworkExecutor:
             from pymongo import MongoClient
             from datetime import datetime
             
-            # FIX: usava un URI hardcoded ("mongodb://localhost:27017")
-            # invece di self.mongo_uri (l'URI passato all'executor alla
-            # creazione) — se un giorno questo metodo venisse richiamato
-            # con un database non locale, si sarebbe connesso comunque a
-            # localhost invece che all'host giusto. Corretto anche il
-            # mancato client.close() (stesso problema visto negli altri
-            # 8 punti del file che aprono una MongoClient).
+            # self.mongo_uri (l'URI passato all'executor alla creazione),
+            # non un URI hardcoded: se questo metodo venisse richiamato
+            # con un database non locale, un URI hardcoded a
+            # "mongodb://localhost:27017" si connetterebbe comunque a
+            # localhost invece che all'host giusto.
             with MongoClient(self.mongo_uri) as client:
                 db = client[self.database_name]
                 collection = db[collection_name]
@@ -1202,7 +1198,7 @@ class JCoFrameworkExecutor:
         except Exception:
             pass
 
-    def _read_temp_result(self, temp_collection_name, output, jcoql_query):
+    def _read_temp_result(self, temp_collection_name, output, jcoql_query, database_name=None):
         """
         Rilegge da MongoDB il vero risultato prodotto dal motore, salvato dal
         SAVE AS accodato automaticamente in execute() (vedi commento lì e nel
@@ -1219,12 +1215,20 @@ class JCoFrameworkExecutor:
         prefisso "chaintemp" — a differenza di un SAVE AS scritto
         esplicitamente dall'utente con un nome a sua scelta (quello resta,
         è una richiesta reale di persistenza, non un'impalcatura interna).
+
+        database_name è il database su cui execute() ha davvero scritto
+        il SAVE AS automatico (_resolve_save_as_database()), che può
+        differire da self.database_name (l'ultima selezione UI). Va
+        passato esplicitamente dal chiamante per restare sempre coerente con
+        dove è stato scritto; self.database_name resta solo un fallback per
+        eventuali altri chiamanti che non lo passano.
         """
         try:
             from pymongo import MongoClient
 
+            target_database = database_name or self.database_name
             with MongoClient(self.mongo_uri) as client:
-                coll = client[self.database_name][temp_collection_name]
+                coll = client[target_database][temp_collection_name]
                 total_count = coll.count_documents({})
                 docs = list(coll.find().limit(100))
                 # Pulizia: la collection temporanea non deve restare in giro.
@@ -1355,9 +1359,9 @@ class JCoFrameworkExecutor:
         except Exception as e:
             pass
 
-        # FIX: se wrapped_query inizia già con un proprio USE DB (sempre
-        # più comune ora che il pannello frontend mostra/manda la query
-        # completa, USE DB incluso — vedi QueryExecutor.jsx), scrivere
+        # Se wrapped_query inizia già con un proprio USE DB (il pannello
+        # frontend mostra/manda la query completa, USE DB incluso — vedi
+        # QueryExecutor.jsx), scrivere
         # comunque qui un secondo USE DB di default è ridondante: non
         # è un errore (una USE DB ripetuta viene solo "sostituita"),
         # ma inutile — soprattutto visibile nei log dove la stessa riga
@@ -1456,10 +1460,11 @@ class JCoFrameworkExecutor:
         classpath_parts = [
             str(self.jco_base),
             str(self.jco_base / "config"),
-            # FIX 2 agosto 2026: mancavano le cartelle "resources" (contengono conf/servers.properties
-            # e altri file di risorse) - solo "classes" era presente. Senza queste, getResourceAsStream
-            # in ParserLauncher.java trovava (nella migliore delle ipotesi) risorse vecchie impacchettate
-            # in un JAR non aggiornato sotto build/libs/*, invece dei file sorgente freschi.
+            # Le cartelle "resources" (contengono conf/servers.properties e altri
+            # file di risorse) devono esserci, non solo "classes": senza,
+            # getResourceAsStream in ParserLauncher.java troverebbe (nella
+            # migliore delle ipotesi) risorse vecchie impacchettate in un JAR
+            # non aggiornato sotto build/libs/*, invece dei file sorgente freschi.
             # Messe PRIMA dei JAR cosi' le risorse fresche hanno sempre la precedenza.
             str(self.jco_base / "jcoql-engine/build/resources/main"),
             str(self.jco_base / "jcoql-engine-mongodb/build/resources/main"),
@@ -1657,6 +1662,33 @@ class JCoFrameworkExecutor:
             self._cleanup_chaintemp_collections(jcoql_query)
             return {'success': False, 'error': str(e), 'executor': 'jco_framework_count_only'}
 
+    def _resolve_save_as_database(self, wrapped_query):
+        """
+        Il database su cui puntare il SAVE AS automatico (e la
+        rilettura successiva) NON deve essere sempre self.database_name —
+        cioè il database "attivo" lato frontend (selectedDatabases[0]),
+        che può essere rimasto indietro rispetto a quello che la query
+        stessa seleziona con la propria USE DB. Il motore Java registra nel
+        suo DatabaseRegistry (per questo processo) solo i database
+        effettivamente dichiarati con USE DB nello script eseguito (vedi
+        jco-save-as-modifiche.docx) — quindi è quello, non self.database_name,
+        il database che deve ricevere il SAVE AS.
+        Bug reale osservato: con self.database_name="sample_mflix" (ultima
+        selezione UI) e una query con "USE DB jcoql_test ON DEFAULT SERVER;",
+        il SAVE AS automatico veniva scritto come "...@sample_mflix" — un
+        database mai registrato in quel processo (solo jcoql_test lo era).
+        SaveCollectionExecutor.java, silenziosamente, non salva nulla in quel
+        caso (databaseRegistry.getDatabase(...) torna null, solo un
+        IOMessage Java, nessuna eccezione Python-visibile) e la rilettura
+        trova 0 documenti in una collection mai creata.
+        Prendiamo quindi l'ULTIMA "USE DB <nome> ON" dichiarata nel testo
+        della query (può cambiare più volte in query concatenate) e la
+        usiamo come target; self.database_name resta solo un fallback per
+        il caso, non normale, di query senza nessuna USE DB propria.
+        """
+        matches = re.findall(r'USE\s+DB\s+(\w+)\s+ON', wrapped_query, re.IGNORECASE)
+        return matches[-1] if matches else self.database_name
+
     def execute(self, jcoql_query):
         try:
             # STRATEGIA "auto SAVE AS" (vedi docstring del modulo): accodiamo in modo
@@ -1668,18 +1700,23 @@ class JCoFrameworkExecutor:
             # comando precedente perché SaveCollectionExecutor.java prende sempre
             # "pipeline.getCurrentCollection()" — il risultato corrente, quale che sia.
             #
-            # FIX (trovato con un test reale): il nome deve essere un ID valido per
-            # la grammatica JCoQL+ — "ID : LETTER (LETTER | DIGIT | '_')*" — cioè
-            # deve iniziare con una lettera. Il primo tentativo ("__nlquery_...",
-            # doppio underscore iniziale) non è un ID valido: il motore falliva con
-            # "Lexical Error: Unrecognized token '_'" perché il lexer non riconosce
-            # un identificatore che comincia con underscore. Qui sotto si parte
-            # sempre con una lettera ("nlquery"), niente underscore da nessuna parte.
+            # Il nome deve essere un ID valido per la grammatica JCoQL+ —
+            # "ID : LETTER (LETTER | DIGIT | '_')*" — cioè deve iniziare con
+            # una lettera: un nome che iniziasse con underscore (es.
+            # "__nlquery_...") non sarebbe un ID valido, e il motore
+            # fallirebbe con "Lexical Error: Unrecognized token '_'" perché
+            # il lexer non riconosce un identificatore che comincia con
+            # underscore. Qui sotto si parte sempre con una lettera
+            # ("nlquery"), niente underscore da nessuna parte.
             temp_collection_name = f"nlquery{uuid.uuid4().hex[:16]}"
             wrapped_query = jcoql_query.rstrip()
             if not wrapped_query.endswith(';'):
                 wrapped_query += ';'
-            wrapped_query += f"\nSAVE AS {temp_collection_name}@{self.database_name};"
+            # Target il database che la query ha davvero registrato con la
+            # propria USE DB, non self.database_name a prescindere — vedi
+            # _resolve_save_as_database().
+            save_as_database = self._resolve_save_as_database(wrapped_query)
+            wrapped_query += f"\nSAVE AS {temp_collection_name}@{save_as_database};"
 
             result = self._run_engine(wrapped_query, timeout=30, log_query=jcoql_query)
 
@@ -1693,7 +1730,11 @@ class JCoFrameworkExecutor:
                 # scritto a mano, che poteva divergere dalla semantica reale del
                 # motore. Ora il filtro è sempre quello vero, applicato dal motore
                 # stesso — non serve più.
-                parsed = self._read_temp_result(temp_collection_name, result.stdout, jcoql_query)
+                # Rilegge dallo STESSO database su cui è stato scritto il SAVE AS
+                # (save_as_database), non da self.database_name: devono sempre
+                # coincidere, altrimenti si rilegge da un database che potrebbe
+                # non contenere nulla.
+                parsed = self._read_temp_result(temp_collection_name, result.stdout, jcoql_query, database_name=save_as_database)
 
                 return {
                     'success': True,
