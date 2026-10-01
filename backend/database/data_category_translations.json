@@ -1,0 +1,27 @@
+[
+  {
+    "_id": "cat_001",
+    "key": "electronics",
+    "value": "elettronica"
+  },
+  {
+    "_id": "cat_002",
+    "key": "food",
+    "value": "alimentari"
+  },
+  {
+    "_id": "cat_003",
+    "key": "clothing",
+    "value": "abbigliamento"
+  },
+  {
+    "_id": "cat_004",
+    "key": "books",
+    "value": "libri"
+  },
+  {
+    "_id": "cat_005",
+    "key": "sports",
+    "value": "sport"
+  }
+]

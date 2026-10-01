@@ -17,24 +17,24 @@ from pathlib import Path
 from typing import List, Optional
 from datetime import datetime
 
-# FastAPI e utilità HTTP
+#FastAPI e utilità HTTP
 from fastapi import FastAPI, HTTPException, Request, UploadFile, Query, File
 from fastapi.responses import JSONResponse
 from fastapi.middleware.cors import CORSMiddleware
 
-# Pydantic per la validazione dei dati in ingresso
+#Pydantic per la validazione dei dati in ingresso
 from pydantic import BaseModel
 
-# Vector DB per RAG (Retrieval-Augmented Generation)
+#Vector DB per RAG (Retrieval-Augmented Generation)
 import chromadb
 
-# SDK Generative AI di Google
+#SDK Generative AI di Google
 import google.generativeai as genai
 
-# Gestione variabili d'ambiente (.env)
+#Gestione variabili d'ambiente (.env)
 from dotenv import load_dotenv
 
-# Import moduli interni di backend
+#Import moduli interni di backend
 from backend.query_corrector import correct_query
 from backend.database_persistence import load_databases_from_file, save_databases_to_file
 from backend.join_executor import JoinExecutor
@@ -64,13 +64,15 @@ load_dotenv()
 # l'uptime reale (vedi sotto) invece di un valore fisso.
 APP_START_TIME = time.time()
 
-# Caricamento regole sintattiche
+#Caricamento regole sintattiche
 def load_file_content(path: str) -> str:
-    # In caso di errore (es. file mancante) ritorna una stringa vuota
-    # invece di sollevare l'eccezione — l'app continua ad avviarsi anche
-    # se uno di questi file manca, ma il prompt inviato all'LLM perde
-    # silenziosamente quella parte di contesto, senza nessun log o
-    # avviso visibile che lo segnali.
+    """
+    In caso di errore (es. file mancante) ritorna una stringa vuota
+    invece di sollevare l'eccezione — l'app continua ad avviarsi anche
+    se uno di questi file manca, ma il prompt inviato all'LLM perde
+    silenziosamente quella parte di contesto, senza nessun log o
+    avviso visibile che lo segnali.
+    """
     try:
         with open(path, 'r', encoding='utf-8') as f:
             return f.read()
@@ -88,7 +90,7 @@ def _fix_missing_collection_db(query: str, current_db: str) -> str:
     per una collection reale come "users" o "products", questo fallisce
     sempre a runtime. Non tocca riferimenti già completi di @database
     (es. "chaintemp1@jcoql_test", scritto correttamente dal modello nei
-    test osservati) — idempotente, non modifica una query già corretta.
+    test osservati). Non modifica una query già corretta.
     """
     def fix_refs(match):
         keyword = match.group(1)
@@ -121,8 +123,7 @@ def _fix_hallucinated_databases(query: str, current_db: str, real_databases: set
     jcoql_test — non esiste nessun database chiamato "users"). Rimuove la
     riga USE DB fittizia e sostituisce ogni "@nomeFittizio" con
     "@current_db". Un vero JOIN tra due database realmente registrati non
-    viene toccato (controllato contro real_databases, non contro un
-    elenco scritto a mano).
+    viene toccato (controllato contro real_databases).
     """
     used_dbs = set(re.findall(r'USE\s+DB\s+(\w+)', query, re.IGNORECASE))
     fake_dbs = {db for db in used_dbs if db not in real_databases}
@@ -145,23 +146,17 @@ def _build_multi_database_query(generated_query: str, databases: list, all_datab
     modo di sapere se l'utente intendesse coinvolgerli tutti) — prima si
     chiedeva all'LLM di dedurlo dalla formulazione della richiesta
     ("cerca su tutti i database selezionati"), ma è un'aspettativa poco
-    intuitiva: selezionare più database in un controllo di selezione
-    dovrebbe significare "usali", non "tienili disponibili nel caso li
-    nomini esplicitamente". Ora, quando 2+ database sono selezionati e la
-    query generata è un semplice "GET COLLECTION nome;" (eventualmente
-    seguito da altro, es. FILTER — preservato e applicato dopo l'unione),
+    intuitiva. Ora, quando 2+ database sono selezionati e la
+    query generata è un semplice "GET COLLECTION nome;",
     viene ricostruita automaticamente per coprire TUTTI i database
     selezionati tramite MERGE COLLECTIONS.
 
     Include SOLO i database che hanno davvero quella collection nel
     proprio schema scoperto — includerli tutti a prescindere produrrebbe
     un MERGE non valido quando un database selezionato non ha affatto
-    quella collection (osservato dal vivo: "MERGE COLLECTIONS
-    products@db1, products@db2;" generato anche se db2 non ha nessuna
-    collection "products", con un test che ha richiesto solo "prodotti
-    con prezzo > 500...", senza mai menzionare più database). Se resta
-    un solo database valido (o nessuno oltre al corrente), il MERGE non
-    avrebbe senso — la query semplice originale non viene toccata.
+    quella collection. Se resta un solo database valido (o nessuno oltre 
+    al corrente), il MERGE non avrebbe senso — la query semplice originale
+    non viene toccata.
 
     Non tocca la query se non è nella forma semplice attesa (es. contiene
     già JOIN/GROUP/EXPAND/MERGE espliciti) — la costruzione automatica
@@ -206,19 +201,6 @@ def _fix_array_field_filter(query: str, current_schema: dict) -> str:
     ComparisonPredicateEvaluator.java (che rifiuta un confronto = tra un
     ArrayValue e un valore singolo, sempre, a prescindere dal contenuto).
 
-    Prima di questa settimana funzionava comunque, perché il FILTER veniva
-    ricalcolato lato Python con una gestione esplicita degli array
-    ("value in doc_value" invece di "doc_value == value", commit 339af27)
-    — sostituita dalla strategia "auto SAVE AS" (che affida il calcolo
-    reale al motore, più fedele per JOIN/GROUP/MERGE, ma senza quella
-    gestione speciale degli array che il motore stesso non replica).
-    Questa funzione richiude quel varco senza tornare alla ricostruzione
-    Python: riscrive la query aggiungendo un EXPAND per ciascun campo
-    array coinvolto nella condizione, e aggiorna il riferimento al campo
-    di conseguenza (.campo diventa .expanded_campo.item — "item" è la
-    chiave fissa del motore per il contenuto di un elemento espanso, vedi
-    JCOConstants.java, ITEM_FIELD_NAME).
-
     Toglie anche un eventuale KEEP OTHERS/DROP OTHERS quando riscrive:
     la combinazione con un confronto su un campo array che prima falliva
     sempre silenziosamente è quasi sempre un errore (vedi caso osservato:
@@ -228,23 +210,15 @@ def _fix_array_field_filter(query: str, current_schema: dict) -> str:
     ATTENZIONE PRESTAZIONI (non risolto qui): se la condizione coinvolge
     PIÙ campi array su una collection grande, gli EXPAND in sequenza
     creano il prodotto di tutte le combinazioni — può essere lento o
-    andare in timeout (osservato dal vivo su sample_mflix.movies,
-    countries × cast). Qui si risolve solo la correttezza del risultato,
+    andare in timeout. Qui si risolve solo la correttezza del risultato,
     non le prestazioni su collection grandi con più array coinvolti — un
     filtraggio a stadi (EXPAND+FILTER su un campo, poi SAVE AS, poi
     EXPAND+FILTER sul successivo) risolverebbe anche quello, ma non è
     implementato in automatico.
 
-    Scorre TUTTI i blocchi FILTER della query (non solo il primo — con
-    più blocchi FILTER nella stessa query, tipico quando si costruiscono
-    due sottoinsiemi separati prima di un INTERSECT/MERGE/SUBTRACT, se il
-    primo FILTER non tocca un campo array la funzione non deve fermarsi
-    lì senza esaminare i successivi, altrimenti un INTERSECT tra due
-    sottoinsiemi può restare sempre a 0 documenti anche quando i
-    documenti in comune esistevano davvero — osservato dal vivo con un
-    confronto diretto `.reviews.user = valore` su un campo array mai
-    corretto). Ciascun blocco è controllato contro la collection
-    realmente attiva in quel punto (l'ultimo GET COLLECTION incontrato
+    Scorre TUTTI i blocchi FILTER della query. 
+    Ciascun blocco è controllato contro la collection realmente 
+    attiva in quel punto (l'ultimo GET COLLECTION incontrato
     prima della sua posizione, utile perché una query può cambiare
     collection a metà, es. due blocchi "GET COLLECTION products"
     separati per costruire i due lati di un INTERSECT), e le riscritture
@@ -298,14 +272,16 @@ def _fix_array_field_filter(query: str, current_schema: dict) -> str:
 
         case_kw, condition_text, _others_kw = fm.groups()
 
-        # Il pattern copre sia il confronto DIRETTO sull'intero campo array
-        # (.campo = valore) sia l'accesso a un SOTTOCAMPO dentro ogni
-        # elemento (.campo.sottoCampo, es. .reviews.rating) con qualunque
-        # operatore di confronto, non solo =/!= (es. "NOT (.reviews.rating
-        # < 3)" senza EXPAND va comunque intercettato). Il sottopercorso
-        # dopo il nome del campo è opzionale, e !=/<=/>= vengono prima di
-        # =/</> nell'alternanza, così l'operatore più lungo vince quando
-        # entrambi potrebbero combaciare parzialmente.
+        """
+        Il pattern copre sia il confronto DIRETTO sull'intero campo array
+        (.campo = valore) sia l'accesso a un SOTTOCAMPO dentro ogni
+        elemento (.campo.sottoCampo, es. .reviews.rating) con qualunque
+        operatore di confronto, non solo =/!= (es. "NOT (.reviews.rating
+        < 3)" senza EXPAND va comunque intercettato). Il sottopercorso
+        dopo il nome del campo è opzionale, e !=/<=/>= vengono prima di
+        =/</> nell'alternanza, così l'operatore più lungo vince quando
+        entrambi potrebbero combaciare parzialmente.
+        """
         used_array_fields = [
             field for field in array_fields
             if re.search(rf'\.{re.escape(field)}\b(?:\.\w+)*\s*(?:!=|<=|>=|=|<|>)', condition_text)
@@ -342,12 +318,10 @@ def _stage_multi_expand_filter(query: str, current_db: str) -> str:
     Riparazione deterministica: N EXPAND consecutivi (su array
     diversi) seguiti da un unico FILTER con condizione AND che li
     referenzia tutti creano il prodotto di tutte le combinazioni prima di
-    scartarne nessuna — su una collection grande, timeout garantito
-    (osservato dal vivo due volte, 30s su sample_mflix.movies con
-    countries × cast). La regola nel prompt suggeriva di "preferire" lo
-    stadio per collezioni grandi, ma l'LLM non ha modo di sapere con
-    certezza quanto sia grande una collection — meglio togliere il
-    giudizio dall'equazione e farlo sempre, in automatico, a prescindere.
+    scartarne nessuna — su una collection grande, timeout garantito. 
+    La regola nel prompt suggeriva di "preferire" lo stadio per collezioni grandi,
+    ma l'LLM non ha modo di sapere con certezza quanto sia grande una collection —
+    meglio togliere il giudizio dall'equazione e farlo sempre a prescindere.
 
     Riscrive in versione a stadi: primo EXPAND, poi SOLO le condizioni del
     FILTER che riguardano quella destinazione, poi SAVE AS + GET
@@ -403,14 +377,16 @@ def _stage_multi_expand_filter(query: str, current_db: str) -> str:
             leftover.append(part.strip())
     assigned[destinations[0]] = leftover + assigned[destinations[0]]
 
-    # Riceve il database corrente come parametro invece di dedurlo da un
-    # eventuale "USE DB" nel testo della query: a questo punto del flusso
-    # (dentro il repair loop di /api/generate) quella riga non c'è ancora
-    # — la aggiunge il frontend solo dopo aver ricevuto la risposta — e un
-    # fallback letterale finirebbe scritto per davvero nella query ("SAVE
-    # AS chaintemp1@current_db;", un database che non esiste). Stesso
-    # valore già usato dal resto della funzione chiamante per ogni altra
-    # riparazione.
+    """
+    Riceve il database corrente come parametro invece di dedurlo da un
+    eventuale "USE DB" nel testo della query: a questo punto del flusso
+    (dentro il repair loop di /api/generate) quella riga non c'è ancora
+    — la aggiunge il frontend solo dopo aver ricevuto la risposta — e un
+    fallback letterale finirebbe scritto per davvero nella query ("SAVE
+    AS chaintemp1@current_db;", un database che non esiste). Stesso
+    valore già usato dal resto della funzione chiamante per ogni altra
+    riparazione.
+    """
     db_name = current_db
 
     pieces = []
@@ -777,17 +753,12 @@ def _collect_all_ids(obj, ids_found: set):
 def _find_unresolved_id_references(documents: list, max_examples: int = 3):
     """
     Trasparenza sul risultato, non un controllo che blocca o
-    corregge nulla — su richiesta esplicita di non indovinare/hardcodare
+    corregge nulla — su volontà di non indovinare/hardcodare
     quale JOIN mancherebbe: guarda i DOCUMENTI VERI del risultato (non il
     testo della query) e segnala se contengono un riferimento non
     risolto, usando solo una convenzione di denominazione universale
     (un campo che finisce per "_id", diverso da "_id" stesso) — non un
     elenco di nomi scritto per questo caso specifico.
-
-    Ambito ristretto alla firma del wrapper creato da EXPAND (un dict con
-    ESATTAMENTE "item" e "position" come chiavi, dove "item" è a sua
-    volta un dict) — un campo _id grezzo lì dentro è quasi sempre un
-    riferimento mai risolto con un JOIN successivo.
 
     Un JOIN riuscito AGGIUNGE il lato risolto accanto all'originale, non
     SOSTITUISCE il riferimento grezzo — quindi anche dopo un JOIN
@@ -852,10 +823,10 @@ def _check_undeclared_expand_reference(query: str, current_schema: dict):
 
     A differenza delle altre riparazioni, qui NON si prova a indovinare
     quale campo array l'utente intendesse (un confronto testuale tra
-    "actor" e "cast" non aiuterebbe, non si somigliano) — si segnala
+    "actor" e "cast" non aiuterebbe, non si somigliano) ma si segnala
     l'incongruenza con l'elenco dei campi array VERI disponibili, e si
     forza un altro tentativo di generazione con quell'informazione
-    concreta, stessa filosofia del controllo sul disallineamento di tipo.
+    concreta.
     """
     coll_match = re.search(r'GET\s+COLLECTION\s+(\w+)\s*;', query, re.IGNORECASE)
     if not coll_match:
@@ -870,13 +841,15 @@ def _check_undeclared_expand_reference(query: str, current_schema: dict):
     })
 
     declared = set(re.findall(r'UNPACK\s+.+?\s+ARRAY\s+\.\S+\s+TO\s+\.(\w+)', query, re.IGNORECASE))
-    # Gli alias di JOIN/MERGE (dichiarati con "AS nome") vanno esclusi dal
-    # conteggio: non sono mai destinazioni di EXPAND, quindi comparire
-    # dopo un punto seguito da ".item" è normale per loro (fanno da
-    # preambolo al vero percorso in un JOIN concatenato tipo
-    # ".c.item.item.product_id", dove "c" è l'alias del JOIN) — senza
-    # questa esclusione, il regex sotto (non "overlapping", si ferma al
-    # primo ".c.item") scambierebbe l'alias per un nome mai dichiarato.
+    """
+    Gli alias di JOIN/MERGE (dichiarati con "AS nome") vanno esclusi dal
+    conteggio: non sono mai destinazioni di EXPAND, quindi comparire
+    dopo un punto seguito da ".item" è normale per loro (fanno da
+    preambolo al vero percorso in un JOIN concatenato tipo
+    ".c.item.item.product_id", dove "c" è l'alias del JOIN) — senza
+    questa esclusione, il regex sotto (non "overlapping", si ferma al
+    primo ".c.item") scambierebbe l'alias per un nome mai dichiarato.
+    """
     join_aliases = set(re.findall(r'\bAS\s+(\w+)\b', query, re.IGNORECASE))
     referenced = set(re.findall(r'\.(\w+)\.item\b', query))
     undeclared = referenced - declared - join_aliases
@@ -975,8 +948,7 @@ def _trace_chaintemp_origin(query: str, chaintemp_name: str, _depth: int = 0):
 def _check_join_key_data_overlap(query: str, all_databases: dict):
     """
     Controllo empirico — deliberatamente SENZA nessun giudizio sul
-    NOME dei campi coinvolti (su richiesta esplicita di evitare
-    hardcoding, stessa richiesta già fatta per _check_join_type_mismatch):
+    NOME dei campi coinvolti (su volontà di evitare hardcoding):
     per un JOIN che confronta .X.campoA = .Y.campoB, verifica interrogando
     MongoDB — non lo schema, i dati veri — se esiste ALMENO una
     corrispondenza reale tra un campione di valori di campoA e i valori
@@ -1062,8 +1034,8 @@ def _check_join_key_data_overlap(query: str, all_databases: dict):
 def _check_join_type_mismatch(query: str, all_databases: dict):
     """
     Controllo semantico, non un pattern fisso su un nome di campo — su
-    richiesta esplicita di evitare hardcoding: rileva un JOIN OF
-    COLLECTIONS che confronta lo STESSO nome di campo su entrambi i lati
+    volontà di evitare hardcoding: rileva un JOIN OF COLLECTIONS 
+    che confronta lo STESSO nome di campo su entrambi i lati
     (es. .alias1.user_id = .alias2.user_id) quando le due collezioni REALI
     coinvolte (non una "chaintempN" intermedia, di cui non conosciamo lo
     schema) hanno TIPI DIVERSI per quel campo secondo lo schema scoperto —
@@ -1089,14 +1061,16 @@ def _check_join_type_mismatch(query: str, all_databases: dict):
         coll_a, db_a = alias_to_coll_db[cond_alias1]
         coll_b, db_b = alias_to_coll_db[cond_alias2]
 
-        # Un JOIN con una collection chaintempN da un lato (schema
-        # sconosciuto) non va saltato — è esattamente il caso più comune
-        # dei join concatenati (es. .a.user_id = .b.user_id con "a" =
-        # chaintemp1). Come per _check_join_key_data_overlap sopra, si
-        # prova a risalire alla collection reale di origine
-        # (_trace_chaintemp_origin) e si guarda lo schema di QUELLA — un
-        # EXPAND non cambia il tipo dei campi preesistenti, solo ne
-        # aggiunge uno nuovo.
+        """
+        Un JOIN con una collection chaintempN da un lato (schema
+        sconosciuto) non va saltato — è esattamente il caso più comune
+        dei join concatenati (es. .a.user_id = .b.user_id con "a" =
+        chaintemp1). Come per _check_join_key_data_overlap sopra, si
+        prova a risalire alla collection reale di origine
+        (_trace_chaintemp_origin) e si guarda lo schema di QUELLA — un
+        EXPAND non cambia il tipo dei campi preesistenti, solo ne
+        aggiunge uno nuovo.
+        """
         lookup_coll_a, lookup_db_a = coll_a, db_a
         if coll_a.lower().startswith('chaintemp'):
             lookup_coll_a, lookup_db_a = _trace_chaintemp_origin(query, coll_a)
@@ -1109,13 +1083,15 @@ def _check_join_type_mismatch(query: str, all_databases: dict):
         type_a = _lookup_field_type(all_databases, lookup_db_a, lookup_coll_a, field1)
         type_b = _lookup_field_type(all_databases, lookup_db_b, lookup_coll_b, field2)
 
-        # Il confronto dei tipi copre anche il caso in cui il campo manchi
-        # del tutto su uno dei due lati — non solo quando esiste su
-        # ENTRAMBI (osservato: test_db.users non ha nessun campo
-        # "user_id", solo "id" — la query generata comunque scriveva
-        # .a.user_id = .b.user_id, producendo 0 risultati senza nessun
-        # avviso). Un campo assente è un segnale ancora più netto di un
-        # campo con tipo diverso — va segnalato per primo.
+        """
+        Il confronto dei tipi copre anche il caso in cui il campo manchi
+        del tutto su uno dei due lati — non solo quando esiste su
+        ENTRAMBI (osservato: test_db.users non ha nessun campo
+        "user_id", solo "id" — la query generata comunque scriveva
+        .a.user_id = .b.user_id, producendo 0 risultati senza nessun
+        avviso). Un campo assente è un segnale ancora più netto di un
+        campo con tipo diverso — va segnalato per primo.
+        """
         if type_a is None or type_b is None:
             missing_side = f".{cond_alias1}.{field1} (in {coll_a})" if type_a is None else f".{cond_alias2}.{field2} (in {coll_b})"
             present_side = f".{cond_alias2}.{field2} (tipo: {type_b}, in {coll_b})" if type_a is None else f".{cond_alias1}.{field1} (tipo: {type_a}, in {coll_a})"
@@ -1143,24 +1119,28 @@ def _check_join_type_mismatch(query: str, all_databases: dict):
 JCOQL_SYNTAX_FULL = load_file_content('backend/jcoql_syntax_official.txt')
 JCOQL_SYNTAX_BASIC = load_file_content('backend/jcoql_syntax_basic_official.txt')
 EXTENDED_EXAMPLES = load_file_content('backend/rag_examples_extended.txt')
-# Nota: JCOQL_SYNTAX_FULL è la grammatica effettivamente iniettata nel
-# prompt (JCoQL.g ufficiale, copia identica — vedi il
-# repository separato JcoProjectTeam/JcoQL, quello dedicato al parser,
-# diverso da JcoFrameworkCode) — copre tutti i costrutti del linguaggio,
-# non solo il sottoinsieme di JCOQL_SYNTAX_BASIC (JCoQLBasic.g ufficiale,
-# che ad esempio esclude deliberatamente GET COLLECTION FROM FILE).
-# JCOQL_SYNTAX_BASIC resta caricata qui ma non iniettata nel prompt — non
-# serve più dato che FULL la contiene (nella sostanza) per intero, tenuta
-# solo per compatibilità/eventuali usi futuri.
+"""
+Nota: JCOQL_SYNTAX_FULL è la grammatica effettivamente iniettata nel
+prompt (JCoQL.g ufficiale, copia identica — vedi il
+repository separato JcoProjectTeam/JcoQL, quello dedicato al parser,
+diverso da JcoFrameworkCode) — copre tutti i costrutti del linguaggio,
+non solo il sottoinsieme di JCOQL_SYNTAX_BASIC (JCoQLBasic.g ufficiale,
+che ad esempio esclude deliberatamente GET COLLECTION FROM FILE).
+JCOQL_SYNTAX_BASIC resta caricata qui ma non iniettata nel prompt — non
+serve più dato che FULL la contiene (nella sostanza) per intero, tenuta
+solo per compatibilità/eventuali usi futuri.
+"""
 
-# Selezione LLM, Parser ed Executor attivi
-# Nota sulla mutabilità di queste tre variabili a runtime: ACTIVE_LLM può
-# cambiare dopo l'avvio (l'endpoint /api/set_llm sotto fa "global
-# ACTIVE_LLM" e la riassegna). ACTIVE_PARSER e ACTIVE_EXECUTOR invece non
-# hanno un endpoint equivalente — restano fissate al valore letto da
-# variabile d'ambiente al momento dell'avvio per tutta la vita del
-# processo; cambiarle richiede riavviare il server con una diversa
-# variabile d'ambiente.
+"""
+Selezione LLM, Parser ed Executor attivi
+Nota sulla mutabilità di queste tre variabili a runtime: ACTIVE_LLM può
+cambiare dopo l'avvio (l'endpoint /api/set_llm sotto fa "global
+ACTIVE_LLM" e la riassegna). ACTIVE_PARSER e ACTIVE_EXECUTOR invece non
+hanno un endpoint equivalente — restano fissate al valore letto da
+variabile d'ambiente al momento dell'avvio per tutta la vita del
+processo; cambiarle richiede riavviare il server con una diversa
+variabile d'ambiente.
+"""
 ACTIVE_LLM = os.getenv("ACTIVE_LLM", "gemini")
 ACTIVE_PARSER = os.getenv("ACTIVE_PARSER", "antlr3_official")
 ACTIVE_EXECUTOR = os.getenv("ACTIVE_EXECUTOR", "jco_framework")
@@ -1174,35 +1154,35 @@ JCOQL_DEBUG = os.getenv("JCOQL_DEBUG", "false").lower() == "true"
 # all'avvio descritto sopra)
 parser = ParserFactory.create_parser(ParserType(ACTIVE_PARSER))
 
-# Configurazione Google Gemini
+"""Configurazione Google Gemini"""
 genai.configure(api_key=os.getenv("GEMINI_API_KEY"))
-# temperature=0: senza impostarla esplicitamente, Gemini userebbe il
-# proprio default (non zero), causando variabilità tra una generazione e
-# l'altra per la stessa richiesta (alias diversi, ordine dei lati del
-# JOIN invertito, nomi di destinazione EXPAND diversi, e in alcuni casi
-# anche una scelta di correttezza diversa). Stessa scelta già fatta per i
-# modelli locali in llm_local.py (temperature=0) —
-# qui coerente con quella. model è usato una sola volta in tutto il file
-# (riga con model.generate_content, nel loop di generazione), quindi
-# impostarlo qui a livello di modello non tocca nessun altro utilizzo.
+"""
+temperature=0: senza impostarla esplicitamente, Gemini userebbe il
+proprio default (non zero), causando variabilità tra una generazione e
+l'altra per la stessa richiesta (alias diversi, ordine dei lati del
+JOIN invertito, nomi di destinazione EXPAND diversi, e in alcuni casi
+anche una scelta di correttezza diversa). 
+"""
 model = genai.GenerativeModel(
     "gemini-3.1-flash-lite-preview",
     generation_config=genai.GenerationConfig(temperature=0)
 )
 
-# Inizializzazione ChromaDB
-# Nota: get_collection (non get_or_create_collection) solleva
-# un'eccezione se la collection "jcoql_examples" non esiste ancora —
-# catturata qui sotto e trasformata in collection=None, quindi l'app
-# comunque si avvia. Perché la collection esista è necessario aver
-# lanciato almeno una volta backend/database/load_examples.py.
+"""
+Inizializzazione ChromaDB
+Nota: get_collection (non get_or_create_collection) solleva
+un'eccezione se la collection "jcoql_examples" non esiste ancora —
+catturata qui sotto e trasformata in collection=None, quindi l'app
+comunque si avvia. Perché la collection esista è necessario aver
+lanciato almeno una volta backend/database/load_examples.py.
+"""
 chroma_client = chromadb.PersistentClient(path="./chroma_data")
 try:
     collection = chroma_client.get_collection(name="jcoql_examples")
 except Exception as e:
     collection = None
 
-# Logging
+"""Logging"""
 logger, log_file = setup_logging()
 startup_logger = get_startup_logger()
 query_logger = get_query_logger()
@@ -1227,23 +1207,25 @@ class MongoDBJSONEncoder(JSONEncoder):
         return super().default(obj)
 
 
-# ==============================================================================
-# FASTAPI APP & MIDDLEWARE
-# ==============================================================================
-# Nota: json_encoder=MongoDBJSONEncoder qui sotto NON ha alcun effetto.
-# FastAPI (0.141.1, verificato) non espone un parametro "json_encoder" nel
-# costruttore — la classe FastAPI accetta comunque la chiamata perché
-# **extra assorbe silenziosamente qualunque kwargs non riconosciuto,
-# senza sollevare errori né fare nulla con esso. MongoDBJSONEncoder,
-# definito subito sopra proprio per gestire la serializzazione di
-# ObjectId, non viene quindi mai usato dalla serializzazione delle
-# risposte FastAPI. Il progetto evita comunque il problema perché ogni
-# executor converte _id in stringa manualmente prima di restituire i
-# risultati (es. python_translator.py, riga "doc['_id'] = str(doc['_id'])"),
-# quindi in pratica ObjectId grezzi non arrivano fin qui — ma se in
-# futuro un endpoint restituisse un documento Mongo senza quella
-# conversione manuale, questo encoder non lo salverebbe da un errore di
-# serializzazione, contrariamente a quanto il codice lascia intendere.
+"""
+==============================================================================
+FASTAPI APP & MIDDLEWARE
+==============================================================================
+Nota: json_encoder=MongoDBJSONEncoder qui sotto NON ha alcun effetto.
+FastAPI (0.141.1, verificato) non espone un parametro "json_encoder" nel
+costruttore — la classe FastAPI accetta comunque la chiamata perché
+**extra assorbe silenziosamente qualunque kwargs non riconosciuto,
+senza sollevare errori né fare nulla con esso. MongoDBJSONEncoder,
+definito subito sopra proprio per gestire la serializzazione di
+ObjectId, non viene quindi mai usato dalla serializzazione delle
+risposte FastAPI. Il progetto evita comunque il problema perché ogni
+executor converte _id in stringa manualmente prima di restituire i
+risultati (es. python_translator.py, riga "doc['_id'] = str(doc['_id'])"),
+quindi in pratica ObjectId grezzi non arrivano fin qui — ma se in
+futuro un endpoint restituisse un documento Mongo senza quella
+conversione manuale, questo encoder non lo salverebbe da un errore di
+serializzazione, contrariamente a quanto il codice lascia intendere.
+"""
 app = FastAPI(title="JCoQL+ Multi-Parser API", json_encoder=MongoDBJSONEncoder)
 
 app.add_middleware(
@@ -1253,25 +1235,29 @@ app.add_middleware(
     allow_methods=["GET", "POST", "PUT", "DELETE", "OPTIONS"],
     allow_headers=["*"],
 )
-# Nota: allow_origins=["*"] insieme a allow_credentials=True è una
-# combinazione che i browser rifiutano per le richieste che includono
-# credenziali (cookie, header Authorization con withCredentials) — la
-# specifica CORS non permette un wildcard quando le credenziali sono
-# abilitate. Non causa problemi allo stato attuale perché nessuna
-# chiamata del frontend (axios/fetch, verificato nei componenti React)
-# imposta withCredentials, quindi non sono mai richieste credenziali
-# realmente — ma se in futuro si aggiungesse autenticazione via cookie,
-# questa configurazione andrebbe rivista (origine esplicita invece di "*").
+"""
+Nota: allow_origins=["*"] insieme a allow_credentials=True è una
+combinazione che i browser rifiutano per le richieste che includono
+credenziali (cookie, header Authorization con withCredentials) — la
+specifica CORS non permette un wildcard quando le credenziali sono
+abilitate. Non causa problemi allo stato attuale perché nessuna
+chiamata del frontend (axios/fetch, verificato nei componenti React)
+imposta withCredentials, quindi non sono mai richieste credenziali
+realmente — ma se in futuro si aggiungesse autenticazione via cookie,
+questa configurazione andrebbe rivista (origine esplicita invece di "*").
+"""
 
 class GenerateRequest(BaseModel):
     nl_query: str
     database: str = None
-    # Lista completa dei database selezionati in sidebar (non solo il
-    # primo/"corrente") — necessaria perché l'LLM possa generare
-    # correttamente MERGE/query multi-database con i nomi VERI dei
-    # database, invece di indovinarli da quello che ha sottomano (es.
-    # scambiando nomi di collection per nomi di database, bug osservato
-    # quando questo campo non esisteva ancora).
+    """
+    Lista completa dei database selezionati in sidebar (non solo il
+    primo/"corrente") — necessaria perché l'LLM possa generare
+    correttamente MERGE/query multi-database con i nomi VERI dei
+    database, invece di indovinarli da quello che ha sottomano (es.
+    scambiando nomi di collection per nomi di database, bug osservato
+    quando questo campo non esisteva ancora).
+    """
     databases: List[str] = []
     max_retries: int = 3
 
@@ -1280,14 +1266,16 @@ class QueryRequest(BaseModel):
     database_name: Optional[str] = None
     databases: List[str] = ["jcoql_test"]
     join_config: Optional[dict] = None
-    # Modalità "database di grandi dimensioni / risultato non necessario"
-    # (vedi jco_framework_executor_v2.py: execute_count_only()). Quando True,
-    # non viene accodato il SAVE AS automatico usato per rileggere i
-    # documenti dal browser: si ottiene solo il conteggio stampato dal
-    # motore su stdout, evitando il costo di persistenza su MongoDB isolato
-    # come collo di bottiglia su collezioni grandi. Il risultato completo
-    # resta comunque ispezionabile a mano su Compass se la query contiene un
-    # SAVE AS scritto esplicitamente dall'utente (quello non viene toccato).
+    """
+    Modalità "database di grandi dimensioni / risultato non necessario"
+    (vedi jco_framework_executor_v2.py: execute_count_only()). Quando True,
+    non viene accodato il SAVE AS automatico usato per rileggere i
+    documenti dal browser: si ottiene solo il conteggio stampato dal
+    motore su stdout, evitando il costo di persistenza su MongoDB isolato
+    come collo di bottiglia su collezioni grandi. Il risultato completo
+    resta comunque ispezionabile a mano su Compass se la query contiene un
+    SAVE AS scritto esplicitamente dall'utente (quello non viene toccato).
+    """
     count_only: bool = False
 
 # ==============================================================================
@@ -1300,13 +1288,15 @@ async def startup_event():
     startup_logger.info("🔧 Inizializzazione Database Registry...")
     try:
         db_logger.info("📡 Connessione al database 'jcoql_test'...")
-        # Connette sempre "jcoql_test" hardcoded, indipendentemente da
-        # cosa contiene connected_databases.json — se "jcoql_test" era
-        # già salvato lì (caso comune, essendo il database di default),
-        # load_databases_from_file() poche righe sotto lo riconnette una
-        # seconda volta (add_database sovrascrive senza controllare
-        # duplicati). Nessun errore visibile, solo una doppia
-        # connessione/schema-discovery ad ogni avvio per questo database.
+        """
+        Connette sempre "jcoql_test" hardcoded, indipendentemente da
+        cosa contiene connected_databases.json — se "jcoql_test" era
+        già salvato lì (caso comune, essendo il database di default),
+        load_databases_from_file() poche righe sotto lo riconnette una
+        seconda volta (add_database sovrascrive senza controllare
+        duplicati). Nessun errore visibile, solo una doppia
+        connessione/schema-discovery ad ogni avvio per questo database.
+        """
         db_registry.add_database(
             db_name="jcoql_test",
             mongo_uri="mongodb://localhost:27017",
@@ -1328,20 +1318,22 @@ async def startup_event():
 
     startup_logger.info("🔧 Inizializzazione Executor...")
     try:
-        # Recupera il database corrente impostato nel registry
+        """Recupera il database corrente impostato nel registry"""
         current_db = db_registry.get_current_database_name() or "jcoql_test"
 
-        # Questo "executor" globale, creato qui la prima volta, è lo
-        # stesso oggetto usato dagli endpoint /api/collections,
-        # /api/upload-collection e affini più sotto. Viene poi ricreato
-        # anche più avanti (in /api/execute e /api/databases/select)
-        # quando il database target cambia — quindi NON resta fissato
-        # per sempre al database di questo avvio. Il problema reale di
-        # quegli endpoint (vedi commento dettagliato sopra la sezione
-        # "GESTIONE COLLEZIONI MONGODB") è un altro: presuppongono un
-        # attributo .db che jco_framework_executor_v2.py (l'executor di
-        # default) non ha, indipendentemente da quale database sia
-        # legato all'istanza corrente.
+        """
+        Questo "executor" globale, creato qui la prima volta, è lo
+        stesso oggetto usato dagli endpoint /api/collections,
+        /api/upload-collection e affini più sotto. Viene poi ricreato
+        anche più avanti (in /api/execute e /api/databases/select)
+        quando il database target cambia — quindi NON resta fissato
+        per sempre al database di questo avvio. Il problema reale di
+        quegli endpoint (vedi commento dettagliato sopra la sezione
+        "GESTIONE COLLEZIONI MONGODB") è un altro: presuppongono un
+        attributo .db che jco_framework_executor_v2.py (l'executor di
+        default) non ha, indipendentemente da quale database sia
+        legato all'istanza corrente.
+        """
         executor = ExecutorFactory.create_executor(
             ExecutorType(ACTIVE_EXECUTOR),
             mongo_uri="mongodb://localhost:27017",
@@ -1355,10 +1347,12 @@ async def startup_event():
 
 @app.on_event("shutdown")
 def shutdown():
-    # Entrambi i blocchi ingoiano qualunque eccezione senza nemmeno
-    # loggarla (a differenza del resto del file, che di solito logga
-    # almeno un warning) — se la chiusura delle connessioni fallisce, non
-    # se ne ha traccia da nessuna parte.
+    """
+    Entrambi i blocchi ingoiano qualunque eccezione senza nemmeno
+    loggarla (a differenza del resto del file, che di solito logga
+    almeno un warning) — se la chiusura delle connessioni fallisce, non
+    se ne ha traccia da nessuna parte.
+    """
     try:
         if executor:
             executor.close()
@@ -1378,20 +1372,24 @@ async def generate_query(request: GenerateRequest):
     """
     Riceve un prompt in Linguaggio Naturale e genera una query JCoQL valida
     """
-    # "global collection" dichiarata qui, in cima alla funzione: serve per
-    # poter riassegnare il riferimento globale alla collection ChromaDB più
-    # sotto (auto-guarigione RAG) — deve stare prima di qualunque lettura
-    # di "collection" in questa funzione, altrimenti Python solleva
-    # SyntaxError ("name used prior to global declaration").
+    """
+    "global collection" dichiarata qui, in cima alla funzione: serve per
+    poter riassegnare il riferimento globale alla collection ChromaDB più
+    sotto (auto-guarigione RAG) — deve stare prima di qualunque lettura
+    di "collection" in questa funzione, altrimenti Python solleva
+    SyntaxError ("name used prior to global declaration").
+    """
     global collection
 
-    # Nota di concorrenza: db_registry.current_database è uno stato
-    # GLOBALE condiviso da tutto il processo (vedi database_registry.py),
-    # non uno stato per-richiesta. Impostarlo qui in base a
-    # request.database significa che, con più richieste concorrenti su
-    # database diversi, una potrebbe leggere/agire sul database impostato
-    # da un'altra richiesta arrivata nel frattempo — non c'è isolamento
-    # tra richieste su questo stato.
+    """
+    Nota di concorrenza: db_registry.current_database è uno stato
+    GLOBALE condiviso da tutto il processo (vedi database_registry.py),
+    non uno stato per-richiesta. Impostarlo qui in base a
+    request.database significa che, con più richieste concorrenti su
+    database diversi, una potrebbe leggere/agire sul database impostato
+    da un'altra richiesta arrivata nel frattempo — non c'è isolamento
+    tra richieste su questo stato.
+    """
     if request.database:
         db_registry.set_current_database(request.database)   
     
@@ -1400,7 +1398,7 @@ async def generate_query(request: GenerateRequest):
     query_logger.info(f"📝 Query ricevuta: '{request.nl_query}'")
     query_logger.info(f"   Database Attivo: {db_registry.get_current_database_name()}")
     
-    # Validazione input vuoto
+    """Validazione input vuoto"""
     if not request.nl_query or not request.nl_query.strip():
         return {
             "jcoql_query": "",
@@ -1415,24 +1413,26 @@ async def generate_query(request: GenerateRequest):
     context_str = ""
     retrieved_docs = []
     
-    # Recupero contesto RAG
-    # n_results=7: con il corpus cresciuto a 32+ esempi che coprono
-    # pattern molto diversi tra loro (JOIN semplice, EXPAND, GROUP, MERGE,
-    # filtro array, join concatenati a 3 passaggi...), un pattern
-    # specifico e meno comune (es. join concatenati) rischia di restare
-    # fuori dai primi risultati se altri esempi più generici sembrano
-    # "assomigliare" di più a una richiesta formulata in modo ampio —
-    # anche quando la sua descrizione userebbe quasi le stesse parole
-    # della richiesta (osservato dal vivo: "ordini con utente e prodotti
-    # acquistati" non ha portato l'esempio del join a 3 passaggi, la cui
-    # descrizione contiene letteralmente "prodotti acquistati"). Un
-    # valore più alto (es. 9) allarga il margine di recupero ma fa
-    # crescere il prompt abbastanza da contribuire a esaurire più in
-    # fretta la quota gratuita di Gemini (250k token/minuto) durante test
-    # ravvicinati — 7 è il compromesso scelto. Per i modelli locali
-    # (Llama/Gemma): meno esempi, per tenere il prompt più leggero (vedi
-    # il lavoro sul prompt più snello per loro) — Gemini resta a 7,
-    # invariato.
+    """
+    Recupero contesto RAG
+    n_results=7: con il corpus cresciuto a 32+ esempi che coprono
+    pattern molto diversi tra loro (JOIN semplice, EXPAND, GROUP, MERGE,
+    filtro array, join concatenati a 3 passaggi...), un pattern
+    specifico e meno comune (es. join concatenati) rischia di restare
+    fuori dai primi risultati se altri esempi più generici sembrano
+    "assomigliare" di più a una richiesta formulata in modo ampio —
+    anche quando la sua descrizione userebbe quasi le stesse parole
+    della richiesta (osservato dal vivo: "ordini con utente e prodotti
+    acquistati" non ha portato l'esempio del join a 3 passaggi, la cui
+    descrizione contiene letteralmente "prodotti acquistati"). Un
+    valore più alto (es. 9) allarga il margine di recupero ma fa
+    crescere il prompt abbastanza da contribuire a esaurire più in
+    fretta la quota gratuita di Gemini (250k token/minuto) durante test
+    ravvicinati — 7 è il compromesso scelto. Per i modelli locali
+    (Llama/Gemma): meno esempi, per tenere il prompt più leggero (vedi
+    il lavoro sul prompt più snello per loro) — Gemini resta a 7,
+    invariato.
+    """
     RAG_N_RESULTS = 4 if ACTIVE_LLM in ("llama", "gemma") else 7
 
     if collection:
@@ -1444,18 +1444,20 @@ async def generate_query(request: GenerateRequest):
             retrieved_docs = results['documents'][0] if (results and results.get('documents')) else []
             context_str = "\n\n".join(retrieved_docs)
         except Exception as e:
-            # Auto-guarigione: se load_examples.py viene rilanciato DOPO
-            # l'avvio del backend, ricrea la collection ChromaDB con un
-            # UUID interno nuovo — il riferimento globale "collection"
-            # tenuto qui resta agganciato al vecchio, e ogni query fallisce con
-            # "Collection [uuid] does not exist" finché non si riavvia il
-            # backend a mano. Osservato dal vivo: una generazione è arrivata
-            # a ZERO esempi RAG per questo motivo (incluso proprio quello che
-            # avrebbe dato la chiave di join giusta), causando una scelta di
-            # campo sbagliata da parte dell'LLM senza nessun esempio a cui
-            # appoggiarsi. Un solo tentativo di recupero: riprendere un
-            # riferimento fresco alla collection e riprovare la stessa query,
-            # prima di arrendersi e procedere senza esempi.
+            """
+            Auto-guarigione: se load_examples.py viene rilanciato DOPO
+            l'avvio del backend, ricrea la collection ChromaDB con un
+            UUID interno nuovo — il riferimento globale "collection"
+            tenuto qui resta agganciato al vecchio, e ogni query fallisce con
+            "Collection [uuid] does not exist" finché non si riavvia il
+            backend a mano. Osservato dal vivo: una generazione è arrivata
+            a ZERO esempi RAG per questo motivo (incluso proprio quello che
+            avrebbe dato la chiave di join giusta), causando una scelta di
+            campo sbagliata da parte dell'LLM senza nessun esempio a cui
+            appoggiarsi. Un solo tentativo di recupero: riprendere un
+            riferimento fresco alla collection e riprovare la stessa query,
+            prima di arrendersi e procedere senza esempi.
+            """
             query_logger.warning(f"⚠️ Errore RAG (primo tentativo): {e}")
             try:
                 collection = chroma_client.get_collection(name="jcoql_examples")
@@ -1469,7 +1471,7 @@ async def generate_query(request: GenerateRequest):
             except Exception as e2:
                 query_logger.warning(f"⚠️ Errore RAG (dopo tentativo di refresh, procedo senza esempi): {e2}")
 
-    # Schema prompt
+    """Schema prompt"""
     def _format_schema_for_prompt(schema: dict, db_name: str) -> str:
         """
         Costruisce lo schema COMPLETO (campi, tipi, esempi) anche degli
@@ -1513,12 +1515,14 @@ async def generate_query(request: GenerateRequest):
         schema_prompt_str = f"""SCHEMA MONGODB - Database '{db_registry.get_current_database_name()}'
     Nessuna collezione disponibile in questo database."""
 
-    # Altri database selezionati (oltre a quello corrente/primario sopra)
-    # — nomi VERI, presi dalla lista completa che il frontend manda
-    # (request.databases). Senza questo, l'LLM non ha modo di sapere che
-    # esistono altri database oltre a quello corrente, e nel tentativo di
-    # generare un MERGE/query multi-database può confondere nomi di
-    # collection con nomi di database.
+    """
+    Altri database selezionati (oltre a quello corrente/primario sopra)
+    — nomi VERI, presi dalla lista completa che il frontend manda
+    (request.databases). Senza questo, l'LLM non ha modo di sapere che
+    esistono altri database oltre a quello corrente, e nel tentativo di
+    generare un MERGE/query multi-database può confondere nomi di
+    collection con nomi di database.
+    """
     other_databases = [db for db in (request.databases or []) if db and db != db_registry.get_current_database_name()]
     if other_databases:
         other_databases_str = (
@@ -1552,20 +1556,22 @@ async def generate_query(request: GenerateRequest):
     all_errors = []
     validation_errors_for_frontend = []
 
-    # Repair Loop
+    """Repair Loop"""
     while attempts < request.max_retries and not is_valid:
         attempts += 1
         missing_get_collection_hint = None
         current_db = db_registry.current_database or "nessuno"
         available_collections = []
-        # Le collection sono lette dallo schema già scoperto alla
-        # connessione (le chiavi di get_current_schema()), non richiamando
-        # Mongo qui — db_registry.databases[current_db] è un dizionario di
-        # metadati, non una connessione MongoDB: chiamare
-        # .list_collection_names() su di esso solleva un AttributeError
-        # che verrebbe ingoiato in silenzio, lasciando
-        # available_collections sempre vuoto (stesso bug di /api/stats,
-        # vedi commento lì).
+        """
+        Le collection sono lette dallo schema già scoperto alla
+        connessione (le chiavi di get_current_schema()), non richiamando
+        Mongo qui — db_registry.databases[current_db] è un dizionario di
+        metadati, non una connessione MongoDB: chiamare
+        .list_collection_names() su di esso solleva un AttributeError
+        che verrebbe ingoiato in silenzio, lasciando
+        available_collections sempre vuoto (stesso bug di /api/stats,
+        vedi commento lì).
+        """
         if current_db and current_db in db_registry.databases:
             try:
                 available_collections = list(db_registry.get_current_schema().keys())
@@ -1913,6 +1919,15 @@ async def generate_query(request: GenerateRequest):
           FILTER GENERATE ADD FIELDS {{ .nuovoCampo: TRANSLATE(.campoOriginale, aliasDizionario) }};
           🚨 Il simbolo @ prima del database è OBBLIGATORIO in GET DICTIONARY esattamente come
           in SAVE AS — "GET DICTIONARY nome AS alias;" senza @database non è sintassi valida.
+          🚨 SUL NOME DELLA COLLEZIONE DIZIONARIO: usa SOLO il nome di una collezione REALE
+          elencata nello SCHEMA MONGODB sopra. NON prendere per buona la prima parola dopo
+          "dizionario"/"usando"/"tramite"/"per" nella richiesta — spesso è un articolo, una
+          preposizione o un aggettivo generico (es. "disponibile", "degli", "per"), MAI il nome
+          vero di una collezione. Se la richiesta non nomina esplicitamente e chiaramente una
+          collezione REALE tra quelle elencate nello schema come dizionario, in questo caso
+          SPECIFICO (solo quando il nome non è individuabile con certezza) ometti sia GET
+          DICTIONARY sia TRANSLATE dalla query, invece di indovinare un nome: il sistema, se
+          rileva un caso simile, prova a risolverlo automaticamente in un passaggio successivo.
           🚨 QUI NON va aggiunto KEEP OTHERS/DROP OTHERS alla fine — vedi la regola generale
           subito sotto sul perché.
           TRANSLATE si usa solo dentro GENERATE (BUILD/ADD FIELDS), mai da solo in un WHERE.
@@ -2073,15 +2088,17 @@ Genera SOLO la query JCoQL basata sullo SCHEMA REALE sopra.
 Usa ESATTAMENTE i nomi campi dello schema. NESSUN testo aggiuntivo.
 """
 
-        # MISURA DIAGNOSTICA: dimensione reale del prompt appena
-        # costruito — per capire con certezza cosa sta saturando la quota
-        # Gemini (250k token/minuto), invece di stimarlo da fuori senza
-        # vedere lo schema vero del database dell'utente. ~4 caratteri
-        # per token è una stima approssimativa ma ragionevole per testo
-        # misto italiano/inglese — non è il conteggio esatto di Gemini,
-        # ma dà l'ordine di grandezza. Stampato sempre, non solo sotto
-        # JCOQL_DEBUG, perché è proprio il primo tentativo (quello più
-        # difficile da riprodurre) quello che ci interessa vedere.
+        """
+        MISURA DIAGNOSTICA: dimensione reale del prompt appena
+        costruito — per capire con certezza cosa sta saturando la quota
+        Gemini (250k token/minuto), invece di stimarlo da fuori senza
+        vedere lo schema vero del database dell'utente. ~4 caratteri
+        per token è una stima approssimativa ma ragionevole per testo
+        misto italiano/inglese — non è il conteggio esatto di Gemini,
+        ma dà l'ordine di grandezza. Stampato sempre, non solo sotto
+        JCOQL_DEBUG, perché è proprio il primo tentativo (quello più
+        difficile da riprodurre) quello che ci interessa vedere.
+        """
         query_logger.info(
             f"📏 Dimensione prompt: {len(prompt):,} caratteri "
             f"(~{len(prompt)//4:,} token stimati) — "
@@ -2091,26 +2108,28 @@ Usa ESATTAMENTE i nomi campi dello schema. NESSUN testo aggiuntivo.
         )
 
         try:
-            # Prompt più snello per i modelli locali: la grammatica FULL
-            # (~14.000 token stimati) è quella ufficiale pensata per il
-            # parser stesso, non per spiegare l'uso — osservato dal vivo
-            # un modello locale "perdersi" a descriverla in prosa invece
-            # di usarla per generare una query. JCOQL_SYNTAX_BASIC
-            # (~5.000 token, la grammatica 'JCoQLBasic.g' ufficiale) copre
-            # tutto tranne GET COLLECTION FROM FILE (verificato
-            # confrontando le due grammatiche) — un limite accettato,
-            # dato che la regola su FROM FILE resta comunque nel testo
-            # delle regole condiviso sotto, anche senza il supporto
-            # formale della grammatica.
-            # Gemini NON è toccato da questo cambio — usa sempre `prompt`
-            # tale e quale, mai `local_model_prompt`.
-            #
-            # Promemoria extra SOLO per i modelli locali (Llama/Gemma), che nei test si
-            # sono dimostrati più propensi a usare solo l'ultimo segmento di un campo
-            # annidato (es. .rating invece di .imdb.rating) invece di leggere il percorso
-            # completo dallo schema. Regola generica su come leggere lo schema, non legata
-            # a nessun database specifico - si applica a qualunque campo annidato di
-            # qualunque database connesso.
+            """
+            Prompt più snello per i modelli locali: la grammatica FULL
+            (~14.000 token stimati) è quella ufficiale pensata per il
+            parser stesso, non per spiegare l'uso — osservato dal vivo
+            un modello locale "perdersi" a descriverla in prosa invece
+            di usarla per generare una query. JCOQL_SYNTAX_BASIC
+            (~5.000 token, la grammatica 'JCoQLBasic.g' ufficiale) copre
+            tutto tranne GET COLLECTION FROM FILE (verificato
+            confrontando le due grammatiche) — un limite accettato,
+            dato che la regola su FROM FILE resta comunque nel testo
+            delle regole condiviso sotto, anche senza il supporto
+            formale della grammatica.
+            Gemini NON è toccato da questo cambio — usa sempre `prompt`
+            tale e quale, mai `local_model_prompt`.
+
+            Promemoria extra SOLO per i modelli locali (Llama/Gemma), che nei test si
+            sono dimostrati più propensi a usare solo l'ultimo segmento di un campo
+            annidato (es. .rating invece di .imdb.rating) invece di leggere il percorso
+            completo dallo schema. Regola generica su come leggere lo schema, non legata
+            a nessun database specifico - si applica a qualunque campo annidato di
+            qualunque database connesso.
+            """
             local_model_prompt = prompt
             if ACTIVE_LLM in ("llama", "gemma"):
                 local_model_prompt = prompt.replace(JCOQL_SYNTAX_FULL, JCOQL_SYNTAX_BASIC) + (
@@ -2133,21 +2152,25 @@ Usa ESATTAMENTE i nomi campi dello schema. NESSUN testo aggiuntivo.
             elif ACTIVE_LLM == "gemma":
                 current_query = generate_with_gemma(local_model_prompt)
             else:
-                # Timeout esplicito: senza, osservato dal vivo un blocco
-                # di diversi minuti, senza errore né risposta, subito
-                # dopo aver esaurito la quota gratuita (429) — la
-                # libreria di Google, sotto al cofano, sembra ritentare
-                # automaticamente con attese crescenti, senza far
-                # arrivare nulla ai nostri log nel frattempo. Un timeout
-                # esplicito forza un errore chiaro dopo un tempo
-                # ragionevole, invece di un blocco silenzioso indefinito.
+                """
+                Timeout esplicito: senza, osservato dal vivo un blocco
+                di diversi minuti, senza errore né risposta, subito
+                dopo aver esaurito la quota gratuita (429) — la
+                libreria di Google, sotto al cofano, sembra ritentare
+                automaticamente con attese crescenti, senza far
+                arrivare nulla ai nostri log nel frattempo. Un timeout
+                esplicito forza un errore chiaro dopo un tempo
+                ragionevole, invece di un blocco silenzioso indefinito.
+                """
                 response = model.generate_content(prompt, request_options={"timeout": 20})
                 current_query = response.text.strip()
 
-            # 🔧 Fix: applicato a TUTTI i modelli locali (Llama e Gemma), non solo Llama.
-            # I modelli locali quantizzati sono più soggetti a due tipi di errore:
-            # (a) nome di collezione sbagliato ma presente, (b) clausola GET COLLECTION
-            # omessa del tutto. Qui correggiamo (a) e rileviamo esplicitamente (b).
+            """
+            🔧 Fix: applicato a TUTTI i modelli locali (Llama e Gemma), non solo Llama.
+            I modelli locali quantizzati sono più soggetti a due tipi di errore:
+            (a) nome di collezione sbagliato ma presente, (b) clausola GET COLLECTION
+            omessa del tutto. Qui correggiamo (a) e rileviamo esplicitamente (b).
+            """
             if ACTIVE_LLM in ("llama", "gemma"):
                 from difflib import get_close_matches
 
@@ -2155,7 +2178,7 @@ Usa ESATTAMENTE i nomi campi dello schema. NESSUN testo aggiuntivo.
                 if match:
                     coll_name = match.group(1)
 
-                    # (a) Nome di collezione presente ma non esistente: correggi con il più simile
+                    """(a) Nome di collezione presente ma non esistente: correggi con il più simile"""
                     if coll_name not in available_collections and available_collections:
                         close_matches = get_close_matches(coll_name, available_collections, n=1, cutoff=0.6)
                         if close_matches:
@@ -2166,14 +2189,16 @@ Usa ESATTAMENTE i nomi campi dello schema. NESSUN testo aggiuntivo.
                             query_logger.info(f"🔧 {ACTIVE_LLM.capitalize()} corretto: {coll_name} → {close_matches[0]}")
                             current_query = corrected
                 else:
-                    # (b) GET COLLECTION del tutto assente: non indoviniamo il nome collezione
-                    # (rischia di essere semanticamente sbagliato, es. "film" vs "movies"),
-                    # ma segnaliamo l'errore in modo esplicito così il repair loop successivo
-                    # ha un'istruzione chiara da correggere, invece di un errore di parsing
-                    # generico difficile da interpretare per il modello. Il messaggio viene
-                    # unito a quello del parser più sotto (stesso tentativo), non aggiunto
-                    # come voce separata, altrimenti verrebbe scartato: il prompt usa solo
-                    # all_errors[-1].
+                    """
+                    (b) GET COLLECTION del tutto assente: non indoviniamo il nome collezione
+                    (rischia di essere semanticamente sbagliato, es. "film" vs "movies"),
+                    ma segnaliamo l'errore in modo esplicito così il repair loop successivo
+                    ha un'istruzione chiara da correggere, invece di un errore di parsing
+                    generico difficile da interpretare per il modello. Il messaggio viene
+                    unito a quello del parser più sotto (stesso tentativo), non aggiunto
+                    come voce separata, altrimenti verrebbe scartato: il prompt usa solo
+                    all_errors[-1].
+                    """
                     query_logger.warning(
                         f"⚠️ {ACTIVE_LLM.capitalize()} ha omesso GET COLLECTION nella risposta"
                     )
@@ -2183,65 +2208,69 @@ Usa ESATTAMENTE i nomi campi dello schema. NESSUN testo aggiuntivo.
                         f"nel tentativo precedente. Collezioni disponibili: {', '.join(available_collections)}."
                     )
 
-            # Estrai TUTTI i nomi dei campi (inclusi quelli nested) dallo schema
+            """Estrai TUTTI i nomi dei campi (inclusi quelli nested) dallo schema"""
             all_field_names = []
             if current_schema:
                 for coll_name, coll_data in current_schema.items():
                     if isinstance(coll_data, dict):
                         fields = coll_data.get('fields', {})
                         if isinstance(fields, dict):
-                            # Aggiungi sia i nomi top-level che quelli nested
+                            """Aggiungi sia i nomi top-level che quelli nested"""
                             for field_name in fields.keys():
                                 all_field_names.append(field_name)
-                                # Se è un percorso nested (contiene .), aggiungi anche la parte finale
+                                """Se è un percorso nested (contiene .), aggiungi anche la parte finale"""
                                 if '.' in field_name:
-                                    # Prendi anche la parte dopo il primo punto
+                                    """Prendi anche la parte dopo il primo punto"""
                                     parts = field_name.split('.')
                                     for part in parts:
                                         if part and part not in all_field_names:
                                             all_field_names.append(part)
 
-            # Controlla se l'utente ha menzionato uno dei campi dello schema (fuzzy match)
+            """Controlla se l'utente ha menzionato uno dei campi dello schema (fuzzy match)"""
             from difflib import get_close_matches
             user_query_lower = request.nl_query.lower()
             user_words = user_query_lower.split()
             
             has_filter_request = False
             for word in user_words:
-                # Cerca il campo più simile (cutoff = 0.6 per 60% di similarità)
+                """Cerca il campo più simile (cutoff = 0.6 per 60% di similarità)"""
                 matches = get_close_matches(word, all_field_names, n=1, cutoff=0.4)
                 if matches:
                     has_filter_request = True
                     break
             
-            # Fallback: keyword generici universali
+            """Fallback: keyword generici universali"""
             if not has_filter_request:
                 generic_keywords = ['dove', 'con', 'che', '>', '<', '>=', '<=', '=', '!=']
                 has_filter_request = any(kw in user_query_lower for kw in generic_keywords)
             
-            # Applicazione lato codice della REGOLA CRITICA #1 del prompt
-            # (niente FILTER se l'utente non ha chiesto una condizione):
-            # se il fuzzy match sopra non ha trovato nessun indizio di
-            # filtro nella richiesta utente, ma il modello ha comunque
-            # generato un FILTER CASE WHERE, lo tronca via tenendo solo
-            # la GET COLLECTION — rete di sicurezza per quando il prompt
-            # da solo non basta a farsi seguire dal modello.
+            """
+            Applicazione lato codice della REGOLA CRITICA #1 del prompt
+            (niente FILTER se l'utente non ha chiesto una condizione):
+            se il fuzzy match sopra non ha trovato nessun indizio di
+            filtro nella richiesta utente, ma il modello ha comunque
+            generato un FILTER CASE WHERE, lo tronca via tenendo solo
+            la GET COLLECTION — rete di sicurezza per quando il prompt
+            da solo non basta a farsi seguire dal modello.
+            """
             if not has_filter_request and 'FILTER CASE WHERE' in current_query.upper():
                 collection_match = re.search(r'GET\s+COLLECTION\s+\w+', current_query, re.IGNORECASE)
                 if collection_match:
                     current_query = collection_match.group(0) + ";"
 
-            # Estrazione robusta della query JCoQL+ dal testo grezzo del LLM. Sostituisce
-            # una logica precedente basata su filtro riga-per-riga, che falliva quando il
-            # LLM avvolgeva la query in backtick SINGOLI (` query `): il carattere backtick
-            # rompeva sia il controllo "la riga inizia con una parola chiave" sia "la riga
-            # finisce con ;", lasciando la lista di righe valide vuota e la query grezza
-            # (incluso testo conversazionale tipo "Ecco la query...") intatta, con
-            # conseguente errore di parsing sul primo token estraneo.
+            """
+            Estrazione robusta della query JCoQL+ dal testo grezzo del LLM. Sostituisce
+            una logica precedente basata su filtro riga-per-riga, che falliva quando il
+            LLM avvolgeva la query in backtick SINGOLI (` query `): il carattere backtick
+            rompeva sia il controllo "la riga inizia con una parola chiave" sia "la riga
+            finisce con ;", lasciando la lista di righe valide vuota e la query grezza
+            (incluso testo conversazionale tipo "Ecco la query...") intatta, con
+            conseguente errore di parsing sul primo token estraneo.
+            """
             def _extract_jcoql_query(raw_text):
                 text = raw_text.strip()
 
-                # 1. Preferisci il contenuto di un blocco markdown, tripli o singoli backtick
+                """1. Preferisci il contenuto di un blocco markdown, tripli o singoli backtick"""
                 triple = re.search(r'```(?:jcoql|sql)?\s*\n?(.*?)\n?```', text, re.DOTALL)
                 if triple:
                     text = triple.group(1).strip()
@@ -2292,13 +2321,15 @@ Usa ESATTAMENTE i nomi campi dello schema. NESSUN testo aggiuntivo.
             if clean_lines:
                 current_query = '\n'.join(clean_lines).strip()
 
-            # Rilevamento di "leakage" del template di prompt: capita che un modello più
-            # debole (osservato con Gemma) non generi una query nuova per la richiesta,
-            # ma copi letteralmente pezzi del prompt stesso (marcatori come "USER QUERY:",
-            # "ESEMPI SIMILI", lo schema, o intere query degli esempi RAG concatenate senza
-            # punti e virgola tra loro). In questo caso il parser produce una lunga lista di
-            # errori "missing SC" poco utili per il repair loop - qui diamo invece un
-            # messaggio esplicito e azionabile.
+            """
+            Rilevamento di "leakage" del template di prompt: capita che un modello più
+            debole (osservato con Gemma) non generi una query nuova per la richiesta,
+            ma copi letteralmente pezzi del prompt stesso (marcatori come "USER QUERY:",
+            "ESEMPI SIMILI", lo schema, o intere query degli esempi RAG concatenate senza
+            punti e virgola tra loro). In questo caso il parser produce una lunga lista di
+            errori "missing SC" poco utili per il repair loop - qui diamo invece un
+            messaggio esplicito e azionabile.
+            """
             prompt_leakage_hint = None
             leakage_markers = ["USER QUERY", "ESEMPI SIMILI", "SCHEMA MONGODB REALE", "REGOLA CRITICA"]
             found_marker = next((m for m in leakage_markers if m in current_query.upper()), None)
@@ -2319,64 +2350,80 @@ Usa ESATTAMENTE i nomi campi dello schema. NESSUN testo aggiuntivo.
                 cut_idx = current_query.upper().find(found_marker)
                 current_query = current_query[:cut_idx].strip()
 
-            # Auto-correzione sintattica
-            # Nota: qui si controlla solo il prefisso "QUERY:", non anche
-            # "Operazione" come fa invece query_corrector.correct_query()
-            # al suo interno (vedi query_corrector.py) — controllo un po'
-            # più permissivo qui, la doppia rete di sicurezza dentro
-            # correct_query() copre comunque anche quel caso.
+            """
+            Auto-correzione sintattica
+            Nota: qui si controlla solo il prefisso "QUERY:", non anche
+            "Operazione" come fa invece query_corrector.correct_query()
+            al suo interno (vedi query_corrector.py) — controllo un po'
+            più permissivo qui, la doppia rete di sicurezza dentro
+            correct_query() copre comunque anche quel caso.
+            """
             if current_query and not current_query.startswith("QUERY:"):
                 current_query, _ = correct_query(current_query)
 
-            # Costruzione multi-database deterministica: se 2+ database
-            # sono selezionati, ricostruisce una query semplice "GET
-            # COLLECTION X;" in un MERGE su tutti i database selezionati
-            # — vedi _build_multi_database_query per il perché. Va DOPO
-            # l'auto-correzione sintattica sopra (lavora su una query già
-            # ripulita) e PRIMA delle riparazioni sotto, così quelle si
-            # applicano già alla versione multi-database se necessario.
+            """
+            Costruzione multi-database deterministica: se 2+ database
+            sono selezionati, ricostruisce una query semplice "GET
+            COLLECTION X;" in un MERGE su tutti i database selezionati
+            — vedi _build_multi_database_query per il perché. Va DOPO
+            l'auto-correzione sintattica sopra (lavora su una query già
+            ripulita) e PRIMA delle riparazioni sotto, così quelle si
+            applicano già alla versione multi-database se necessario.
+            """
             current_query = _build_multi_database_query(current_query, request.databases, db_registry.databases)
 
-            # Riparazione deterministica: FILTER che confronta con =/!= un
-            # campo che lo schema conosce come array — vedi
-            # _fix_array_field_filter per il perché (regressione introdotta
-            # dalla strategia "auto SAVE AS", che ha tolto una gestione
-            # esplicita degli array che prima esisteva lato Python).
+            """
+            Riparazione deterministica: FILTER che confronta con =/!= un
+            campo che lo schema conosce come array — vedi
+            _fix_array_field_filter per il perché (regressione introdotta
+            dalla strategia "auto SAVE AS", che ha tolto una gestione
+            esplicita degli array che prima esisteva lato Python).
+            """
             current_query = _fix_array_field_filter(current_query, current_schema)
 
-            # Riparazione deterministica: N EXPAND consecutivi seguiti da
-            # un unico FILTER combinato — riscritta a stadi per evitare il
-            # prodotto di tutte le combinazioni su collection grandi (vedi
-            # _stage_multi_expand_filter — timeout osservato due volte dal
-            # vivo su sample_mflix.movies).
+            """
+            Riparazione deterministica: N EXPAND consecutivi seguiti da
+            un unico FILTER combinato — riscritta a stadi per evitare il
+            prodotto di tutte le combinazioni su collection grandi (vedi
+            _stage_multi_expand_filter — timeout osservato due volte dal
+            vivo su sample_mflix.movies).
+            """
             current_query = _stage_multi_expand_filter(current_query, current_db)
 
-            # Riparazione deterministica: EXPAND fatto prima di un JOIN
-            # che riusa la stessa collection — riscritta scambiando
-            # l'ordine (JOIN poi EXPAND), invece di calcolare un livello
-            # di annidamento extra sul posto. Va PRIMA della riparazione
-            # sul livello ".item" mancante sotto, così quella lavora già
-            # sulla struttura riordinata. Vedi _reorder_expand_before_join.
+            """
+            Riparazione deterministica: EXPAND fatto prima di un JOIN
+            che riusa la stessa collection — riscritta scambiando
+            l'ordine (JOIN poi EXPAND), invece di calcolare un livello
+            di annidamento extra sul posto. Va PRIMA della riparazione
+            sul livello ".item" mancante sotto, così quella lavora già
+            sulla struttura riordinata. Vedi _reorder_expand_before_join.
+            """
             current_query = _reorder_expand_before_join(current_query)
 
-            # Riparazione deterministica: percorso dopo EXPAND con un
-            # livello ".item" mancante — vedi _fix_missing_expand_item_wrapper.
-            # A differenza delle altre riparazioni su EXPAND, qui la
-            # correzione è certa (non richiede un altro tentativo).
+            """
+            Riparazione deterministica: percorso dopo EXPAND con un
+            livello ".item" mancante — vedi _fix_missing_expand_item_wrapper.
+            A differenza delle altre riparazioni su EXPAND, qui la
+            correzione è certa (non richiede un altro tentativo).
+            """
             current_query = _fix_missing_expand_item_wrapper(current_query)
 
-            # Riparazione deterministica: KEEP OTHERS di troppo su un
-            # FILTER senza GENERATE — vedi _remove_pointless_keep_others.
-            # Riguarda ogni FILTER senza GENERATE, non solo quelli prima
-            # di un SAVE (KEEP OTHERS è sempre privo di effetto utile in
-            # quel caso, a prescindere da cosa viene dopo).
+            """
+            Riparazione deterministica: KEEP OTHERS di troppo su un
+            FILTER senza GENERATE — vedi _remove_pointless_keep_others.
+            Riguarda ogni FILTER senza GENERATE, non solo quelli prima
+            di un SAVE (KEEP OTHERS è sempre privo di effetto utile in
+            quel caso, a prescindere da cosa viene dopo).
+            """
             current_query = _remove_pointless_keep_others(current_query)
 
-            # Riparazione deterministica: punto e virgola mancante tra la
-            # condizione del FILTER e un SAVE AS/SAVE TO FILE subito dopo
-            # — vedi _fix_missing_semicolon_before_save. Va DOPO la
-            # riparazione sopra (toglie KEEP OTHERS), così corregge anche
-            # il punto e virgola che a volte sparisce insieme ad esso.
+            """
+            Riparazione deterministica: punto e virgola mancante tra la
+            condizione del FILTER e un SAVE AS/SAVE TO FILE subito dopo
+            — vedi _fix_missing_semicolon_before_save. Va DOPO la
+            riparazione sopra (toglie KEEP OTHERS), così corregge anche
+            il punto e virgola che a volte sparisce insieme ad esso.
+            """
             current_query = _fix_missing_semicolon_before_save(current_query)
 
             # Riparazione deterministica: true/false minuscoli in un
@@ -2393,161 +2440,220 @@ Usa ESATTAMENTE i nomi campi dello schema. NESSUN testo aggiuntivo.
             # _add_remove_duplicates_if_same_source.
             current_query = _add_remove_duplicates_if_same_source(current_query)
 
-            # Riparazione deterministica: @database mancante su un
-            # riferimento a collection dentro JOIN OF COLLECTIONS o MERGE
-            # COLLECTIONS (osservato in un JOIN concatenato — il modello
-            # aveva scritto correttamente "chaintemp1@jcoql_test"
-            # ma dimenticato "@jcoql_test" su "users"/"orders"/"products").
-            # Senza @database esplicito il motore cerca il nome tra le
-            # collection temporanee della pipeline, non su MongoDB — quindi
-            # non è un dettaglio stilistico, la query fallirebbe a runtime.
-            # Stessa filosofia della riparazione per GET DICTIONARY sopra:
-            # più affidabile ripararlo qui che sperare in un altro
-            # tentativo di generazione.
+            """
+            Riparazione deterministica: @database mancante su un
+            riferimento a collection dentro JOIN OF COLLECTIONS o MERGE
+            COLLECTIONS (osservato in un JOIN concatenato — il modello
+            aveva scritto correttamente "chaintemp1@jcoql_test"
+            ma dimenticato "@jcoql_test" su "users"/"orders"/"products").
+            Senza @database esplicito il motore cerca il nome tra le
+            collection temporanee della pipeline, non su MongoDB — quindi
+            non è un dettaglio stilistico, la query fallirebbe a runtime.
+            Stessa filosofia della riparazione per GET DICTIONARY sopra:
+            più affidabile ripararlo qui che sperare in un altro
+            tentativo di generazione.
+            """
             current_query = _fix_missing_collection_db(current_query, current_db)
 
-            # Riparazione deterministica, seconda parte: @database presente
-            # ma inventato (osservato subito dopo aver corretto il caso
-            # sopra — il modello ha iniziato ad aggiungere "USE DB
-            # users;"/"USE DB products;", usando nomi di collection come se
-            # fossero database — nessuno dei due esiste come database
-            # reale). Confrontato contro db_registry.databases, l'elenco
-            # vero di quello che è davvero connesso.
+            """
+            Riparazione deterministica, seconda parte: @database presente
+            ma inventato (osservato subito dopo aver corretto il caso
+            sopra — il modello ha iniziato ad aggiungere "USE DB
+            users;"/"USE DB products;", usando nomi di collection come se
+            fossero database — nessuno dei due esiste come database
+            reale). Confrontato contro db_registry.databases, l'elenco
+            vero di quello che è davvero connesso.
+            """
             current_query = _fix_hallucinated_databases(
                 current_query, current_db, set(db_registry.databases.keys())
             )
 
-            # Validazione sintattica ANTLR
+            """Validazione sintattica ANTLR"""
             is_valid, errors = parser.validate(current_query)
 
-            # Controllo semantico aggiuntivo, non rilevabile dal parser (che
-            # vede TRANSLATE(...) come sintatticamente valido a prescindere):
-            # TRANSLATE senza il GET DICTIONARY corrispondente è sempre una
-            # query rotta a runtime (l'alias del dizionario non esiste).
-            # L'abbiamo trovato succedere nonostante l'istruzione nel prompt
-            # — qui c'è la rete di sicurezza che forza un altro tentativo
-            # invece di lasciar passare una query semanticamente invalida.
+            """
+            Controllo semantico aggiuntivo, non rilevabile dal parser (che
+            vede TRANSLATE(...) come sintatticamente valido a prescindere):
+            TRANSLATE senza il GET DICTIONARY corrispondente è sempre una
+            query rotta a runtime (l'alias del dizionario non esiste). Ma
+            anche un GET DICTIONARY PRESENTE non basta a renderla corretta:
+            se il nome della collezione non corrisponde a una collezione
+            reale a forma di dizionario (solo campi "key"/"value"), TRANSLATE
+            restituisce silenziosamente il valore originale invariato, senza
+            nessun errore (osservato dal vivo più volte: il modello prende
+            per buona la prima parola dopo "dizionario"/"tramite"/"per" nella
+            richiesta, es. "disponibile"/"degli"/"per", invece del nome vero
+            di una collezione). Qui c'è la rete di sicurezza per entrambi i
+            casi, invece di lasciar passare una query semanticamente rotta.
+            """
             translate_match = re.search(r'TRANSLATE\s*\(\s*[^,]+,\s*(\w+)', current_query, re.IGNORECASE)
-            if is_valid and translate_match \
-                    and not re.search(r'GET\s+DICTIONARY', current_query, re.IGNORECASE):
+            get_dict_match = re.search(
+                r'GET\s+DICTIONARY\s+(\w+)@(\w+)\s+AS\s+(\w+)', current_query, re.IGNORECASE
+            )
+
+            def _is_dict_shaped(coll_name):
+                coll_data = (current_schema or {}).get(coll_name, {})
+                coll_fields = set(((coll_data or {}).get('fields', {}) or {}).keys())
+                coll_fields.discard('_id')
+                return coll_fields == {'key', 'value'}
+
+            dict_name_wrong = get_dict_match is not None and not _is_dict_shaped(get_dict_match.group(1))
+
+            if is_valid and translate_match and (not get_dict_match or dict_name_wrong):
                 used_alias = translate_match.group(1)
                 # Di default consideriamo la query non valida finché non
                 # riusciamo a ripararla sotto — evita che, se l'estrazione del
                 # nome dizionario fallisce, is_valid resti erroneamente True.
                 is_valid = False
 
-                # AUTO-RIPARAZIONE: dopo aver verificato che l'LLM (anche
-                # Gemini) non si corregge in modo affidabile su questo caso
-                # specifico nemmeno con un esempio RAG pertinente recuperato
-                # e un feedback "prima/dopo" esplicito (verificato via log
-                # JCOQL_DEBUG — l'esempio giusto era tra i recuperati, il
-                # problema non è il RAG), costruiamo noi la riga mancante
-                # invece di richiederla ancora al modello. L'unica cosa che
-                # non sappiamo con certezza è quale collection usare come
-                # dizionario — ma chi chiede una traduzione di solito la nomina
-                # esplicitamente ("usando il dizionario X", "tramite X"), quindi
-                # proviamo a estrarla dalla richiesta originale dell'utente.
+                """
+                AUTO-RIPARAZIONE: dopo aver verificato che l'LLM (anche
+                Gemini) non si corregge in modo affidabile su questo caso
+                specifico nemmeno con un esempio RAG pertinente recuperato
+                e un feedback "prima/dopo" esplicito (verificato via log
+                JCOQL_DEBUG — l'esempio giusto era tra i recuperati, il
+                problema non è il RAG), costruiamo noi la riga mancante (o
+                corretta) invece di richiederla ancora al modello. L'unica
+                cosa che non sappiamo con certezza è quale collection usare
+                come dizionario — ma chi chiede una traduzione di solito la
+                nomina esplicitamente ("usando il dizionario X", "tramite
+                X"), quindi proviamo a estrarla dalla richiesta originale
+                dell'utente (non dalla query generata, dove può essere già
+                sbagliata).
+                """
                 dict_name_match = re.search(
                     r'dizionario\s+(\w+)|tramite\s+(?:il\s+)?(\w+)',
                     request.nl_query, re.IGNORECASE
                 )
                 dict_collection = None
                 if dict_name_match:
-                    dict_collection = dict_name_match.group(1) or dict_name_match.group(2)
+                    candidate = dict_name_match.group(1) or dict_name_match.group(2)
+                    if _is_dict_shaped(candidate):
+                        dict_collection = candidate
 
-                # FALLBACK: osservato dal vivo che una richiesta di
-                # traduzione formulata in modo naturale ("tradotta in
-                # italiano") non nomina affatto il dizionario — il tentativo
-                # sopra non ha nulla da estrarre. Prima di arrendersi,
-                # cerca nello schema del database corrente l'UNICA
-                # collection con la forma tipica di un dizionario (solo
-                # campi "key"/"value", a parte _id) — se ce n'è esattamente
-                # una, non c'è ambiguità da indovinare, usala. Se ce n'è
-                # più di una o nessuna, non si tenta nulla: resta il
-                # messaggio di errore esplicito sotto, che chiede
-                # all'utente di specificare quale.
+                """
+                FALLBACK: osservato dal vivo che una richiesta di
+                traduzione formulata in modo naturale ("tradotta in
+                italiano") non nomina affatto il dizionario, o lo nomina con
+                una parola che non è un nome di collezione reale (stesso
+                pattern del caso principale sopra) — il tentativo sopra non
+                ha nulla di utilizzabile da estrarre. Prima di arrendersi,
+                cerca nello schema del database corrente l'UNICA collection
+                con la forma tipica di un dizionario (solo campi
+                "key"/"value", a parte _id) — se ce n'è esattamente una, non
+                c'è ambiguità da indovinare, usala. Se ce n'è più di una o
+                nessuna, non si tenta nulla: resta il messaggio di errore
+                esplicito sotto, che chiede all'utente di specificare quale.
+                """
                 if not dict_collection:
-                    dict_candidates = []
-                    for coll_name, coll_data in (current_schema or {}).items():
-                        coll_fields = set(((coll_data or {}).get('fields', {}) or {}).keys())
-                        coll_fields.discard('_id')
-                        if coll_fields == {'key', 'value'}:
-                            dict_candidates.append(coll_name)
+                    dict_candidates = [
+                        coll_name for coll_name in (current_schema or {})
+                        if _is_dict_shaped(coll_name)
+                    ]
                     if len(dict_candidates) == 1:
                         dict_collection = dict_candidates[0]
                         query_logger.info(
-                            f"🔧 Nessun nome dizionario nella richiesta — trovata un'unica "
-                            f"collection a forma di dizionario nello schema: '{dict_collection}'"
+                            f"🔧 Nessun nome dizionario valido nella richiesta — trovata "
+                            f"un'unica collection a forma di dizionario nello schema: "
+                            f"'{dict_collection}'"
                         )
 
                 if dict_collection:
-                    repaired_query = (
-                        f"GET DICTIONARY {dict_collection}@{current_db} AS {used_alias};\n"
-                        f"{current_query}"
-                    )
+                    if get_dict_match:
+                        # Sostituisce SOLO il nome della collezione sbagliata,
+                        # lasciando invariati @database, alias e resto della
+                        # query (che il modello ha già scritto correttamente).
+                        repaired_query = (
+                            current_query[:get_dict_match.start(1)]
+                            + dict_collection
+                            + current_query[get_dict_match.end(1):]
+                        )
+                        repair_desc = (
+                            f"sostituito il nome dizionario sbagliato "
+                            f"'{get_dict_match.group(1)}' con '{dict_collection}'"
+                        )
+                    else:
+                        repaired_query = (
+                            f"GET DICTIONARY {dict_collection}@{current_db} AS {used_alias};\n"
+                            f"{current_query}"
+                        )
+                        repair_desc = (
+                            f"aggiunta 'GET DICTIONARY {dict_collection}@{current_db} AS "
+                            f"{used_alias};' (GET DICTIONARY era del tutto assente)"
+                        )
                     repaired_valid, repaired_errors = parser.validate(repaired_query)
                     if repaired_valid:
                         query_logger.info(
-                            f"🔧 Auto-riparata query TRANSLATE senza GET DICTIONARY: "
-                            f"aggiunta 'GET DICTIONARY {dict_collection}@{current_db} AS {used_alias};' "
-                            f"(nome dizionario estratto dalla richiesta utente, non generato dall'LLM)"
+                            f"🔧 Auto-riparata query TRANSLATE/GET DICTIONARY: {repair_desc} "
+                            f"(nome dizionario risolto dalla richiesta utente o dallo schema, "
+                            f"non generato dall'LLM)"
                         )
                         current_query = repaired_query
                         is_valid = True
 
-                # Se l'auto-riparazione non è stata possibile (nessun nome
-                # dizionario riconoscibile nella richiesta) o la query
-                # risultante non valida per un altro motivo, resta il
-                # messaggio di errore esplicito come fallback — l'utente in
-                # quel caso vedrà comunque un errore chiaro, non un fallimento
-                # silenzioso.
+                """
+                Se l'auto-riparazione non è stata possibile (nessun nome
+                dizionario riconoscibile/valido) o la query risultante non
+                valida per un altro motivo, resta il messaggio di errore
+                esplicito come fallback — l'utente in quel caso vedrà
+                comunque un errore chiaro, non un fallimento silenzioso.
+                """
                 if not is_valid:
                   errors = [type('Err', (), {
                     'message': (
                         f"NON RISCRIVERE la query da zero, NON rinominare '{used_alias}': "
-                        f"ti manca solo UNA riga da aggiungere in cima, il resto della query "
-                        f"che hai già scritto va bene così com'è. Esempio concreto — "
-                        f"da questo (quello che hai appena generato, sbagliato):\n"
+                        f"ti manca solo UNA riga da aggiungere in cima (o il nome della "
+                        f"collezione dizionario è sbagliato — non è una collezione reale "
+                        f"dello schema), il resto della query che hai già scritto va bene "
+                        f"così com'è. Esempio concreto — da questo (quello che hai appena "
+                        f"generato, sbagliato):\n"
                         f"{current_query}\n"
                         f"...a questo (corretto — stessa identica query, con una sola riga "
-                        f"aggiunta in cima):\n"
-                        f"GET DICTIONARY <nome_collezione_dizionario>@{current_db} AS {used_alias};\n"
+                        f"aggiunta in cima, USANDO SOLO un nome di collezione reale elencato "
+                        f"nello SCHEMA MONGODB REALE sopra):\n"
+                        f"GET DICTIONARY <nome_collezione_dizionario_reale>@{current_db} AS {used_alias};\n"
                         f"{current_query}"
                     )
                   })()]
 
-            # Controllo semantico: JOIN che confronta lo stesso nome di
-            # campo su due collezioni con tipi diversi per quel campo (vedi
-            # _check_join_type_mismatch — non è un pattern fisso su un nome
-            # specifico, guarda i tipi realmente scoperti). Non riparato in
-            # automatico (a differenza dei due casi sopra): qui non sappiamo
-            # con certezza quale sia il campo giusto, solo che quello scelto
-            # è sospetto — meglio dirlo esplicitamente al modello e dargli
-            # un altro tentativo con un indizio concreto, piuttosto che
-            # indovinare noi un sostituto.
+            """
+            Controllo semantico: JOIN che confronta lo stesso nome di
+            campo su due collezioni con tipi diversi per quel campo (vedi
+            _check_join_type_mismatch — non è un pattern fisso su un nome
+            specifico, guarda i tipi realmente scoperti). Non riparato in
+            automatico (a differenza dei due casi sopra): qui non sappiamo
+            con certezza quale sia il campo giusto, solo che quello scelto
+            è sospetto — meglio dirlo esplicitamente al modello e dargli
+            un altro tentativo con un indizio concreto, piuttosto che
+            indovinare noi un sostituto.
+            """
             if is_valid:
                 type_mismatch_msg = _check_join_type_mismatch(current_query, db_registry.databases)
                 if type_mismatch_msg:
                     is_valid = False
                     errors = [type('Err', (), {'message': type_mismatch_msg})()]
 
-            # Controllo empirico: campi con NOMI DIVERSI, stesso
-            # tipo, ma valori che non si sovrappongono mai nei dati veri —
-            # vedi _check_join_key_data_overlap. Complementare al
-            # controllo di tipo sopra, non sostitutivo: quello copre
-            # "stesso nome, tipo diverso", questo copre "nome diverso,
-            # tipo uguale, valori scorrelati".
+            """
+            Controllo empirico: campi con NOMI DIVERSI, stesso
+            tipo, ma valori che non si sovrappongono mai nei dati veri —
+            vedi _check_join_key_data_overlap. Complementare al
+            controllo di tipo sopra, non sostitutivo: quello copre
+            "stesso nome, tipo diverso", questo copre "nome diverso,
+            tipo uguale, valori scorrelati".
+            """
             if is_valid:
                 overlap_msg = _check_join_key_data_overlap(current_query, db_registry.databases)
                 if overlap_msg:
                     is_valid = False
                     errors = [type('Err', (), {'message': overlap_msg})()]
 
-            # Controllo semantico: riferimento a un elemento espanso
-            # (.nome.item) il cui EXPAND non è mai stato dichiarato — vedi
-            # _check_undeclared_expand_reference. Stessa filosofia di
-            # quello sopra: non prova a indovinare il campo giusto, forza
-            # un altro tentativo con l'elenco dei campi array veri.
+            """
+            Controllo semantico: riferimento a un elemento espanso
+            (.nome.item) il cui EXPAND non è mai stato dichiarato — vedi
+            _check_undeclared_expand_reference. Stessa filosofia di
+            quello sopra: non prova a indovinare il campo giusto, forza
+            un altro tentativo con l'elenco dei campi array veri.
+            """
             if is_valid:
                 undeclared_msg = _check_undeclared_expand_reference(current_query, current_schema)
                 if undeclared_msg:
@@ -2556,10 +2662,12 @@ Usa ESATTAMENTE i nomi campi dello schema. NESSUN testo aggiuntivo.
 
             if not is_valid:
                 error_messages = [err.message for err in errors] if errors else ["Errore sintattico"]
-                # Se avevamo rilevato leakage del prompt o l'assenza di GET COLLECTION,
-                # questi suggerimenti espliciti vanno in testa: sono più utili al LLM del
-                # solo errore ANTLR generico (che nel caso del leakage può arrivare a
-                # dozzine di "missing SC" quasi identici e poco azionabili).
+                """
+                Se avevamo rilevato leakage del prompt o l'assenza di GET COLLECTION,
+                questi suggerimenti espliciti vanno in testa: sono più utili al LLM del
+                solo errore ANTLR generico (che nel caso del leakage può arrivare a
+                dozzine di "missing SC" quasi identici e poco azionabili).
+                """
                 if prompt_leakage_hint:
                     error_messages = [prompt_leakage_hint] + error_messages
                 if missing_get_collection_hint:
@@ -2569,14 +2677,16 @@ Usa ESATTAMENTE i nomi campi dello schema. NESSUN testo aggiuntivo.
 
         except Exception as e:
             query_logger.error(f"⚠️ Errore durante la generazione: {e}")
-            # Riconosciamo il caso di limite di quota (429, comune durante
-            # test ravvicinati) in base al testo dell'errore, invece di
-            # rimandare sempre lo stesso 500 generico che lascerebbe
-            # l'utente senza nessun indizio su cosa fare (aspettare
-            # qualche secondo) — non serve sapere il nome esatto della
-            # classe di eccezione della libreria Google, basta cercare i
-            # segnali che compaiono nel loro stesso messaggio. Il resto
-            # degli errori resta gestito come prima.
+            """
+            Riconosciamo il caso di limite di quota (429, comune durante
+            test ravvicinati) in base al testo dell'errore, invece di
+            rimandare sempre lo stesso 500 generico che lascerebbe
+            l'utente senza nessun indizio su cosa fare (aspettare
+            qualche secondo) — non serve sapere il nome esatto della
+            classe di eccezione della libreria Google, basta cercare i
+            segnali che compaiono nel loro stesso messaggio. Il resto
+            degli errori resta gestito come prima.
+            """
             error_str = str(e)
             if '429' in error_str or 'quota' in error_str.lower() or 'rate limit' in error_str.lower():
                 raise HTTPException(
@@ -2618,15 +2728,17 @@ Usa ESATTAMENTE i nomi campi dello schema. NESSUN testo aggiuntivo.
             print("   (nessun esempio recuperato)")
 
     elapsed = time.time() - start_time
-    # Logga anche il testo della query JCoQL generata, non solo esito e
-    # tempo — altrimenti recuperabile nei log SOLO se la query viene poi
-    # anche eseguita (endpoint /api/execute, che logga "📤 Esecuzione:
-    # ..."). Una query generata/validata ma mai eseguita (es. l'utente non
-    # preme "esegui", o rigenera più volte per confrontare) resterebbe
-    # altrimenti invisibile: impossibile capire a posteriori quale
-    # campo/sintassi avesse scelto l'LLM. repr() (!r) tiene la query
-    # multi-riga su una sola riga di log (newline come \n), per non
-    # spezzare il grep tra più righe.
+    """
+    Logga anche il testo della query JCoQL generata, non solo esito e
+    tempo — altrimenti recuperabile nei log SOLO se la query viene poi
+    anche eseguita (endpoint /api/execute, che logga "📤 Esecuzione:
+    ..."). Una query generata/validata ma mai eseguita (es. l'utente non
+    preme "esegui", o rigenera più volte per confrontare) resterebbe
+    altrimenti invisibile: impossibile capire a posteriori quale
+    campo/sintassi avesse scelto l'LLM. repr() (!r) tiene la query
+    multi-riga su una sola riga di log (newline come \n), per non
+    spezzare il grep tra più righe.
+    """
     query_logger.info(
         f"✅ Query processata in {elapsed:.3f}s | Valida: {result['is_valid']} | "
         f"Query: {result['jcoql_query']!r}"
@@ -2670,7 +2782,7 @@ async def execute_query(request: QueryRequest):
     exec_start_time = time.time()
 
     try:
-        # 1. Estrazione di TUTTI i campi dalla request (evita NameError)
+        """1. Estrazione di TUTTI i campi dalla request (evita NameError)"""
         jcoql_query = request.jcoql_query.strip() if request.jcoql_query else ""
         databases = request.databases or []
         database_name = request.database_name
@@ -2680,20 +2792,22 @@ async def execute_query(request: QueryRequest):
         if not jcoql_query:
             return {"success": False, "error": "Query vuota"}
 
-        # 2. Gestione JOIN mode (se presente)
-        # join_executor.execute_join() presuppone sempre che jcoql_query
-        # sia una query semplice ("GET COLLECTION nome; ...") da cui
-        # costruire lui il JOIN nativo — ma dopo un'esecuzione il pannello
-        # frontend si riallinea alla query REALMENTE eseguita
-        # (comportamento voluto, per mostrare cosa gira davvero), che per
-        # un JOIN è già un "JOIN OF COLLECTIONS ...;" completo. Se poi si
-        # riesegue senza rigenerare da linguaggio naturale, join_config è
-        # ancora attivo ma jcoql_query non è più una query semplice —
-        # join_executor fallirebbe con "Impossibile estrarre il nome della
-        # collection" perché cerca un pattern "GET COLLECTION" che non c'è
-        # più. Se il testo è già una query JOIN completa, la eseguiamo
-        # così com'è (stesso percorso di qualunque altra query diretta),
-        # invece di provare a ricostruirla da zero.
+        """
+        2. Gestione JOIN mode (se presente)
+        join_executor.execute_join() presuppone sempre che jcoql_query
+        sia una query semplice ("GET COLLECTION nome; ...") da cui
+        costruire lui il JOIN nativo — ma dopo un'esecuzione il pannello
+        frontend si riallinea alla query REALMENTE eseguita
+        (comportamento voluto, per mostrare cosa gira davvero), che per
+        un JOIN è già un "JOIN OF COLLECTIONS ...;" completo. Se poi si
+        riesegue senza rigenerare da linguaggio naturale, join_config è
+        ancora attivo ma jcoql_query non è più una query semplice —
+        join_executor fallirebbe con "Impossibile estrarre il nome della
+        collection" perché cerca un pattern "GET COLLECTION" che non c'è
+        più. Se il testo è già una query JOIN completa, la eseguiamo
+        così com'è (stesso percorso di qualunque altra query diretta),
+        invece di provare a ricostruirla da zero.
+        """
         query_is_already_join = bool(re.search(r'JOIN\s+OF\s+COLLECTIONS', jcoql_query, re.IGNORECASE))
 
         if join_config and len(databases) >= 2 and not query_is_already_join:
@@ -2701,23 +2815,27 @@ async def execute_query(request: QueryRequest):
             join_executor = JoinExecutor(ExecutorFactory, parser, db_registry)
             actual_results, native_join_query, join_error = join_executor.execute_join(jcoql_query, join_config)
 
-            # Se la query nativa non è stata nemmeno costruita (es. tipo di
-            # JOIN diverso da INNER, non supportato — vedi docstring di
-            # join_executor.py) o l'esecuzione sul motore è fallita,
-            # restituiamo l'errore vero invece di un silenzioso "0 risultati"
-            # che sembrerebbe un JOIN semplicemente senza corrispondenze.
+            """
+            Se la query nativa non è stata nemmeno costruita (es. tipo di
+            JOIN diverso da INNER, non supportato — vedi docstring di
+            join_executor.py) o l'esecuzione sul motore è fallita,
+            restituiamo l'errore vero invece di un silenzioso "0 risultati"
+            che sembrerebbe un JOIN semplicemente senza corrispondenze.
+            """
             if join_error:
                 query_logger.warning(f"⚠️ JOIN non riuscito: {join_error}")
                 return {"success": False, "error": join_error}
 
             actual_count = len(actual_results)
-            # Stringa solo descrittiva per il campo "database" della
-            # risposta (usata per il testo mostrato in UI) — "db1 ⊕ db2"
-            # non è un nome di database Mongo valido, è per questo che
-            # QueryExecutor.jsx (frontend) tratta il caso join_config
-            # presente separatamente, mostrando la query nativa reale
-            # (native_join_query) invece di usare questo valore come se
-            # fosse un database singolo.
+            """
+            Stringa solo descrittiva per il campo "database" della
+            risposta (usata per il testo mostrato in UI) — "db1 ⊕ db2"
+            non è un nome di database Mongo valido, è per questo che
+            QueryExecutor.jsx (frontend) tratta il caso join_config
+            presente separatamente, mostrando la query nativa reale
+            (native_join_query) invece di usare questo valore come se
+            fosse un database singolo.
+            """
             target_db = f"{join_config.get('db1', '')} ⊕ {join_config.get('db2', '')}"
             
             return {
@@ -2730,21 +2848,23 @@ async def execute_query(request: QueryRequest):
                 "mongo_query": None
             }
 
-        # 3. Determinazione dinamica del Database Target dal registro o dalla request
+        """3. Determinazione dinamica del Database Target dal registro o dalla request"""
         target_db = database_name or db_registry.get_current_database_name() or "jcoql_test"
 
-        # Ricrea l'executor se il database è diverso
-        # Nota: questo controllo funziona solo con l'executor
-        # jco_framework_executor_v2.py, che imposta self.database_name
-        # nel proprio __init__ (verificato). L'executor alternativo
-        # python_translator.py (ExecutorType.PYTHON_TRANSLATOR) non
-        # imposta questo attributo — se ACTIVE_EXECUTOR è impostato su
-        # "python_translator", hasattr(executor, 'database_name') è
-        # sempre False dopo la prima creazione, quindi l'executor non
-        # viene mai ricreato al cambio di database target: le richieste
-        # successive continuerebbero a interrogare il primo database con
-        # cui l'executor è stato creato, indipendentemente da target_db.
-        # Con l'executor di default (jco_framework) questo non succede.
+        """
+        Ricrea l'executor se il database è diverso
+        Nota: questo controllo funziona solo con l'executor
+        jco_framework_executor_v2.py, che imposta self.database_name
+        nel proprio __init__ (verificato). L'executor alternativo
+        python_translator.py (ExecutorType.PYTHON_TRANSLATOR) non
+        imposta questo attributo — se ACTIVE_EXECUTOR è impostato su
+        "python_translator", hasattr(executor, 'database_name') è
+        sempre False dopo la prima creazione, quindi l'executor non
+        viene mai ricreato al cambio di database target: le richieste
+        successive continuerebbero a interrogare il primo database con
+        cui l'executor è stato creato, indipendentemente da target_db.
+        Con l'executor di default (jco_framework) questo non succede.
+        """
         if not executor or (hasattr(executor, 'database_name') and executor.database_name != target_db):
             query_logger.info(f"🔄 Ricreazione executor per database: {target_db}")
             executor = ExecutorFactory.create_executor(
@@ -2755,19 +2875,23 @@ async def execute_query(request: QueryRequest):
 
         is_valid, errors = parser.validate(jcoql_query)
         if not is_valid:
-            # Logga il dettaglio vero di 'errors' (riga, colonna, messaggio
-            # del parser), non solo "Query non valida" — altrimenti
-            # impossibile da diagnosticare lato utente, e i log di debug
-            # non sarebbero raggiunti perché l'esecuzione si ferma già
-            # qui, prima di arrivare all'executor.
+            """
+            Logga il dettaglio vero di 'errors' (riga, colonna, messaggio
+            del parser), non solo "Query non valida" — altrimenti
+            impossibile da diagnosticare lato utente, e i log di debug
+            non sarebbero raggiunti perché l'esecuzione si ferma già
+            qui, prima di arrivare all'executor.
+            """
             query_logger.warning(f"⚠️ Query non valida: {jcoql_query}")
             query_logger.warning(f"   Errori parser: {errors}")
-            # str(e) su un oggetto ValidationError stampa il repr Python
-            # di default ("<... object at 0x...>"), non il messaggio — va
-            # usato l'attributo .message dell'oggetto (il bug era mascherato
-            # finché 'errors' restava sempre vuota in questo punto
-            # specifico, un problema distinto già corretto in
-            # java_parser_wrapper.py).
+            """
+            str(e) su un oggetto ValidationError stampa il repr Python
+            di default ("<... object at 0x...>"), non il messaggio — va
+            usato l'attributo .message dell'oggetto (il bug era mascherato
+            finché 'errors' restava sempre vuota in questo punto
+            specifico, un problema distinto già corretto in
+            java_parser_wrapper.py).
+            """
             return {
                 "success": False,
                 "error": "Query non valida: " + "; ".join(e.message for e in errors) if errors else "Query non valida"
@@ -2776,15 +2900,17 @@ async def execute_query(request: QueryRequest):
         query_logger.info(f"📤 Esecuzione: {jcoql_query}")
         query_logger.info(f"📦 Database Attivo: {target_db}") 
 
-        # 4. Esecuzione passando il database target dinamico
-        # Modalità "database di grandi dimensioni / risultato non necessario"
-        # (count_only): salta il SAVE AS automatico usato per rileggere i
-        # documenti dal browser, restituisce solo il conteggio stampato dal
-        # motore - vedi execute_count_only() in jco_framework_executor_v2.py.
-        # hasattr: l'executor alternativo python_translator.py non ha questo
-        # metodo (non ne ha bisogno, legge già sempre da pymongo diretto) -
-        # in quel caso il flag viene ignorato silenziosamente, comportamento
-        # equivalente a count_only=False.
+        """
+        4. Esecuzione passando il database target dinamico
+        Modalità "database di grandi dimensioni / risultato non necessario"
+        (count_only): salta il SAVE AS automatico usato per rileggere i
+        documenti dal browser, restituisce solo il conteggio stampato dal
+        motore - vedi execute_count_only() in jco_framework_executor_v2.py.
+        hasattr: l'executor alternativo python_translator.py non ha questo
+        metodo (non ne ha bisogno, legge già sempre da pymongo diretto) -
+        in quel caso il flag viene ignorato silenziosamente, comportamento
+        equivalente a count_only=False.
+        """
         if count_only and hasattr(executor, 'execute_count_only'):
             query_logger.info("📊 Modalità count-only attiva (nessun SAVE AS automatico)")
             execution_result = executor.execute_count_only(jcoql_query)
@@ -2793,9 +2919,11 @@ async def execute_query(request: QueryRequest):
         exec_elapsed = time.time() - exec_start_time
         query_logger.info(f"⏱️ Esecuzione completata in {exec_elapsed:.3f}s")
 
-        # Log diagnostico di riepilogo di cosa ritorna l'executor (riepilogo, non il
-        # dump completo - con centinaia di documenti pesanti il dump intero rendeva
-        # illeggibile la console). Attivo solo con JCOQL_DEBUG=true.
+        """
+        Log diagnostico di riepilogo di cosa ritorna l'executor (riepilogo, non il
+        dump completo - con centinaia di documenti pesanti il dump intero rendeva
+        illeggibile la console). Attivo solo con JCOQL_DEBUG=true.
+        """
         if JCOQL_DEBUG:
             print(f"\n🔍 DEBUG execution_result keys: {execution_result.keys() if isinstance(execution_result, dict) else 'NOT A DICT'}")
             if isinstance(execution_result, dict):
@@ -2812,16 +2940,18 @@ async def execute_query(request: QueryRequest):
         actual_count = 0
         actual_results = []
 
-        # Normalizzazione della forma di execution_result: i due executor
-        # (jco_framework_executor_v2.py e python_translator.py) non
-        # restituiscono esattamente la stessa struttura dati (uno passa
-        # da un motore Java esterno con un formato di risposta più
-        # articolato, l'altro è puro Python/pymongo con un dict più
-        # semplice) — i rami sotto gestiscono le diverse combinazioni
-        # osservate invece di assumerne una sola.
+        """
+        Normalizzazione della forma di execution_result: i due executor
+        (jco_framework_executor_v2.py e python_translator.py) non
+        restituiscono esattamente la stessa struttura dati (uno passa
+        da un motore Java esterno con un formato di risposta più
+        articolato, l'altro è puro Python/pymongo con un dict più
+        semplice) — i rami sotto gestiscono le diverse combinazioni
+        osservate invece di assumerne una sola.
+        """
         if isinstance(execution_result, dict):
             if execution_result.get('success'):
-                # Controlla se 'count' esiste direttamente in execution_result
+                """Controlla se 'count' esiste direttamente in execution_result"""
                 if 'count' in execution_result:
                     actual_count = execution_result['count']
                     actual_results = execution_result.get('results', [])
@@ -2841,11 +2971,13 @@ async def execute_query(request: QueryRequest):
                 query_logger.error(f"❌ Errore Executor: {error_msg}")
                 return {"success": False, "error": error_msg, "execution_time_seconds": round(exec_elapsed, 3)}
 
-        # Trasparenza sul risultato: non blocca né modifica nulla, vedi
-        # _find_unresolved_id_references — solo una nota se
-        # il risultato contiene riferimenti .item.item.XXX_id mai
-        # risolti con un JOIN successivo, così l'utente non deve
-        # indovinare da solo se il risultato è completo.
+        """
+        Trasparenza sul risultato: non blocca né modifica nulla, vedi
+        _find_unresolved_id_references — solo una nota se
+        il risultato contiene riferimenti .item.item.XXX_id mai
+        risolti con un JOIN successivo, così l'utente non deve
+        indovinare da solo se il risultato è completo.
+        """
         unresolved_refs = _find_unresolved_id_references(actual_results) if isinstance(actual_results, list) else []
         response = {
             "success": True,
@@ -2875,24 +3007,26 @@ async def execute_query(request: QueryRequest):
         query_logger.error(traceback.format_exc())
         raise HTTPException(status_code=500, detail=str(e))
 
-# ==============================================================================
-# ENDPOINT: GESTIONE COLLEZIONI MONGODB
-# ==============================================================================
-# 🔴 Attenzione — i 4 endpoint di questa sezione presuppongono che
-# l'"executor" globale abbia un attributo .db (un oggetto pymongo
-# Database). Questo è vero SOLO per python_translator.py
-# (self.db = self.client[database], verificato), ma NON per
-# jco_framework_executor_v2.py (verificato: nessun self.db, nessuna
-# property "db" in tutto il file — la classe tiene solo mongo_uri e
-# database_name come stringhe, senza una connessione pymongo persistente
-# in un attributo con questo nome). Dato che ACTIVE_EXECUTOR di default è
-# "jco_framework" (riga ~90), nella configurazione standard del progetto
-# questi 4 endpoint sollevano AttributeError ad ogni chiamata — catturato
-# dal blocco try/except di ciascuno e restituito come errore 500, quindi
-# l'app non si blocca, ma questi endpoint non funzionano nella
-# configurazione di default. È la stessa causa per cui il componente
-# frontend UploadData.jsx, che li usa, è stato scollegato dal router
-# (vedi il commento in cima a quel file).
+"""
+==============================================================================
+ENDPOINT: GESTIONE COLLEZIONI MONGODB
+==============================================================================
+Attenzione — i 4 endpoint di questa sezione presuppongono che
+l'"executor" globale abbia un attributo .db (un oggetto pymongo
+Database). Questo è vero SOLO per python_translator.py
+(self.db = self.client[database], verificato), ma NON per
+jco_framework_executor_v2.py (verificato: nessun self.db, nessuna
+property "db" in tutto il file — la classe tiene solo mongo_uri e
+database_name come stringhe, senza una connessione pymongo persistente
+in un attributo con questo nome). Dato che ACTIVE_EXECUTOR di default è
+"jco_framework" (riga ~90), nella configurazione standard del progetto
+questi 4 endpoint sollevano AttributeError ad ogni chiamata — catturato
+dal blocco try/except di ciascuno e restituito come errore 500, quindi
+l'app non si blocca, ma questi endpoint non funzionano nella
+configurazione di default. È la stessa causa per cui il componente
+frontend UploadData.jsx, che li usa, è stato scollegato dal router
+(vedi il commento in cima a quel file).
+"""
 @app.get("/api/collections")
 async def list_collections():
     try:
@@ -3078,10 +3212,12 @@ async def disconnect_database(db_name: str):
                 "message": f"Database '{db_name}' non trovato"
             }
         
-        # Chiude la connessione MongoDB prima di scartare la entry —
-        # altrimenti il client resterebbe aperto in memoria senza che
-        # nulla lo referenzi più (piccola perdita di risorse ad ogni
-        # disconnect).
+        """
+        Chiude la connessione MongoDB prima di scartare la entry —
+        altrimenti il client resterebbe aperto in memoria senza che
+        nulla lo referenzi più (piccola perdita di risorse ad ogni
+        disconnect).
+        """
         try:
             db_registry.databases[db_name]["client"].close()
         except Exception:
@@ -3091,15 +3227,17 @@ async def disconnect_database(db_name: str):
         db_registry.databases.pop(db_name)
         db_logger.info(f"✅ Database '{db_name}' scollegato")
 
-        # Se il database appena scollegato era quello "corrente", va
-        # riassegnato current_database a un database ancora connesso
-        # rimasto (se ce n'è uno), altrimenti a None — senza, il nome
-        # resterebbe puntato a una chiave non più presente in
-        # db_registry.databases, e la prossima chiamata a
-        # get_current_schema() (es. dentro /api/generate) solleverebbe un
-        # KeyError non gestito, facendo fallire la generazione della
-        # query successiva con un errore 500 generico, apparentemente
-        # scollegato dall'azione di disconnect appena fatta.
+        """
+        Se il database appena scollegato era quello "corrente", va
+        riassegnato current_database a un database ancora connesso
+        rimasto (se ce n'è uno), altrimenti a None — senza, il nome
+        resterebbe puntato a una chiave non più presente in
+        db_registry.databases, e la prossima chiamata a
+        get_current_schema() (es. dentro /api/generate) solleverebbe un
+        KeyError non gestito, facendo fallire la generazione della
+        query successiva con un errore 500 generico, apparentemente
+        scollegato dall'azione di disconnect appena fatta.
+        """
         if was_current:
             remaining = list(db_registry.databases.keys())
             db_registry.current_database = remaining[0] if remaining else None
@@ -3130,16 +3268,18 @@ async def get_stats():
         try:
             for db_name, db_info in db_registry.databases.items():
                 db_list.append(db_name)
-                # db_info è il dizionario di metadati salvato da
-                # DatabaseRegistry.add_database() (uri, database_name,
-                # schema, client, collections) — non una connessione
-                # MongoDB, quindi non ha un metodo list_collection_names()
-                # (chiamarlo solleverebbe un AttributeError, ingoiato dal
-                # except sotto, lasciando collections_count sempre a 0).
-                # Il conteggio corretto è già calcolato e salvato in
-                # add_database come db_info["collections"] (len(schema) al
-                # momento della connessione) — lo si usa direttamente,
-                # senza bisogno di richiamare Mongo.
+                """
+                db_info è il dizionario di metadati salvato da
+                DatabaseRegistry.add_database() (uri, database_name,
+                schema, client, collections) — non una connessione
+                MongoDB, quindi non ha un metodo list_collection_names()
+                (chiamarlo solleverebbe un AttributeError, ingoiato dal
+                except sotto, lasciando collections_count sempre a 0).
+                Il conteggio corretto è già calcolato e salvato in
+                add_database come db_info["collections"] (len(schema) al
+                momento della connessione) — lo si usa direttamente,
+                senza bisogno di richiamare Mongo.
+                """
                 try:
                     collections_count += db_info.get("collections", 0)
                 except Exception:

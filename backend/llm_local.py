@@ -24,22 +24,32 @@ import ollama
 # senza, Ollama usa il default
 # del runtime, spesso solo 2048 token per molti modelli quantizzati, a
 # prescindere da quanto il modello supporterebbe davvero. Il prompt che
-# main.py costruisce oggi (grammatica JCoQL+ completa, fino a 6 esempi RAG,
-# schema reale con tipi ed esempi per ogni database selezionato, più tutte
-# le regole accumulate nel tempo) è probabilmente ben oltre quella soglia —
-# se la supera, Ollama tronca silenziosamente quello che arriva al modello,
-# che genera senza aver mai visto, ad esempio, lo schema reale. Questo
-# spiegherebbe da solo gran parte del divario di affidabilità osservato
-# rispetto a Gemini (che gestisce contesti grandi senza bisogno di alcuna
-# configurazione manuale).
+# main.py costruisce oggi (grammatica JCoQL+ completa o BASIC per i
+# modelli locali, fino a 6 esempi RAG, schema reale con tipi ed esempi per
+# ogni database selezionato, più tutte le regole accumulate nel tempo) può
+# superare facilmente un valore troppo basso — se lo supera, Ollama tronca
+# silenziosamente quello che arriva al modello, che genera senza aver mai
+# visto, ad esempio, lo schema reale o perfino la richiesta stessa (se il
+# taglio arriva a toccare la parte finale del prompt). Confermato dal vivo
+# il 30/09 su Llama con una richiesta a una sola parola ("utenti"): prompt
+# BASIC di ~18.345 token stimati contro un num_ctx di 8192 allora comune
+# a entrambi i modelli — più del doppio del contesto disponibile, con
+# Llama che ometteva sistematicamente GET COLLECTION o rispondeva con una
+# frase discorsiva invece di una query, su tutti e 3 i tentativi.
 #
-# 8192 è il limite massimo di contesto di Gemma 1 7B (il modello Gemma
-# davvero usato qui, non Gemma 2 9B — vedi nota in generate_with_gemma) —
-# usato per entrambi i modelli per semplicità e coerenza, anche se Llama
-# 3.1 8B supporterebbe finestre molto più ampie. Se in futuro risultasse
-# ancora insufficiente per richieste con molti database selezionati, vale
-# la pena riconsiderare un valore differenziato per Llama.
-LOCAL_MODEL_NUM_CTX = 8192
+# 8192 resta il limite massimo di contesto di Gemma 1 7B (il modello Gemma
+# davvero usato qui, non Gemma 2 9B — vedi nota in generate_with_gemma),
+# quindi non regolabile verso l'alto per quel modello. Llama 3.1 8B invece
+# supporta nativamente fino a 128K token di contesto — valore differenziato
+# per Llama, alzato a 32768 (4x) per dare margine comodo sopra al prompt
+# osservato più l'output (num_predict 1024), senza spingersi al limite
+# massimo del modello (userebbe molta più RAM/VRAM e rallenterebbe la
+# generazione, su una macchina locale non è detto serva davvero quel tanto).
+# Se risultasse ancora insufficiente con molti database selezionati insieme
+# (prompt più grande), o se 32768 risultasse troppo lento/pesante per la
+# macchina in uso, vale la pena ritoccare questo valore.
+GEMMA_NUM_CTX = 8192
+LLAMA_NUM_CTX = 32768
 
 def generate_with_llama(prompt: str, model: str = "llama3.1:8b-instruct-q4_K_M") -> str:
     """
@@ -67,7 +77,7 @@ def generate_with_llama(prompt: str, model: str = "llama3.1:8b-instruct-q4_K_M")
                                    # concatenati, filtraggio a stadi su array) possono
                                    # superare quella soglia, con il rischio di un
                                    # troncamento a metà query invece di un errore chiaro.
-            'num_ctx': LOCAL_MODEL_NUM_CTX,
+            'num_ctx': LLAMA_NUM_CTX,
         }
     )
     return response['response'].strip()
@@ -98,7 +108,7 @@ def generate_with_gemma(prompt: str, model: str = "gemma:7b-instruct-q4_K_M") ->
             'temperature': 0,  # Zero netto - vedi nota in generate_with_llama sopra
             'top_p': 0.9,
             'num_predict': 1024,  # Vedi nota in generate_with_llama sopra
-            'num_ctx': LOCAL_MODEL_NUM_CTX,
+            'num_ctx': GEMMA_NUM_CTX,
         }
     )
     return response['response'].strip()

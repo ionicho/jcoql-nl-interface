@@ -148,6 +148,11 @@ models/*.gguf
 # Working files rewritten by the app on every query execution
 resources/input.file
 
+# Stato locale dei database connessi, riscritto dall'app ad ogni avvio/
+# connessione (DatabaseRegistry) - non è sorgente, è specifico della
+# macchina di chi lo esegue
+connected_databases.json
+
 # ===== DOCKER =====
 docker-compose.override.yml
 .dockerignore

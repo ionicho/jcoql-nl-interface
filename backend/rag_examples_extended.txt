@@ -56,3 +56,16 @@ l'utente non lo chieda esplicitamente: trasformerebbe il collegamento filtrato i
 prodotto cartesiano completo. Verifica sempre, dallo schema del database corrente, quale
 campo di una collezione corrisponde realmente a quale campo dell'altra prima di scegliere
 la condizione - non assumere che campi con lo stesso nome siano automaticamente collegati.
+
+=== ESEMPIO: GET DICTIONARY + TRANSLATE - Sintassi Corretta ===
+NL: "Traduci un campo usando il dizionario delle categorie"
+SBAGLIATO: GET DICTIONARY delle@nomedb AS dict; GET COLLECTION collezione; FILTER GENERATE ADD FIELDS { .campo_tradotto: TRANSLATE(.campo, dict) };
+GIUSTO: GET DICTIONARY categorie_dizionario@nomedb AS dict; GET COLLECTION collezione; FILTER GENERATE ADD FIELDS { .campo_tradotto: TRANSLATE(.campo, dict) };
+SPIEGAZIONE: Nell'esempio SBAGLIATO il nome scelto per la collezione dizionario ("delle")
+è una parola presa dalla frase della richiesta ("usando il dizionario DELLE categorie"),
+non il nome di una collezione reale - errore comune e sempre sbagliato. Il nome dopo
+GET DICTIONARY deve essere SEMPRE il nome di una collezione che esiste davvero nello
+SCHEMA MONGODB REALE del database corrente (mostrato sopra in questo prompt), mai una
+parola presa alla lettera dalla frase in linguaggio naturale. Se non è chiaro dalla
+richiesta quale collezione reale dello schema sia il dizionario voluto, non scrivere
+affatto GET DICTIONARY (e nemmeno TRANSLATE) invece di indovinare un nome sbagliato.

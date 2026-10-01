@@ -2,11 +2,18 @@
 """
 Genera dati sample per MongoDB basati su schema
 
-Script one-shot: genera 5 dataset di prova (hotels, products, users,
-orders, restaurants, per un totale di ~110 documenti) e li salva come
-file JSON in backend/database/data_*.json. Da lì vanno importati
+Script one-shot: genera 6 dataset di prova (hotels, products, users,
+orders, restaurants, category_translations — quest'ultima un dizionario
+fisso, non casuale, vedi sotto — per un totale di ~115 documenti) e li
+salva come file JSON in backend/database/data_*.json. Da lì vanno importati
 in MongoDB (es. con `mongoimport` o MongoDB Compass) — questo script non
 si collega a nessun database, si limita a generare i file.
+
+ATTENZIONE se si rilancia questo script solo per rigenerare
+category_translations (fissa): va comunque a sovrascrivere anche gli altri
+5 file con dati CASUALI NUOVI (vedi nota sotto) — se serve solo il
+dizionario, generare/copiare a mano solo quel file invece di rilanciare
+tutto lo script.
 
 NOTA: nessun random.seed() viene fissato, quindi ogni esecuzione genera
 dati DIVERSI dalla precedente (nomi, città, prezzi, rating cambiano ad
@@ -146,6 +153,24 @@ for i in range(1, 16):
     })
 
 
+# ========================================
+# CATEGORY_TRANSLATIONS (5 documenti — dizionario per GET DICTIONARY/TRANSLATE)
+# ========================================
+# A differenza delle altre collection sopra, questa NON è generata a caso:
+# è un dizionario key/value fisso (schema richiesto da Pipeline.addDictionary()
+# nel motore Java — legge solo campi letterali "key"/"value") che traduce i
+# VALORI REALI del campo .category di "products" sopra (books/clothing/
+# electronics/food/sports) in italiano. Se le categorie generate per
+# "products" cambiano in futuro, questo elenco va aggiornato di conseguenza.
+category_translations = [
+    {"_id": "cat_001", "key": "electronics", "value": "elettronica"},
+    {"_id": "cat_002", "key": "food", "value": "alimentari"},
+    {"_id": "cat_003", "key": "clothing", "value": "abbigliamento"},
+    {"_id": "cat_004", "key": "books", "value": "libri"},
+    {"_id": "cat_005", "key": "sports", "value": "sport"},
+]
+
+
 # SALVA FILE JSON
 def save_collection(name, data):
     filename = f"backend/database/data_{name}.json"
@@ -158,6 +183,7 @@ save_collection("products", products)
 save_collection("users", users)
 save_collection("orders", orders)
 save_collection("restaurants", restaurants)
+save_collection("category_translations", category_translations)
 
-print(f"\n📊 TOTALE: {len(hotels) + len(products) + len(users) + len(orders) + len(restaurants)} documenti")
+print(f"\n📊 TOTALE: {len(hotels) + len(products) + len(users) + len(orders) + len(restaurants) + len(category_translations)} documenti")
 print("\n✅ Dati sample generati!")
