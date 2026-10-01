@@ -10,23 +10,33 @@ progetto separato jco-framework) in subprocess, scrivendo i file .jcoql/
 output testuale su stdout.
 
 Per i comandi diversi da GET COLLECTION (JOIN, GROUP, EXPAND, MERGE,
-INTERSECT, SUBTRACT, SAVE AS), il motore stampa su stdout solo il
-conteggio dei documenti generati, non il loro contenuto — verificato
-leggendo il codice Java ufficiale (es. JoinExecutor.java fa
-"pipeline.addCollection(outCollection)" e stampa solo
-"N documents generated", mai il contenuto).
+INTERSECT, SUBTRACT, SAVE AS), il motore stampa di suo su stdout solo il
+conteggio dei documenti generati (es. JoinExecutor.java fa
+"pipeline.addCollection(outCollection)" + "N documents generated", mai
+il contenuto) — ma tiene il risultato vero in memoria nell'oggetto
+Pipeline, esposto da un metodo pubblico già pronto
+(Pipeline.getCurrentCollection() / ParserLauncher.getTemporaryCollection()).
 
-STRATEGIA (rivista): invece di ricostruire ogni comando in Python
-via pymongo (approccio fragile — richiede reimplementare a mano la
-semantica di ciascun comando, con margine di errore, vedi cronologia
-dei bug su JOIN senza WHERE), ad ogni query viene ora accodato in modo
-trasparente un "SAVE AS <nome_univoco>@<db>;" — esattamente lo stesso
-meccanismo che SAVE AS usa già (SaveCollectionExecutor.java:
-"pipeline.getCurrentCollection()", generico per qualunque comando
-precedente). Il motore fa il lavoro vero — qualunque esso sia, inclusi
-comandi mai esplicitamente supportati qui (GET DICTIONARY, GENERATE/
-BUILD, ecc.) — e noi rileggiamo il risultato reale da MongoDB, senza
-dover approssimare nulla. Vedi _read_temp_result().
+STRATEGIA (01/10, seconda revisione): JcoScriptLauncher.java (il vero
+entry-point lanciato come subprocess, vedi _run_engine) è stato esteso
+con un flag "returnDocuments" — quando true, stampa su stdout anche il
+contenuto JSON del risultato corrente della pipeline, delimitato da
+"===== RESULT DOCUMENTS (JSON) =====" / "===== END RESULT DOCUMENTS
+=====", con lo stesso formato già usato per SAVE TO FILE
+(JSONHandler.saveToFile). _read_stdout_result() lo legge direttamente
+da lì con bson.json_util (gestisce ObjectId/Date), niente più lettura
+da MongoDB per il percorso normale.
+
+STRATEGIA PRECEDENTE (fino al 01/10, lasciata come riferimento sotto,
+non più chiamata da execute()): invece di ricostruire ogni comando in
+Python via pymongo (approccio fragile — richiede reimplementare a mano
+la semantica di ciascun comando, con margine di errore, vedi cronologia
+dei bug su JOIN senza WHERE), veniva accodato in modo trasparente un
+"SAVE AS <nome_univoco>@<db>;" (stesso meccanismo di un SAVE AS
+scritto a mano) e il risultato reale veniva riletto da MongoDB — vedi
+_read_temp_result()/_resolve_save_as_database(), tenute intatte: la
+modalità "solo conteggio" (execute_count_only()) non è toccata da
+questa revisione e non ne ha bisogno (vedi sua docstring).
 """
 import os, re, json, subprocess, uuid
 from pathlib import Path
@@ -1284,7 +1294,78 @@ class JCoFrameworkExecutor:
             print(f"[JCoFrameworkExecutor] WARNING lettura risultato (auto SAVE AS) fallita: {e}")
             return {'doc_count': 0, 'results': [], 'text': ''}
 
-    def _run_engine(self, wrapped_query, timeout=30, log_query=None):
+    def _read_stdout_result(self, output, jcoql_query):
+        """
+        Legge il risultato direttamente dal blocco JSON che il motore stampa
+        su stdout quando _run_engine() è stato chiamato con
+        return_documents=True (vedi modifica a JcoScriptLauncher.java, flag
+        "returnDocuments") — sostituisce _read_temp_result() nel percorso
+        principale di execute(): nessuna lettura/scrittura MongoDB per
+        ottenere il risultato finale, il motore lo stampa già.
+
+        Il blocco è delimitato da "===== RESULT DOCUMENTS (JSON) =====" e
+        "===== END RESULT DOCUMENTS =====". Il formato è lo stesso Extended
+        JSON (con $oid/$date) già usato e testato per SAVE TO FILE
+        (JSONHandler.saveToFile lato Java) — va letto con bson.json_util,
+        non json.loads semplice (json.loads non capirebbe $oid/$date; è
+        l'errore che aveva reso morto _parse_output(), vedi sopra).
+
+        Le eventuali collection "chaintempN" di un JOIN concatenato restano
+        vere scritture MongoDB fatte dal motore durante l'esecuzione
+        (SAVE AS scritti dentro la query stessa, non la nostra vecchia
+        strategia) — vanno ripulite comunque, riusando
+        _cleanup_chaintemp_collections() già esistente.
+        """
+        from bson import json_util
+
+        text = ''
+        results = []
+        doc_count = 0
+
+        match = re.search(
+            r'===== RESULT DOCUMENTS \(JSON\) =====\s*\n(.*?)\n===== END RESULT DOCUMENTS =====',
+            output, re.DOTALL
+        )
+        if match:
+            raw_json = match.group(1).strip()
+            try:
+                parsed_docs = json_util.loads(raw_json) if raw_json else []
+                if not isinstance(parsed_docs, list):
+                    parsed_docs = [parsed_docs]
+                doc_count = len(parsed_docs)
+                # Stesso limite di visualizzazione già usato in
+                # _read_temp_result() (coll.find().limit(100)) - il conteggio
+                # resta quello vero, solo i risultati mostrati sono limitati.
+                results = [self._sanitize_bson(d) for d in parsed_docs[:100]]
+            except Exception as e:
+                print(f"[JCoFrameworkExecutor] WARNING parsing blocco RESULT DOCUMENTS fallito: {e}")
+        else:
+            print("[JCoFrameworkExecutor] WARNING blocco RESULT DOCUMENTS non trovato nello stdout "
+                  "(returnDocuments=true non impostato in _run_engine, o eccezione prima di stamparlo).")
+
+        self._cleanup_chaintemp_collections(jcoql_query)
+
+        # Messaggio informativo per SAVE AS / SAVE TO FILE espliciti scritti
+        # dall'utente/LLM nella query - stesso identico blocco di
+        # _read_temp_result(), il motore li esegue comunque per davvero,
+        # indipendentemente da come leggiamo il risultato finale.
+        save_matches = re.findall(r'SAVE\s+AS\s+(\w+)\s*@\s*(\w+)', jcoql_query, re.IGNORECASE)
+        real_save = next((m for m in save_matches if not m[0].lower().startswith('chaintemp')), None)
+        if real_save:
+            text = f"Salvato anche in collezione: {real_save[0]}@{real_save[1]}"
+        elif re.search(r'SAVE\s+TO\s+FILE', jcoql_query, re.IGNORECASE):
+            file_match = re.search(r'\[Save\]\s+executed:\s+\d+\s+documents saved to file\s+(.+)', output)
+            if file_match:
+                text = f"Salvato anche su file: {file_match.group(1).strip()}"
+
+        if doc_count == 0 and not text and not re.search(r'\[.*?\]\s*executed', output, re.IGNORECASE):
+            text = ("Nessun risultato — il motore non sembra aver eseguito nessun "
+                     "comando riconosciuto in questa query (controlla l'output grezzo "
+                     "Java se il problema persiste).")
+
+        return {'doc_count': doc_count, 'results': results, 'text': text}
+
+    def _run_engine(self, wrapped_query, timeout=30, log_query=None, return_documents=False):
         """
         Scrive i file che il motore J-CO si aspetta di leggere (prolog, query,
         properties di connessione, classpath) e lancia il subprocess Java.
@@ -1293,14 +1374,21 @@ class JCoFrameworkExecutor:
         anche da execute_count_only() (vedi sotto, modalità "database di
         grandi dimensioni / risultato non necessario") — stessa identica
         logica di setup per entrambi i percorsi, cambia solo il testo di
-        `wrapped_query` (con o senza il SAVE AS automatico accodato) e il
-        `timeout`. Nessun comportamento del percorso esistente è stato
-        modificato in questa estrazione.
+        `wrapped_query`, il `timeout` e `return_documents`. Nessun
+        comportamento del percorso esistente è stato modificato in questa
+        estrazione.
 
-        `log_query` è la query così come l'ha scritta l'utente/l'LLM, PRIMA
-        di un eventuale SAVE AS accodato automaticamente — usata solo per le
-        stampe di debug (quali parole chiave contiene, se serve il raw debug).
-        Se omesso, si usa `wrapped_query` stesso (comando in cui coincidono).
+        `log_query` è la query così come l'ha scritta l'utente/l'LLM — usata
+        solo per le stampe di debug (quali parole chiave contiene, se serve
+        il raw debug). Se omesso, si usa `wrapped_query` stesso (comando in
+        cui coincidono).
+
+        `return_documents` scrive "returnDocuments=true" nelle properties
+        lette da JcoScriptLauncher.java: il motore stampa allora anche il
+        contenuto JSON del risultato (vedi _read_stdout_result()). Lasciato
+        false di default e per execute_count_only() — quel percorso non
+        vuole pagare il costo di serializzare risultati enormi, vedi la sua
+        docstring.
 
         Restituisce l'oggetto subprocess.CompletedProcess così com'è; il
         chiamante decide come interpretare stdout/returncode.
@@ -1423,7 +1511,8 @@ class JCoFrameworkExecutor:
             f"mongo.db={self.database_name}\n"
             f"database={self.database_name}\n"
             f"server.localhost.database={self.database_name}\n"
-            "toScreen=true\n",
+            "toScreen=true\n"
+            f"returnDocuments={'true' if return_documents else 'false'}\n",
             encoding='utf-8'
         )
 
@@ -1691,50 +1780,29 @@ class JCoFrameworkExecutor:
 
     def execute(self, jcoql_query):
         try:
-            # STRATEGIA "auto SAVE AS" (vedi docstring del modulo): accodiamo in modo
-            # trasparente un SAVE AS verso una collection temporanea con nome univoco
-            # per richiesta (uuid4, per evitare che due richieste concorrenti si
-            # sovrascrivano a vicenda — stesso tipo di rischio già visto con
-            # resources/input.file in java_parser_wrapper.py, qui evitato dalla
-            # radice dando un nome diverso ad ogni chiamata). Funziona per qualunque
-            # comando precedente perché SaveCollectionExecutor.java prende sempre
-            # "pipeline.getCurrentCollection()" — il risultato corrente, quale che sia.
-            #
-            # Il nome deve essere un ID valido per la grammatica JCoQL+ —
-            # "ID : LETTER (LETTER | DIGIT | '_')*" — cioè deve iniziare con
-            # una lettera: un nome che iniziasse con underscore (es.
-            # "__nlquery_...") non sarebbe un ID valido, e il motore
-            # fallirebbe con "Lexical Error: Unrecognized token '_'" perché
-            # il lexer non riconosce un identificatore che comincia con
-            # underscore. Qui sotto si parte sempre con una lettera
-            # ("nlquery"), niente underscore da nessuna parte.
-            temp_collection_name = f"nlquery{uuid.uuid4().hex[:16]}"
+            # STRATEGIA (01/10, seconda revisione — vedi docstring del modulo):
+            # nessun SAVE AS automatico accodato qui. Il motore stampa già il
+            # risultato vero su stdout (return_documents=True sotto), letto da
+            # _read_stdout_result(). Funziona per qualunque comando precedente
+            # perché si basa su pipeline.getCurrentCollection() lato Java,
+            # generico per qualunque comando — stessa garanzia della vecchia
+            # strategia SAVE AS, senza il giro da MongoDB.
             wrapped_query = jcoql_query.rstrip()
             if not wrapped_query.endswith(';'):
                 wrapped_query += ';'
-            # Target il database che la query ha davvero registrato con la
-            # propria USE DB, non self.database_name a prescindere — vedi
-            # _resolve_save_as_database().
-            save_as_database = self._resolve_save_as_database(wrapped_query)
-            wrapped_query += f"\nSAVE AS {temp_collection_name}@{save_as_database};"
 
-            result = self._run_engine(wrapped_query, timeout=30, log_query=jcoql_query)
+            result = self._run_engine(wrapped_query, timeout=30, log_query=jcoql_query, return_documents=True)
 
             if result.returncode == 0 and "ECCEZIONE:" not in result.stdout:
                 # Legge il vero risultato dal motore invece di ricostruirlo in
-                # Python — vedi strategia "auto SAVE AS" nel docstring del modulo.
-                # Sostituisce sia _parse_output() sia il vecchio fallback che
-                # riapplicava il filtro in Python quando "il FilterExecutor del
-                # JCo non aveva filtrato": quel fallback esisteva solo perché
-                # prima si tentava di ricostruire il filtro con un pymongo_filter
-                # scritto a mano, che poteva divergere dalla semantica reale del
-                # motore. Ora il filtro è sempre quello vero, applicato dal motore
-                # stesso — non serve più.
-                # Rilegge dallo STESSO database su cui è stato scritto il SAVE AS
-                # (save_as_database), non da self.database_name: devono sempre
-                # coincidere, altrimenti si rilegge da un database che potrebbe
-                # non contenere nulla.
-                parsed = self._read_temp_result(temp_collection_name, result.stdout, jcoql_query, database_name=save_as_database)
+                # Python. Sostituisce sia _parse_output() sia il vecchio
+                # fallback che riapplicava il filtro in Python quando "il
+                # FilterExecutor del JCo non aveva filtrato": quel fallback
+                # esisteva solo perché prima si tentava di ricostruire il
+                # filtro con un pymongo_filter scritto a mano, che poteva
+                # divergere dalla semantica reale del motore. Ora il filtro è
+                # sempre quello vero, applicato dal motore stesso.
+                parsed = self._read_stdout_result(result.stdout, jcoql_query)
 
                 return {
                     'success': True,
