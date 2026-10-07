@@ -38,6 +38,16 @@ export default function QueryExecutor({
   // sessione finché non la si disattiva a mano.
   const [countOnly, setCountOnly] = useState(false);
 
+  // Timeout di esecuzione query (menu a tendina): 300s (5 minuti) è il
+  // valore di default, selezionato all'avvio - sovrascrive sempre i
+  // default interni di jco_framework_executor_v2.py (30s per esecuzione
+  // normale, 300s per "solo conteggio"). Come countOnly, persiste per le
+  // query successive finché non lo si cambia a mano. Allo scadere il
+  // backend restituisce sempre un errore esplicito (mai un fallimento
+  // silenzioso), gestito da un except subprocess.TimeoutExpired dedicato
+  // in execute()/execute_count_only().
+  const [timeoutSeconds, setTimeoutSeconds] = useState(300);
+
   // Campo "Query in Linguaggio Naturale": si adatta all'altezza del testo
   // scritto, invece di restare a una riga fissa. Il ref serve per leggere
   // scrollHeight (l'altezza reale del contenuto) e applicarla come nuova
@@ -90,6 +100,53 @@ export default function QueryExecutor({
   // 3. HANDLERS (FUNZIONI LOGICHE)
   // ==========================================
 
+  /**
+   * AGGIUNTO 03/10/2026 — integrazione JCO DS: recupera il descrittore
+   * del server (type/host/port) del database target, così la riga
+   * "USE DB" anteposta qui sotto può usare "ON SERVER 'tipo' 'url'"
+   * invece del fisso "ON DEFAULT SERVER" quando il database selezionato
+   * non è MongoDB. Ritorna null per un database MongoDB (o se la
+   * chiamata fallisce) — stesso significato di "usa il default",
+   * comportamento identico a prima di questa modifica.
+   */
+  const resolveServerForDb = async (dbName) => {
+    try {
+      const resp = await axios.get(`http://localhost:8000/api/databases/${dbName}`);
+      const server = resp.data?.server;
+      if (server && server.type && server.type !== 'mongodb') {
+        return server;
+      }
+    } catch (err) {
+      console.warn(`Impossibile recuperare il server di '${dbName}', uso il default MongoDB:`, err);
+    }
+    return null;
+  };
+
+  const buildUseDbLine = (dbName, server) => {
+    if (!server) return `USE DB ${dbName} ON DEFAULT SERVER;`;
+    return `USE DB ${dbName} ON SERVER '${server.type}' 'http://${server.host}:${server.port}';`;
+  };
+
+  /**
+   * Qualifica con "@database" il PRIMO "GET COLLECTION nome;" ancora
+   * privo di "@" — necessario perché GetCollectionExecutor (motore Java)
+   * ignora il database "corrente" impostato da USE DB quando manca
+   * questo suffisso esplicito, e ricade su MongoDB a prescindere (vedi
+   * GetCollectionExecutor.java, ramo command.getDbName() == null) — bug
+   * di sempre, non introdotto qui, ma che rende questo suffisso
+   * obbligatorio per qualunque database non-MongoDB. Non tocca comandi
+   * multi-collection (MERGE/JOIN/GROUP COLLECTIONS), che usano già la
+   * sintassi "nome@db" per ciascun database coinvolto — vedi
+   * _build_multi_database_query in main.py.
+   */
+  const qualifyCollectionForServer = (command, dbName, server) => {
+    if (!server) return command;
+    return command.replace(
+      /GET\s+COLLECTION\s+(\w+)\s*;/i,
+      (match, collName) => `GET COLLECTION ${collName}@${dbName};`
+    );
+  };
+
   const handleGenerate = async () => {
     if (!nlQuery.trim()) {
       setError('Inserisci una query in linguaggio naturale');
@@ -134,11 +191,22 @@ export default function QueryExecutor({
       const generatedCommand = response.data.jcoql_query || '';
       const targetDb = selectedDatabases?.[0] || 'jcoql_test';
       const alreadyHasUseDb = /^\s*USE\s+DB\b/i.test(generatedCommand);
-      setJcoqlQuery(
-        generatedCommand
-          ? (alreadyHasUseDb ? generatedCommand : `USE DB ${targetDb} ON DEFAULT SERVER;\n${generatedCommand}`)
-          : ''
-      );
+
+      let fullCommand = '';
+      if (generatedCommand) {
+        if (alreadyHasUseDb) {
+          fullCommand = generatedCommand;
+        } else {
+          // AGGIUNTO 03/10/2026 — integrazione JCO DS: prima di anteporre
+          // "ON DEFAULT SERVER" a prescindere, si controlla il server
+          // reale del database target — vedi i tre helper sopra.
+          const server = await resolveServerForDb(targetDb);
+          const useDbLine = buildUseDbLine(targetDb, server);
+          const qualifiedCommand = qualifyCollectionForServer(generatedCommand, targetDb, server);
+          fullCommand = `${useDbLine}\n${qualifiedCommand}`;
+        }
+      }
+      setJcoqlQuery(fullCommand);
       setGenerationInfo({
         is_valid: response.data.is_valid,
         attempts: response.data.attempts,
@@ -200,7 +268,8 @@ export default function QueryExecutor({
         jcoql_query: jcoqlQuery,
         databases: selectedDatabases,
         database_name: selectedDatabases[0],
-        count_only: countOnly
+        count_only: countOnly,
+        timeout_seconds: timeoutSeconds
       });
 
       const data = response.data;
@@ -225,9 +294,17 @@ export default function QueryExecutor({
         // USE DB (è lo stesso testo che era nel pannello quando hai
         // premuto "Esegui").
         const alreadyHasUseDb = /^\s*USE\s+DB\b/i.test(data.jcoql_query || '');
-        const executedFull = alreadyHasUseDb
-          ? data.jcoql_query
-          : `USE DB ${data.database || selectedDatabases[0] || 'N/A'} ON DEFAULT SERVER;\n${data.jcoql_query}`;
+        let executedFull = data.jcoql_query || '';
+        if (data.jcoql_query && !alreadyHasUseDb) {
+          // AGGIUNTO 03/10/2026 — integrazione JCO DS: stessa logica di
+          // handleGenerate sopra, applicata qui alla query REALMENTE
+          // eseguita (data.database), non a quella appena generata.
+          const dbName = data.database || selectedDatabases[0] || 'N/A';
+          const server = await resolveServerForDb(dbName);
+          const useDbLine = buildUseDbLine(dbName, server);
+          const qualifiedQuery = qualifyCollectionForServer(data.jcoql_query, dbName, server);
+          executedFull = `${useDbLine}\n${qualifiedQuery}`;
+        }
         if (data.jcoql_query) setJcoqlQuery(executedFull);
         recordHistory(true, { executedQuery: executedFull, count: data.count, elapsedSeconds: data.execution_time_seconds });
       } else {
@@ -382,22 +459,48 @@ export default function QueryExecutor({
               tutta la riga, con "Esegui su MongoDB" fino al bordo destro
               del box. */}
           <div className="flex items-center justify-between flex-wrap gap-2 mb-2">
-            <label
-              className="flex items-center gap-2.5 text-xs text-gray-600 cursor-pointer select-none"
-              title="Non salva il risultato in una collezione temporanea per mostrarlo qui - mostra solo il numero di documenti prodotti. Da usare su collezioni grandi (es. JOIN/GROUP su dataset con decine di migliaia di documenti), dove salvare l'intero risultato solo per leggerlo è il vero collo di bottiglia."
-            >
-              {/* Il gap del flex container non produce spazio visibile
-                  qui perché il testo dopo <input/> è un nodo di testo
-                  "nudo", non un elemento — avvolto in uno <span> con
-                  margin-left esplicito (più affidabile del solo gap su
-                  un nodo di testo) per garantire lo spazio. */}
-              <input
-                type="checkbox"
-                checked={countOnly}
-                onChange={(e) => setCountOnly(e.target.checked)}
-              />
-              <span style={{ marginLeft: '6px' }}>Solo conteggio (database grandi)</span>
-            </label>
+            <div className="flex items-center flex-wrap gap-3">
+              <label
+                className="flex items-center gap-2.5 text-xs text-gray-600 cursor-pointer select-none"
+                title="Non salva il risultato in una collezione temporanea per mostrarlo qui - mostra solo il numero di documenti prodotti. Da usare su collezioni grandi (es. JOIN/GROUP su dataset con decine di migliaia di documenti), dove salvare l'intero risultato solo per leggerlo è il vero collo di bottiglia."
+              >
+                {/* Il gap del flex container non produce spazio visibile
+                    qui perché il testo dopo <input/> è un nodo di testo
+                    "nudo", non un elemento — avvolto in uno <span> con
+                    margin-left esplicito (più affidabile del solo gap su
+                    un nodo di testo) per garantire lo spazio. */}
+                <input
+                  type="checkbox"
+                  checked={countOnly}
+                  onChange={(e) => setCountOnly(e.target.checked)}
+                />
+                <span style={{ marginLeft: '6px' }}>Solo conteggio (database grandi)</span>
+              </label>
+              {/* Timeout di esecuzione: 5 minuti selezionato di default,
+                  sovrascrive sempre i default interni (30s/300s a seconda
+                  della modalità) - vedi stato timeoutSeconds sopra e
+                  QueryRequest.timeout_seconds lato backend (main.py). Allo
+                  scadere il backend risponde sempre con un errore
+                  esplicito, mai un timeout silenzioso. */}
+              <label
+                className="flex items-center gap-2.5 text-xs text-gray-600 select-none"
+                title="Tempo massimo di attesa per l'esecuzione della query sul motore J-CO, prima di interromperla e mostrare un messaggio esplicito invece di aspettare indefinitamente."
+              >
+                <span>Timeout: </span>
+                <select
+                  value={timeoutSeconds}
+                  onChange={(e) => setTimeoutSeconds(Number(e.target.value))}
+                  className="text-xs text-gray-600 border border-gray-300 rounded px-1.5 py-1 cursor-pointer bg-white"
+                >
+                  <option value={120}>2 minuti</option>
+                  <option value={300}>5 minuti</option>
+                  <option value={600}>10 minuti</option>
+                  <option value={900}>15 minuti</option>
+                  <option value={1200}>20 minuti</option>
+                  <option value={-1}>Nessun timeout</option>
+                </select>
+              </label>
+            </div>
             {jcoqlQuery.trim() && (
               <button
                 onClick={handleSaveFavorite}

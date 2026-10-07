@@ -38,6 +38,8 @@ from dotenv import load_dotenv
 from backend.query_corrector import correct_query
 from backend.database_persistence import load_databases_from_file, save_databases_to_file
 from backend.join_executor import JoinExecutor
+# AGGIUNTO 03/10/2026 — campagna di test multi-modello (vedi jcoql-prossimi-passi.md)
+from backend.test_campaign_logger import log_generation as log_campaign_generation
 
 # ==============================================================================
 # CONFIGURAZIONE PATH E MODULI INTERNI
@@ -51,7 +53,7 @@ if str(executors_path) not in sys.path:
 
 from backend.logging_config import setup_logging, get_startup_logger, get_query_logger, get_db_logger
 from backend.database.database_registry import db_registry
-from backend.llm_local import generate_with_llama, generate_with_gemma
+from backend.llm_local import generate_with_llama, generate_with_gemma, generate_with_llama32, generate_with_gemma4
 from backend.parsers.parser_factory import ParserFactory, ParserType
 from executor_factory import ExecutorFactory, ExecutorType
 
@@ -138,6 +140,21 @@ def _fix_hallucinated_databases(query: str, current_db: str, real_databases: set
     return query
 
 
+def _build_use_db_line(db_name: str, server: Optional[dict]) -> str:
+    """
+    AGGIUNTO 03/10/2026 — integrazione JCO DS: stessa logica dell'omonimo
+    helper lato frontend (QueryExecutor.jsx, buildUseDbLine) — usata qui
+    dal MERGE multi-database costruito automaticamente sotto, perché
+    quella riga va scritta per OGNUNO dei database coinvolti, non solo
+    per il primo selezionato come nel caso singolo gestito dal frontend.
+    `server` è None (o type "mongodb") per un database MongoDB —
+    comportamento di sempre, invariato.
+    """
+    if not server or server.get('type', 'mongodb') == 'mongodb':
+        return f"USE DB {db_name} ON DEFAULT SERVER;"
+    return f"USE DB {db_name} ON SERVER '{server['type']}' 'http://{server['host']}:{server['port']}';"
+
+
 def _build_multi_database_query(generated_query: str, databases: list, all_databases: dict) -> str:
     """
     Costruzione deterministica, sullo stesso modello di join_executor.py
@@ -182,7 +199,10 @@ def _build_multi_database_query(generated_query: str, databases: list, all_datab
     if len(valid_databases) < 2:
         return generated_query
 
-    use_db_lines = "\n".join(f"USE DB {db} ON DEFAULT SERVER;" for db in valid_databases)
+    use_db_lines = "\n".join(
+        _build_use_db_line(db, (all_databases.get(db, {}) or {}).get('server'))
+        for db in valid_databases
+    )
     merge_refs = ", ".join(f"{collection_name}@{db}" for db in valid_databases)
 
     result = f"{use_db_lines}\nMERGE COLLECTIONS {merge_refs};"
@@ -688,6 +708,11 @@ def _reorder_expand_before_join(query: str) -> str:
     con dest di nuovo in cima al documento, quei riferimenti sono già
     corretti così come sono, non serve calcolare nulla su di loro.
 
+    Non tocca nulla se la condizione di QUESTO JOIN usa l'elemento espanso
+    (.alias.dest...): in quel caso l'ordine EXPAND-poi-JOIN è l'unico corretto
+    (verificato con diagnose_gemini_join2.py: il riordino trasformava risposte
+    corrette di Gemini in JOIN sul campo array, 0 risultati).
+
     Non tocca nulla se il pattern non è presente per intero (es. l'ordine
     è già corretto, non c'è nessun JOIN successivo che riusa la
     collection espansa — come nell'esempio 27, EXPAND multiplo senza
@@ -716,6 +741,13 @@ def _reorder_expand_before_join(query: str) -> str:
     else:
         other_coll, other_db, other_alias, expand_alias = m.group(11, 12, 13, 14)
     case_kw, condition = m.group(15, 16)
+
+    # Se la condizione del JOIN usa l'elemento espanso (.alias.dest.item...), l'EXPAND
+    # DEVE restare prima del JOIN: riordinare produrrebbe un JOIN sul campo array
+    # (che non è mai uguale a un valore singolo) e quindi 0 risultati senza errore.
+    # Il riordino vale solo quando l'EXPAND serve a un JOIN successivo, non a questo.
+    if re.search(rf'\.{re.escape(dest_name)}\b', condition):
+        return query
 
     if not src_db:
         use_db_before = list(re.finditer(
@@ -866,6 +898,133 @@ def _check_undeclared_expand_reference(query: str, current_schema: dict):
         f"I campi array realmente disponibili in {collection_name} sono: {hint}. "
         f"Trova tra questi quello giusto per la richiesta e aggiungi l'EXPAND mancante prima del FILTER."
     )
+
+
+LOCAL_COMPACT_RULES = """Sei un traduttore da linguaggio naturale a JCoQL+ (query su MongoDB).
+Rispondi SOLO con la query JCoQL+: nessun testo, nessun markdown, nessun commento. Ogni comando termina con ;
+Sostituisci SEMPRE i segnaposto degli esempi (coll, campo, nomeArray...) con nomi REALI presi dallo schema; non scrivere mai "collezione" o "campo".
+
+REGOLE
+1. Inizia con GET COLLECTION <nome>; usa solo collezioni e campi presenti nello schema, scritti ESATTAMENTE come nello schema. Un campo con il punto (es. .imdb.rating) è annidato: usa il percorso completo.
+2. Se la richiesta NON pone nessuna condizione (es. "mostrami i prodotti") -> SOLO: GET COLLECTION nome;  (niente FILTER).
+   Ma se contiene una condizione ("con", "che", "tra", "almeno", "più di", "uguale a", "oppure", "senza", "solo") il FILTER è OBBLIGATORIO: non fermarti al solo GET COLLECTION.
+3. Con una condizione: GET COLLECTION nome; FILTER CASE WHERE .campo >= 4 AND .altro = 'x';
+   - operatori: = != < <= > >=   combinatori: AND OR  NOT ( ... )   stringhe tra apici singoli   booleani TRUE / FALSE in MAIUSCOLO
+   - "tra a e b": .campo IN_RANGE [a, b]
+   - valore mancante: "senza X", "non assegnato", "non registrato" -> FIELD .campo IS NULL;  "con X", "assegnato", "valorizzato" -> FIELD .campo IS NOT NULL.
+     (nei database un campo senza valore esiste quasi sempre con valore null: NON usare WITHOUT .campo / WITH .campo, che controllano solo se la chiave esiste nel documento)
+   - NON scrivere KEEP OTHERS. Nessun calcolo aritmetico (.a * 2 non esiste).
+   - Usa solo i valori che l'utente ha scritto: i valori "es." dello schema sono solo esempi di formato.
+4. CAMPO ARRAY (tipo ARRAY, e i suoi sottocampi es. .reviews.rating): per filtrare dentro un array serve prima EXPAND; il percorso poi è .elemento.item.campoInterno (se gli elementi sono valori semplici: .elemento.item):
+   GET COLLECTION coll; EXPAND UNPACK TRUE ARRAY .nomeArray TO .elemento; FILTER CASE WHERE .elemento.item.campoInterno = 5;
+5. JOIN ("collega", "unisci", "incrocia" due collezioni): la condizione è SEMPRE in CASE WHERE, mai ON, mai KEEP OTHERS:
+   JOIN OF COLLECTIONS coll1 AS a, coll2 AS b CASE WHERE .a.chiave = .b._id;
+   Se la chiave del JOIN sta DENTRO un array (es. ordine con items[].product_id) il JOIN diretto dà 0 risultati: prima EXPAND, poi JOIN sul risultato salvato:
+   GET COLLECTION coll1; EXPAND UNPACK TRUE ARRAY .nomeArray TO .elemento; SAVE AS chaintemp1@DB; GET COLLECTION chaintemp1; JOIN OF COLLECTIONS chaintemp1@DB AS a, coll2@DB AS b CASE WHERE .a.elemento.item.campoInterno = .b._id;
+   (DB = nome del database corrente.)
+6. GROUP ("raggruppa per"): GET COLLECTION coll; GROUP PARTITION TRUE BY .campo INTO .risultato;  Con una condizione, il FILTER va PRIMA del GROUP. Contare gli elementi di un gruppo non è possibile: non inventare funzioni.
+7. MERGE / INTERSECT / SUBTRACT tra due sottoinsiemi della stessa collezione:
+   unione: MERGE COLLECTIONS coll1, coll2;   in comune / differenza: salva prima i due sottoinsiemi (FILTER senza KEEP OTHERS, poi SAVE AS sub1@DB; e sub2@DB;) e poi INTERSECT COLLECTIONS sub1@DB, sub2@DB;  (SUBTRACT uguale).
+8. SAVE AS nome@DB;  salva il risultato (la @database è obbligatoria).  SAVE TO FILE 'nome.json';  esporta su file.
+9. Mostrare/rinominare/togliere campi: FILTER GENERATE BUILD { .a: .a, .b: .b };   FILTER CASE WHERE cond GENERATE ADD FIELDS { .nuovo: .esistente };   FILTER CASE WHERE cond GENERATE REMOVE FIELDS { .campo };  (graffe, campi sempre col punto).
+10. Tradurre con un dizionario: GET DICTIONARY collDizionario@DB AS alias; GET COLLECTION coll; FILTER GENERATE ADD FIELDS { .nuovo: TRANSLATE(.campo, alias) };
+
+ESEMPI DI TRADUZIONE (collezioni e campi inventati, solo per mostrare la forma; usa i nomi dello schema vero):
+"Mostrami i libri" -> GET COLLECTION libri;
+"Libri con più di 300 pagine" -> GET COLLECTION libri; FILTER CASE WHERE .pagine > 300;
+"Libri con voto tra 3 e 4.5" -> GET COLLECTION libri; FILTER CASE WHERE .voto IN_RANGE [3, 4.5];
+"Libri usati oppure con voto almeno 4" -> GET COLLECTION libri; FILTER CASE WHERE .usato = TRUE OR .voto >= 4;
+"Libri non di genere giallo" -> GET COLLECTION libri; FILTER CASE WHERE NOT (.genere = 'giallo');
+"Raggruppa i libri usati per autore" -> GET COLLECTION libri; FILTER CASE WHERE .usato = TRUE; GROUP PARTITION TRUE BY .autore INTO .risultato;
+"Commenti dei libri con valutazione 5" (commenti in un array) -> GET COLLECTION libri; EXPAND UNPACK TRUE ARRAY .commenti TO .c; FILTER CASE WHERE .c.item.valutazione = 5;
+"""
+
+
+def _format_schema_compact(schema: dict) -> str:
+    """Schema in forma compatta per i modelli locali: una riga per collezione, `.campo:tipo`
+    (ARRAY per gli array) e un solo esempio per le stringhe corte. Molto più corto del formato
+    verboso usato per Gemini (una riga per campo, con due esempi), che per un database con molte
+    collezioni occupa migliaia di token."""
+    lines = []
+    for coll_name, coll_data in (schema or {}).items():
+        fields = coll_data.get('fields', {}) if isinstance(coll_data, dict) else {}
+        parts = []
+        for field_name, info in fields.items():
+            types = info.get('types', []) if isinstance(info, dict) else []
+            type_str = 'ARRAY' if 'array' in types else ('/'.join(types) if types else 'unknown')
+            item = f".{field_name}:{type_str}"
+            if isinstance(info, dict) and 'string' in types and 'array' not in types:
+                ex = [str(e) for e in (info.get('examples') or []) if e is not None]
+                if ex and len(ex[0]) <= 24:
+                    item += f" (es. '{ex[0]}')"
+            parts.append(item)
+        lines.append(f"{coll_name}: " + ", ".join(parts))
+    return "\n".join(lines)
+
+
+def _build_compact_local_prompt(db_name, collections_str, schema, other_databases_str,
+                                rag_context, nl_query, previous_error):
+    """Prompt snello per i modelli locali (Llama/Gemma): regole essenziali + schema compatto +
+    esempi RAG + richiesta. Evita le ~45.000 caratteri di regole verbose e la grammatica ANTLR
+    BASIC, che per un modello piccolo sono rumore: contesto di ~3-4k token contro ~19k."""
+    # Il nome vero del database sta già dentro gli esempi delle regole: con un segnaposto
+    # (@DB) Llama 3.1 lo copiava alla lettera ("products@DB") e la query risultava non valida.
+    rules = LOCAL_COMPACT_RULES.replace("@DB", f"@{db_name}").replace("   (DB = nome del database corrente.)\n", "")
+    prompt = (
+        f"{rules}\n"
+        f"DATABASE CORRENTE: {db_name}\n"
+        f"COLLEZIONI DISPONIBILI: {collections_str}\n\n"
+        f"SCHEMA MONGODB REALE (Database: {db_name}) — una riga per collezione:\n"
+        f"{_format_schema_compact(schema)}\n"
+    )
+    if other_databases_str:
+        prompt += f"\n{other_databases_str}\n"
+    prompt += (
+        f"\nESEMPI SIMILI (da RAG):\n{rag_context}\n\n"
+        f"USER QUERY:\n\"{nl_query}\"\n"
+    )
+    if previous_error:
+        prompt += f"\nATTENZIONE! ERRORI PRECEDENTI DA CORREGGERE: {previous_error}\n"
+    prompt += (
+        "\nGenera SOLO la query JCoQL+ per la richiesta sopra, usando ESATTAMENTE i nomi dello schema. "
+        "Nessun testo aggiuntivo.\n"
+    )
+    return prompt
+
+
+def _check_join_on_array_key(query: str, current_schema):
+    """
+    Controllo semantico: un JOIN la cui condizione confronta un campo che nello schema è
+    un ARRAY (di una collection reale, non di un risultato EXPAND salvato) con un altro
+    valore. Un array non è mai uguale a un valore singolo: il JOIN restituisce 0 risultati
+    senza nessun errore (osservato su Gemini, "Collega ogni ordine ai prodotti acquistati").
+    Non ripara: forza un altro tentativo con l'istruzione concreta (EXPAND prima del JOIN).
+    Gli alias che puntano a chaintemp* (risultati salvati) sono ignorati: lì l'EXPAND c'è già.
+    """
+    join_pattern = re.compile(
+        r'JOIN\s+OF\s+COLLECTIONS\s+(\w+)(?:@\w+)?\s+AS\s+(\w+)\s*,\s*(\w+)(?:@\w+)?\s+AS\s+(\w+)'
+        r'\s*(?:CASE|CASES)\s+WHERE\s+(.+?);',
+        re.IGNORECASE | re.DOTALL
+    )
+    for m in join_pattern.finditer(query):
+        cond = m.group(5)
+        for coll, alias in ((m.group(1), m.group(2)), (m.group(3), m.group(4))):
+            if coll.lower().startswith('chaintemp'):
+                continue
+            coll_schema = (current_schema or {}).get(coll, {})
+            coll_fields = coll_schema.get('fields', {}) if isinstance(coll_schema, dict) else {}
+            for field in re.findall(rf'\.{re.escape(alias)}\.(\w+)\b', cond):
+                info = coll_fields.get(field)
+                if isinstance(info, dict) and 'array' in info.get('types', []):
+                    return (
+                        f"Il JOIN confronta '.{alias}.{field}...' ma '{field}' è un ARRAY di {coll}: un array non è "
+                        f"mai uguale a un valore singolo, il JOIN darebbe 0 risultati senza errore. Devi prima srotolare "
+                        f"l'array con EXPAND e fare il JOIN sul risultato salvato: "
+                        f"GET COLLECTION {coll}; EXPAND UNPACK TRUE ARRAY .{field} TO .elemento; SAVE AS chaintemp1@db; "
+                        f"GET COLLECTION chaintemp1; JOIN OF COLLECTIONS chaintemp1@db AS a, altra@db AS b "
+                        f"CASE WHERE .a.elemento.item.campoInterno = .b.chiave;"
+                    )
+    return None
 
 
 def _sample_field_values(all_databases: dict, db_name: str, coll_name: str, field_name: str, limit: int = 30):
@@ -1277,6 +1436,16 @@ class QueryRequest(BaseModel):
     SAVE AS scritto esplicitamente dall'utente (quello non viene toccato).
     """
     count_only: bool = False
+    """
+    Timeout massimo (in secondi) per l'esecuzione della query sul motore
+    J-CO, scelto dall'utente nel menu a tendina (None = valore predefinito
+    già in uso: 30s per execute(), 300s per execute_count_only() - vedi
+    jco_framework_executor_v2.py). Allo scadere, l'utente riceve sempre un
+    messaggio esplicito (gestito da un except subprocess.TimeoutExpired
+    dedicato in entrambi i metodi), mai un fallimento silenzioso o il dump
+    grezzo del comando java che si vedeva prima.
+    """
+    timeout_seconds: Optional[int] = None
 
 # ==============================================================================
 # LIFECYCLE EVENTS
@@ -1415,7 +1584,7 @@ async def generate_query(request: GenerateRequest):
     
     """
     Recupero contesto RAG
-    n_results=7: con il corpus cresciuto a 32+ esempi che coprono
+    n_results=7: con il corpus cresciuto a 125 esempi che coprono
     pattern molto diversi tra loro (JOIN semplice, EXPAND, GROUP, MERGE,
     filtro array, join concatenati a 3 passaggi...), un pattern
     specifico e meno comune (es. join concatenati) rischia di restare
@@ -1428,12 +1597,19 @@ async def generate_query(request: GenerateRequest):
     valore più alto (es. 9) allarga il margine di recupero ma fa
     crescere il prompt abbastanza da contribuire a esaurire più in
     fretta la quota gratuita di Gemini (250k token/minuto) durante test
-    ravvicinati — 7 è il compromesso scelto. Per i modelli locali
-    (Llama/Gemma): meno esempi, per tenere il prompt più leggero (vedi
-    il lavoro sul prompt più snello per loro) — Gemini resta a 7,
-    invariato.
+    ravvicinati — 7 è il compromesso scelto.
+
+    Per i modelli locali (Llama/Gemma) era stato abbassato a 4 per
+    tenere il prompt più leggero, ma il costo reale è minimo: lunghezza
+    media di un esempio nel corpus ~218 caratteri (~55 token stimati),
+    quindi la differenza tra 4 e 7 esempi è di circa 160 token su un
+    prompt BASIC che ne ha già ~16-17k — meno dell'1%, con margine enorme
+    rispetto a num_ctx (32768 per Llama 3.1/3.2/Gemma 4, 8192 per Gemma
+    1, dove comunque l'aumento resta trascurabile). Riportato a 7 per
+    tutti (03/10/2026) — uniforme con Gemini, nessun motivo reale per
+    tenerlo diverso.
     """
-    RAG_N_RESULTS = 4 if ACTIVE_LLM in ("llama", "gemma") else 7
+    RAG_N_RESULTS = 7
 
     if collection:
         try:
@@ -1608,7 +1784,10 @@ async def generate_query(request: GenerateRequest):
         ❌ NON usare: .campo IS NOT NULL           (manca la parola chiave FIELD — errore di sintassi)
         ❌ NON usare: FILTER CASE WHERE .campo IS NOT NULL KEEP OTHERS;   (stesso problema)
         ✅ USA SEMPRE: FILTER CASE WHERE FIELD .campo IS NOT NULL KEEP OTHERS;
-        ✅ Per il caso opposto (campo assente/nullo): FILTER CASE WHERE FIELD .campo IS NULL KEEP OTHERS;
+        ✅ Per il caso opposto (campo senza valore): FILTER CASE WHERE FIELD .campo IS NULL KEEP OTHERS;
+        ⚠️ "senza X" / "non assegnato" / "non registrato" = valore null -> usa FIELD .campo IS NULL. NON usare WITHOUT .campo né WITH .campo:
+           controllano soltanto se la CHIAVE esiste nel documento, e in MongoDB un campo senza valore esiste quasi sempre con valore null
+           (WITHOUT darebbe 0 risultati, nessun errore). Usali solo se l'utente dice esplicitamente che il campo manca/non esiste nel documento.
         La parola chiave FIELD è obbligatoria subito prima del riferimento al campo, in
         questo caso specifico — non serve invece per un confronto con un valore:
         ✅ FILTER CASE WHERE .campo = 'valore' KEEP OTHERS;   (qui niente FIELD, campo diretto)
@@ -2011,6 +2190,22 @@ async def generate_query(request: GenerateRequest):
           risultati senza nessun errore visibile (osservato dal vivo). Facendo prima il JOIN
           e poi l'EXPAND, come nell'esempio sopra, il campo espanso resta sempre in cima al
           documento risultante — un solo livello da tenere a mente, non due.
+          🚨🚨 ECCEZIONE ALL'ORDINE PREFERITO (UN SOLO JOIN, con la chiave dentro un array): se la
+          richiesta collega due collezioni con UN SOLO JOIN e la chiave di quel JOIN è dentro un
+          array di una delle due, NON esiste un JOIN precedente su cui fare l'EXPAND "dopo": l'EXPAND
+          va fatto PRIMA del JOIN, sulla collection che contiene l'array, salvando il risultato; il
+          JOIN si fa poi sul risultato salvato. Un JOIN direttamente sul campo dentro l'array
+          (es. .a.nomeArray.campoInterno = .b._id) NON è mai corretto: restituisce sempre 0 risultati,
+          senza nessun errore. Forma corretta (coll1 contiene l'array, coll2 è l'altra collezione):
+          GET COLLECTION coll1;
+          EXPAND UNPACK TRUE ARRAY .nomeArray TO .elemento;
+          SAVE AS chaintemp1@db1;
+          GET COLLECTION chaintemp1;
+          USE DB db1 ON DEFAULT SERVER;
+          JOIN OF COLLECTIONS chaintemp1@db1 AS a, coll2@db1 AS b
+          CASE WHERE .a.elemento.item.campoInterno = .b._id;
+          (se l'elemento dell'array è un valore semplice e non un oggetto, il percorso è
+          .a.elemento.item invece di .a.elemento.item.campoInterno)
           🚨🚨 ATTENZIONE al percorso dopo EXPAND — verificato leggendo il codice sorgente del
           motore (JCOConstants.java: ITEM_FIELD_NAME = "item"), non dedotto per tentativi: il
           nome scelto dopo TO (es. "elemento") NON diventa direttamente il contenuto
@@ -2084,6 +2279,16 @@ USER QUERY:
 
 {f"ATTENZIONE! ERRORI PRECEDENTI DA CORREGGERE: {all_errors[-1]}" if attempts > 1 else ""}
 
+🚨 ULTIMO RICHIAMO PRIMA DI GENERARE - VALORI "es:" NELLO SCHEMA:
+I valori dopo "es:" in ogni campo dello schema sopra (es. ".email (string) —
+es: sean_bean@gameofthron.es") sono SOLO esempi per farti capire il FORMATO
+del dato (stringa, numero, data...) — NON sono valori su cui filtrare.
+NON scrivere MAI un FILTER CASE WHERE che usa uno di questi valori di
+esempio, a meno che l'utente stesso non abbia scritto quel valore (o un suo
+sinonimo/variante chiaro) nella richiesta qui sopra. Se la richiesta non
+specifica nessuna condizione, la query corretta ha SOLO GET COLLECTION,
+senza alcun FILTER — vedi REGOLA CRITICA #1 più sopra.
+
 Genera SOLO la query JCoQL basata sullo SCHEMA REALE sopra.
 Usa ESATTAMENTE i nomi campi dello schema. NESSUN testo aggiuntivo.
 """
@@ -2131,7 +2336,25 @@ Usa ESATTAMENTE i nomi campi dello schema. NESSUN testo aggiuntivo.
             qualunque database connesso.
             """
             local_model_prompt = prompt
-            if ACTIVE_LLM in ("llama", "gemma"):
+            if ACTIVE_LLM in ("llama", "gemma", "llama32", "gemma4") and \
+                    _local_prompt_mode() != "full":
+                """
+                Prompt compatto (default) per i modelli locali. LOCAL_PROMPT_MODE=full
+                ripristina il comportamento precedente (regole complete + grammatica BASIC),
+                utile per il confronto A/B nei test.
+                """
+                local_model_prompt = _build_compact_local_prompt(
+                    current_db, collections_str, current_schema, other_databases_str,
+                    context_str, request.nl_query,
+                    all_errors[-1] if attempts > 1 and all_errors else ""
+                )
+                query_logger.info(
+                    f"📏 Dimensione prompt (modello locale, COMPATTO): "
+                    f"{len(local_model_prompt):,} caratteri "
+                    f"(~{len(local_model_prompt)//4:,} token stimati) — "
+                    f"contro {len(prompt):,} caratteri del prompt completo"
+                )
+            elif ACTIVE_LLM in ("llama", "gemma", "llama32", "gemma4"):
                 local_model_prompt = prompt.replace(JCOQL_SYNTAX_FULL, JCOQL_SYNTAX_BASIC) + (
                     "\n\nATTENZIONE - CAMPI ANNIDATI: nello SCHEMA MONGODB REALE sopra, se un "
                     "campo appare con un punto nel nome (es. 'imdb.rating', 'location.city'), "
@@ -2151,6 +2374,10 @@ Usa ESATTAMENTE i nomi campi dello schema. NESSUN testo aggiuntivo.
                 current_query = generate_with_llama(local_model_prompt)
             elif ACTIVE_LLM == "gemma":
                 current_query = generate_with_gemma(local_model_prompt)
+            elif ACTIVE_LLM == "llama32":
+                current_query = generate_with_llama32(local_model_prompt)
+            elif ACTIVE_LLM == "gemma4":
+                current_query = generate_with_gemma4(local_model_prompt)
             else:
                 """
                 Timeout esplicito: senza, osservato dal vivo un blocco
@@ -2166,12 +2393,27 @@ Usa ESATTAMENTE i nomi campi dello schema. NESSUN testo aggiuntivo.
                 current_query = response.text.strip()
 
             """
+            Log della risposta grezza, PRIMA di qualunque estrazione/pulizia
+            (04/10 — aggiunto per diagnosticare un caso di query troncata a
+            metà con Gemma4: senza questo log non era possibile distinguere
+            "il modello ha davvero troncato la generazione" (es. budget
+            num_predict esaurito) da "l'estrazione/pulizia successiva ha
+            tagliato per errore una risposta completa". Sempre attivo, non
+            solo sotto JCOQL_DEBUG: è proprio nei casi anomali e non
+            riproducibili a comando che serve di più.
+            """
+            query_logger.info(
+                f"📝 Risposta grezza da {ACTIVE_LLM} (tentativo {attempts}, "
+                f"{len(current_query)} caratteri, PRIMA di estrazione/pulizia):\n{current_query}"
+            )
+
+            """
             🔧 Fix: applicato a TUTTI i modelli locali (Llama e Gemma), non solo Llama.
             I modelli locali quantizzati sono più soggetti a due tipi di errore:
             (a) nome di collezione sbagliato ma presente, (b) clausola GET COLLECTION
             omessa del tutto. Qui correggiamo (a) e rileviamo esplicitamente (b).
             """
-            if ACTIVE_LLM in ("llama", "gemma"):
+            if ACTIVE_LLM in ("llama", "gemma", "llama32", "gemma4"):
                 from difflib import get_close_matches
 
                 match = re.search(r'GET COLLECTION\s+(\w+)', current_query, re.IGNORECASE)
@@ -2295,7 +2537,19 @@ Usa ESATTAMENTE i nomi campi dello schema. NESSUN testo aggiuntivo.
                 #    "Nota che ho sostituito...")
                 last_semicolon = text.rfind(';')
                 if last_semicolon != -1:
-                    text = text[:last_semicolon + 1]
+                    kept = text[:last_semicolon + 1]
+                    tail = text[last_semicolon + 1:].strip()
+                    # Ultimo comando SENZA ';' finale (i modelli locali lo omettono spesso):
+                    # prima veniva scartato in silenzio come "spiegazione", lasciando una query
+                    # valida ma incompleta (es. il FILTER perso, "GET COLLECTION products;").
+                    # Se la coda inizia come un comando JCoQL+, la si tiene (fino alla prima riga
+                    # vuota) e si aggiunge il ';'; altrimenti resta il vecchio comportamento.
+                    if re.match(r'(?:FILTER|EXPAND|GROUP|JOIN|SAVE|GET|MERGE|INTERSECT|SUBTRACT|USE|SORT)\b',
+                                tail, re.IGNORECASE):
+                        stmt = re.split(r'\n\s*\n', tail)[0].strip()
+                        text = kept + '\n' + stmt + ';'
+                    else:
+                        text = kept
 
                 return text.strip()
 
@@ -2468,8 +2722,35 @@ Usa ESATTAMENTE i nomi campi dello schema. NESSUN testo aggiuntivo.
                 current_query, current_db, set(db_registry.databases.keys())
             )
 
-            """Validazione sintattica ANTLR"""
-            is_valid, errors = parser.validate(current_query)
+            """
+            Difesa esplicita contro una query vuota (osservato dal vivo con
+            Gemma4, 04/10: dopo le estrazioni/riparazioni sopra,
+            current_query può restare una stringa vuota — tipicamente
+            quando la risposta del modello non conteneva nessuna parola
+            chiave JCoQL+ riconoscibile, solo testo). Senza questo
+            controllo, parser.validate("") la considerava sintatticamente
+            valida (zero istruzioni soddisfano banalmente la grammatica),
+            quindi una generazione vuota passava come successo — nel log
+            della campagna di test: valida=SI, query_jcoql vuota. Qui viene
+            trattata esplicitamente come errore, PRIMA di arrivare al
+            parser, con un messaggio azionabile per il repair loop.
+            """
+            if not current_query.strip():
+                is_valid = False
+                errors = [type('Err', (), {
+                    'message': (
+                        "La risposta non conteneva nessuna query JCoQL+ "
+                        "riconoscibile (nessuna parola chiave come 'GET "
+                        "COLLECTION', 'JOIN OF COLLECTIONS', ecc.) — probabilmente "
+                        "solo testo descrittivo o una spiegazione. Genera SOLO "
+                        "la query JCoQL+, senza alcuna spiegazione prima o dopo, "
+                        "a partire dalla parola chiave corretta (es. 'GET "
+                        "COLLECTION ...;')."
+                    )
+                })()]
+            else:
+                """Validazione sintattica ANTLR"""
+                is_valid, errors = parser.validate(current_query)
 
             """
             Controllo semantico aggiuntivo, non rilevabile dal parser (che
@@ -2660,6 +2941,12 @@ Usa ESATTAMENTE i nomi campi dello schema. NESSUN testo aggiuntivo.
                     is_valid = False
                     errors = [type('Err', (), {'message': undeclared_msg})()]
 
+            if is_valid:
+                array_join_msg = _check_join_on_array_key(current_query, current_schema)
+                if array_join_msg:
+                    is_valid = False
+                    errors = [type('Err', (), {'message': array_join_msg})()]
+
             if not is_valid:
                 error_messages = [err.message for err in errors] if errors else ["Errore sintattico"]
                 """
@@ -2743,6 +3030,26 @@ Usa ESATTAMENTE i nomi campi dello schema. NESSUN testo aggiuntivo.
         f"✅ Query processata in {elapsed:.3f}s | Valida: {result['is_valid']} | "
         f"Query: {result['jcoql_query']!r}"
     )
+
+    # AGGIUNTO 03/10/2026 — campagna di test multi-modello: registra OGNI
+    # generazione (validità, tentativi, tempo) su test_campaign_log.csv,
+    # a prescindere dal modello attivo. Avvolto in try/except: un
+    # problema nel logging della campagna non deve mai far fallire la
+    # risposta di generazione vera e propria (già pronta in "result").
+    try:
+        log_campaign_generation(
+            model=ACTIVE_LLM,
+            database=db_registry.get_current_database_name(),
+            nl_query=request.nl_query,
+            jcoql_query=result['jcoql_query'],
+            is_valid=result['is_valid'],
+            attempts=result['attempts'],
+            generation_time_seconds=result['generation_time_seconds'],
+            parser_name=result['parser_used'],
+        )
+    except Exception as log_err:
+        query_logger.warning(f"⚠️ Impossibile registrare la generazione sulla campagna di test: {log_err}")
+
     return result
 
 # ==============================================================================
@@ -2751,14 +3058,35 @@ Usa ESATTAMENTE i nomi campi dello schema. NESSUN testo aggiuntivo.
 @app.get("/api/llms")
 async def list_llms():
     return {
-        "available": ["gemini", "llama", "gemma"],
+        "available": ["gemini", "llama", "gemma", "llama32", "gemma4"],
         "current": ACTIVE_LLM
     }
+
+# Modalità del prompt per i modelli locali: "compact" (default) o "full".
+# Si può cambiare a runtime con /api/set_local_prompt_mode (utile per i
+# confronti A/B senza riavviare il backend). Se non impostata, vale la
+# variabile d'ambiente LOCAL_PROMPT_MODE (default "compact").
+LOCAL_PROMPT_MODE_RUNTIME = None
+
+def _local_prompt_mode() -> str:
+    return (LOCAL_PROMPT_MODE_RUNTIME or os.getenv("LOCAL_PROMPT_MODE", "compact")).lower()
+
+@app.post("/api/set_local_prompt_mode")
+async def set_local_prompt_mode(mode: str):
+    global LOCAL_PROMPT_MODE_RUNTIME
+    if mode.lower() not in ("compact", "full"):
+        raise HTTPException(status_code=400, detail="mode deve essere 'compact' o 'full'")
+    LOCAL_PROMPT_MODE_RUNTIME = mode.lower()
+    return {"success": True, "local_prompt_mode": _local_prompt_mode()}
+
+@app.get("/api/local_prompt_mode")
+async def get_local_prompt_mode():
+    return {"local_prompt_mode": _local_prompt_mode()}
 
 @app.post("/api/set_llm")
 async def set_llm(llm_type: str):
     global ACTIVE_LLM
-    if llm_type not in ["gemini", "llama", "gemma"]:
+    if llm_type not in ["gemini", "llama", "gemma", "llama32", "gemma4"]:
         raise HTTPException(status_code=400, detail="LLM non valido")
     ACTIVE_LLM = llm_type
     return {"success": True, "llm": ACTIVE_LLM}
@@ -2788,7 +3116,8 @@ async def execute_query(request: QueryRequest):
         database_name = request.database_name
         join_config = request.join_config
         count_only = bool(request.count_only)
-        
+        timeout_seconds = request.timeout_seconds
+
         if not jcoql_query:
             return {"success": False, "error": "Query vuota"}
 
@@ -2910,12 +3239,32 @@ async def execute_query(request: QueryRequest):
         metodo (non ne ha bisogno, legge già sempre da pymongo diretto) -
         in quel caso il flag viene ignorato silenziosamente, comportamento
         equivalente a count_only=False.
+
+        timeout_seconds (menu a tendina frontend, None = predefinito):
+        passato solo se valorizzato e solo per l'executor jco_framework
+        (riconosciuto da hasattr(executor, '_run_engine'), metodo privato
+        presente solo lì) - python_translator.py non accetta un parametro
+        timeout su execute(), passarlo comunque darebbe TypeError.
         """
+        is_jco_framework_executor = hasattr(executor, '_run_engine')
+        # Opzione "Nessun timeout" del menu: il frontend invia un valore
+        # negativo (-1). Va tradotto in None, che subprocess.communicate()
+        # interpreta come attesa illimitata. 0/None continuano a significare
+        # "usa il default dell'executor".
+        _effective_timeout = None if (timeout_seconds is not None and timeout_seconds < 0) else timeout_seconds
+        if _effective_timeout is None and timeout_seconds is not None:
+            query_logger.info("⏱️ Esecuzione senza timeout (attesa illimitata)")
         if count_only and hasattr(executor, 'execute_count_only'):
             query_logger.info("📊 Modalità count-only attiva (nessun SAVE AS automatico)")
-            execution_result = executor.execute_count_only(jcoql_query)
+            if timeout_seconds and is_jco_framework_executor:
+                execution_result = executor.execute_count_only(jcoql_query, timeout=_effective_timeout)
+            else:
+                execution_result = executor.execute_count_only(jcoql_query)
         else:
-            execution_result = executor.execute(jcoql_query)
+            if timeout_seconds and is_jco_framework_executor:
+                execution_result = executor.execute(jcoql_query, timeout=_effective_timeout)
+            else:
+                execution_result = executor.execute(jcoql_query)
         exec_elapsed = time.time() - exec_start_time
         query_logger.info(f"⏱️ Esecuzione completata in {exec_elapsed:.3f}s")
 
@@ -3171,30 +3520,72 @@ async def select_database(database_name: str = Query(None), request: Request = N
         return {"success": False, "error": str(e)}
 
 @app.post("/api/databases/connect")
-async def connect_database(db_name: str, mongo_uri: str, database_name: str):
+async def connect_database(
+    db_name: str,
+    database_name: str,
+    mongo_uri: str = Query(None),
+    # AGGIUNTO 03/10/2026 — integrazione JCO DS: parametri opzionali, tutti
+    # assenti = comportamento di sempre (MongoDB, come prima di questa
+    # modifica). server_type diverso da "mongodb"/vuoto => database JCO DS.
+    server_type: str = Query(None),
+    server_host: str = Query(None),
+    server_port: int = Query(None),
+    # Nomi collection separati da virgola — JCoQL non ha un comando per
+    # elencarle da solo (vedi JcoDsSchemaDiscoverer), quindi per un
+    # database JCO DS vanno indicati a mano in questo campo del form.
+    collections: str = Query(None),
+):
     """
-    Connetti a un database MongoDB
+    Connetti a un database MongoDB (comportamento di sempre) oppure,
+    se server_type="jcods", a un database JCO DS (il server alternativo
+    dei professori: https://github.com/JcoProjectTeam).
 
-    I tre parametri arrivano come query string (non un body JSON) — il
-    form "Connetti Nuovo Database" di DatabaseSelector.jsx (frontend) li
+    I parametri arrivano come query string (non un body JSON) — il form
+    "Connetti Nuovo Database" di DatabaseSelector.jsx (frontend) li
     concatena con fetch() senza encodeURIComponent, quindi un valore con
     caratteri speciali (spazio, '&', '@' in mongo_uri) altererebbe la
     query string prima ancora di arrivare qui (vedi il commento in
     DatabaseSelector.jsx, handleAddDatabase).
     """
     try:
+        server = None
+        collections_list = None
+        if server_type and server_type.lower() not in ("", "mongodb"):
+            server = {
+                "type": server_type.lower(),
+                "host": server_host,
+                "port": server_port,
+            }
+            collections_list = [c.strip() for c in (collections or "").split(",") if c.strip()]
+
         # add_database (vedi database_registry.py) esegue qui la schema
         # discovery in modo sincrono/bloccante — questa richiesta HTTP
         # non risponde finché la scoperta schema non è completata.
-        db_registry.add_database(
+        # NOTA 03/10/2026: prima di questa modifica il valore di ritorno
+        # di add_database() (True/False) veniva ignorato qui — un
+        # fallimento (es. host non raggiungibile) finiva comunque in un
+        # "✅ Connesso" al frontend, con l'errore vero visibile solo nei
+        # log del server. Lasciato così, un errore JCO DS (più probabile:
+        # server fermo, host/porta errati, collection inesistente)
+        # sarebbe stato altrettanto silenzioso — ora il risultato viene
+        # controllato per entrambi i casi.
+        connected = db_registry.add_database(
             db_name=db_name,
             mongo_uri=mongo_uri,
-            database_name=database_name
+            database_name=database_name,
+            server=server,
+            collections=collections_list,
         )
-        
+
+        if not connected:
+            return {
+                "success": False,
+                "error": f"Connessione a '{database_name}' non riuscita (vedi log del server per il dettaglio)."
+            }
+
         from backend.database_persistence import save_databases_to_file
         save_databases_to_file(db_registry)
-        
+
         return {
             "success": True,
             "database": database_name,
@@ -3301,7 +3692,7 @@ async def get_stats():
                 "collections_total": collections_count
             },
             "llms": {
-                "available": ["gemini", "llama", "gemma"],
+                "available": ["gemini", "llama", "gemma", "llama32", "gemma4"],
                 "current": ACTIVE_LLM
             },
             "system": {
