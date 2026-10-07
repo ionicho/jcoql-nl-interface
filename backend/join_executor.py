@@ -224,9 +224,9 @@ class JoinExecutor:
         # ("Collections in JOIN must have different names or aliases").
         is_valid, validation_errors = self.parser.validate(native_query)
         if not is_valid:
-            error_detail = "; ".join(e.message for e in validation_errors) if validation_errors else "query non valida"
+            error_detail = "; ".join(e.message for e in validation_errors) if validation_errors else "invalid query"
             join_logger.warning(f"JOIN nativo non valido secondo il parser: {error_detail}")
-            return [], native_query, f"Query JOIN non valida: {error_detail}"
+            return [], native_query, f"Invalid JOIN query: {error_detail}"
 
         try:
             executor = self.executor_factory.create_executor(

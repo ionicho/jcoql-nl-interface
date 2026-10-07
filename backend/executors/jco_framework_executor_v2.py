@@ -74,8 +74,31 @@ class JCoFrameworkExecutor:
             self.database_name = db_name
     
     def _get_latest_jar(self, search_path, pattern):
+        """
+        Trova il jar "più recente" per un pattern (es. "jackson-databind-*.jar")
+        nella cache Gradle.
+
+        FIX 03/10/2026: `sorted(jars)[-1]` ordinava i PERCORSI come stringhe,
+        non le versioni come numeri. Con più versioni cache di uno stesso
+        artefatto (osservato dal vivo per jackson-databind: 2.0.1, 2.9.8,
+        2.10.0, 2.11.3, 2.15.0 tutte presenti), l'ordine alfabetico mette
+        "2.9.8" DOPO "2.15.0" (il carattere '9' > '1'), quindi veniva scelta
+        la 2.9.8 pensando fosse la più recente - non lo è. Risultato osservato:
+        NoSuchMethodError su ObjectMapper.tokenStreamFactory() nel modulo JCO DS,
+        che si aspettava una jackson-databind più recente di quella presa per
+        errore. Ora si estraggono i numeri dal nome del file (es.
+        "jackson-databind-2.15.0.jar" -> (2, 15, 0)) e si confrontano come
+        tuple numeriche, non come testo.
+        """
         jars = [j for j in search_path.rglob(pattern) if "-sources" not in str(j)]
-        return str(sorted(jars)[-1]) if jars else None
+        if not jars:
+            return None
+
+        def _version_key(path):
+            nums = re.findall(r'\d+', path.name)
+            return tuple(int(n) for n in nums)
+
+        return str(sorted(jars, key=_version_key)[-1])
 
     def _extract_collection_name(self, jcoql_query):
             """Estrai il nome della collezione dalla query JCoQL"""
@@ -723,7 +746,7 @@ class JCoFrameworkExecutor:
                 return {
                     'doc_count': saveas_result['doc_count'],
                     'results': saveas_result['results'],
-                    'text': f"Salvato in collezione: {saveas_result.get('saved_collection', '?')}"
+                    'text': f"Saved to collection: {saveas_result.get('saved_collection', '?')}"
                 }
             return {'doc_count': 0, 'results': [], 'text': ''}
 
@@ -763,14 +786,14 @@ class JCoFrameworkExecutor:
                     return {
                         'doc_count': len(file_contents),
                         'results': results,
-                        'text': f"Salvato su file: {declared_path} ({declared_count} documenti, verificato)"
+                        'text': f"Saved to file: {declared_path} ({declared_count} documents, verified)"
                     }
                 return {
                     'doc_count': declared_count,
                     'results': [],
-                    'text': f"Il motore dichiara {declared_count} documenti salvati su file: "
-                            f"{declared_path} - percorso non verificabile automaticamente da "
-                            f"qui, controllalo manualmente."
+                    'text': f"The engine reports {declared_count} documents saved to file: "
+                            f"{declared_path} - the path cannot be verified automatically from "
+                            f"here, please check it manually."
                 }
             return {'doc_count': 0, 'results': [], 'text': ''}
 
@@ -1271,7 +1294,7 @@ class JCoFrameworkExecutor:
             save_matches = re.findall(r'SAVE\s+AS\s+(\w+)\s*@\s*(\w+)', jcoql_query, re.IGNORECASE)
             real_save = next((m for m in save_matches if not m[0].lower().startswith('chaintemp')), None)
             if real_save:
-                text = f"Salvato anche in collezione: {real_save[0]}@{real_save[1]}"
+                text = f"Also saved to collection: {real_save[0]}@{real_save[1]}"
             elif re.search(r'SAVE\s+TO\s+FILE', jcoql_query, re.IGNORECASE):
                 file_match = re.search(r'\[Save\]\s+executed:\s+\d+\s+documents saved to file\s+(.+)', output)
                 if file_match:
@@ -1285,9 +1308,9 @@ class JCoFrameworkExecutor:
             # creata, e vale la pena dirlo invece di mostrare silenziosamente
             # "0 risultati" come se fosse un esito normale.
             if total_count == 0 and not re.search(r'\[.*?\]\s*executed', output, re.IGNORECASE):
-                text = text or ("Nessun risultato — il motore non sembra aver eseguito nessun "
-                                 "comando riconosciuto in questa query (controlla l'output grezzo "
-                                 "Java se il problema persiste).")
+                text = text or ("No results — the engine does not seem to have executed any "
+                                 "recognized command in this query (check the raw "
+                                 "Java output if the problem persists).")
 
             return {'doc_count': total_count, 'results': results, 'text': text}
         except Exception as e:
@@ -1352,16 +1375,16 @@ class JCoFrameworkExecutor:
         save_matches = re.findall(r'SAVE\s+AS\s+(\w+)\s*@\s*(\w+)', jcoql_query, re.IGNORECASE)
         real_save = next((m for m in save_matches if not m[0].lower().startswith('chaintemp')), None)
         if real_save:
-            text = f"Salvato anche in collezione: {real_save[0]}@{real_save[1]}"
+            text = f"Also saved to collection: {real_save[0]}@{real_save[1]}"
         elif re.search(r'SAVE\s+TO\s+FILE', jcoql_query, re.IGNORECASE):
             file_match = re.search(r'\[Save\]\s+executed:\s+\d+\s+documents saved to file\s+(.+)', output)
             if file_match:
                 text = f"Salvato anche su file: {file_match.group(1).strip()}"
 
         if doc_count == 0 and not text and not re.search(r'\[.*?\]\s*executed', output, re.IGNORECASE):
-            text = ("Nessun risultato — il motore non sembra aver eseguito nessun "
-                     "comando riconosciuto in questa query (controlla l'output grezzo "
-                     "Java se il problema persiste).")
+            text = ("No results — the engine does not seem to have executed any "
+                     "recognized command in this query (check the raw "
+                     "Java output if the problem persists).")
 
         return {'doc_count': doc_count, 'results': results, 'text': text}
 
@@ -1544,6 +1567,20 @@ class JCoFrameworkExecutor:
             (gradle_cache / "org.springframework/spring-beans", "spring-beans-*.jar"),
             (gradle_cache / "org.springframework/spring-expression", "spring-expression-*.jar"),
             (gradle_cache / "org.springframework/spring-jcl", "spring-jcl-*.jar"),
+
+            # --- JCO DS (03/10/2026) ---
+            # JcoDsRemoteDatabase.initDeserializer() crea sempre un
+            # GeoJsonValueSerializer (anche se i documenti della collection
+            # non contengono dati geografici) - da cui NoClassDefFoundError
+            # su org.wololo.jts2geojson.GeoJSONWriter osservato dal vivo, e
+            # a cascata sulla sua dipendenza org.locationtech.jts:jts-core
+            # (non com.vividsolutions:jts, quella vecchia coordinata non è
+            # nemmeno nella cache Gradle di questo progetto - verificato).
+            # Non in "jcoql-ds-core/lib/*" come gson/httpclient: risolte da
+            # Gradle in fase di build, quindi vanno prese dalla cache come
+            # Jackson/Mongo/Spring sopra.
+            (gradle_cache / "org.wololo/jts2geojson", "jts2geojson-*.jar"),
+            (gradle_cache / "org.locationtech.jts/jts-core", "jts-core-*.jar"),
         ]
 
         classpath_parts = [
@@ -1561,6 +1598,16 @@ class JCoFrameworkExecutor:
             str(self.jco_base / "jcoql-engine/build/classes/java/main"),
             str(self.jco_base / "jcoql-model/build/classes/java/main"),
             str(self.jco_base / "jcoql-engine-mongodb/build/classes/java/main"),
+            # AGGIUNTO 03/10/2026 - integrazione JCO DS: "jcoql-ds-core/lib/*"
+            # (poco sotto) c'era già, ma portava solo le DIPENDENZE di terze
+            # parti del modulo, non le classi compilate DEL modulo stesso
+            # (JcoDsRemoteDatabase, ClientConnectionManager, ecc.) - da cui il
+            # NoClassDefFoundError osservato dal vivo su UseDbExecutor.createDB
+            # quando il tipo richiesto è "jcods": la classe esiste ed è già
+            # compilata su disco (jcoql-ds-core/build/classes/java/main,
+            # verificato), semplicemente non era nel classpath passato al
+            # sottoprocesso Java.
+            str(self.jco_base / "jcoql-ds-core/build/classes/java/main"),
 
             str(self.jco_base / "jcoql-engine/build/libs/*"),
             str(self.jco_base / "jcoql-engine-mongodb/build/libs/*"),
@@ -1588,8 +1635,34 @@ class JCoFrameworkExecutor:
             str(main_props.resolve())
         ]
 
-        result = subprocess.run(cmd, cwd=str(self.jco_base), capture_output=True,
-                              text=True, timeout=timeout, encoding='utf-8', errors='replace')
+        # Non usiamo subprocess.run(timeout=...) direttamente: osservato dal
+        # vivo (03/10) che il suo kill() interno non termina in modo
+        # affidabile/rapido java.exe su Windows - la JVM ha molti thread e
+        # handle aperti, a differenza di un comando semplice (es. ping, uno
+        # script Python), dove lo stesso timeout funzionava correttamente.
+        # Risultato osservato: il processo restava vivo ben oltre il
+        # timeout configurato (minuti, non secondi) finché non arrivava
+        # un'interruzione manuale (Ctrl+C) da terminale. taskkill /F /T
+        # (Windows) uccide l'intero albero di processi in modo forzato,
+        # molto più affidabile in questo caso specifico del kill() di
+        # Python su un singolo processo.
+        proc = subprocess.Popen(cmd, cwd=str(self.jco_base), stdout=subprocess.PIPE,
+                                 stderr=subprocess.PIPE, text=True, encoding='utf-8',
+                                 errors='replace')
+        try:
+            stdout, stderr = proc.communicate(timeout=timeout)
+            result = subprocess.CompletedProcess(cmd, proc.returncode, stdout, stderr)
+        except subprocess.TimeoutExpired:
+            if os.name == 'nt':
+                subprocess.run(['taskkill', '/F', '/T', '/PID', str(proc.pid)],
+                                capture_output=True)
+            else:
+                proc.kill()
+            try:
+                proc.communicate(timeout=10)
+            except Exception:
+                pass
+            raise
 
         # Log diagnostico dell'output grezzo di Java per comandi diversi da GET COLLECTION
         # (JOIN/GROUP/EXPAND/MERGE/INTERSECT/SUBTRACT/SAVE), attivo solo con
@@ -1629,7 +1702,7 @@ class JCoFrameworkExecutor:
             err_line_match = re.search(r'\[.+?\]\s*Error:\s*(.+)', result.stdout)
             if err_line_match:
                 readable_error = err_line_match.group(1).strip()
-        return readable_error or result.stderr or "Errore sconosciuto durante l'esecuzione"
+        return readable_error or result.stderr or "Unknown error during execution"
 
     # Pattern di conteggio stampati dal motore J-CO su stdout per i comandi che,
     # in execute() (percorso normale), richiederebbero un SAVE AS per poter
@@ -1718,17 +1791,17 @@ class JCoFrameworkExecutor:
                     generic_match = re.search(r'\[.+?\]\s*executed:\s*(\d+)', result.stdout, re.IGNORECASE)
                     if generic_match:
                         doc_count = int(generic_match.group(1))
-                        text = ("Conteggio letto con pattern generico, non specifico per "
-                                "questo comando - verifica l'output grezzo Java "
-                                "(JCOQL_DEBUG=true) se il numero sembra sbagliato.")
+                        text = ("Count read with a generic pattern, not specific to "
+                                "this command - check the raw Java output "
+                                "(JCOQL_DEBUG=true) if the number looks wrong.")
                     else:
                         return {
                             'success': True,
                             'jcoql_query': jcoql_query,
                             'count': 0,
                             'results': [],
-                            'text': ("Eseguito, ma nessun conteggio riconoscibile nell'output del "
-                                     "motore - controlla l'output grezzo Java (JCOQL_DEBUG=true)."),
+                            'text': ("Executed, but no recognizable count in the engine "
+                                     "output - check the raw Java output (JCOQL_DEBUG=true)."),
                             'executor': 'jco_framework_count_only'
                         }
 
@@ -1747,6 +1820,21 @@ class JCoFrameworkExecutor:
                     'error': self._extract_readable_error(result),
                     'executor': 'jco_framework_count_only'
                 }
+        except subprocess.TimeoutExpired:
+            # Messaggio esplicito invece del dump grezzo dell'eccezione
+            # (che includeva l'intero comando java invocato) - richiesto
+            # esplicitamente insieme al menu a tendina del timeout, per non
+            # lasciare mai un fallimento silenzioso o incomprensibile.
+            self._cleanup_chaintemp_collections(jcoql_query)
+            return {
+                'success': False,
+                'error': (f"Timeout after {timeout}s ({timeout/60:.1f} min): the engine did not "
+                          f"complete the computation in time. In 'count only' mode this means "
+                          f"the computation itself is slow (e.g. an unfiltered JOIN between very "
+                          f"large collections) - count-only mode does not help in this specific case. "
+                          f"Try increasing the timeout from the dropdown, or filter the query better."),
+                'executor': 'jco_framework_count_only'
+            }
         except Exception as e:
             self._cleanup_chaintemp_collections(jcoql_query)
             return {'success': False, 'error': str(e), 'executor': 'jco_framework_count_only'}
@@ -1778,7 +1866,7 @@ class JCoFrameworkExecutor:
         matches = re.findall(r'USE\s+DB\s+(\w+)\s+ON', wrapped_query, re.IGNORECASE)
         return matches[-1] if matches else self.database_name
 
-    def execute(self, jcoql_query):
+    def execute(self, jcoql_query, timeout=30):
         try:
             # STRATEGIA (01/10, seconda revisione — vedi docstring del modulo):
             # nessun SAVE AS automatico accodato qui. Il motore stampa già il
@@ -1791,7 +1879,7 @@ class JCoFrameworkExecutor:
             if not wrapped_query.endswith(';'):
                 wrapped_query += ';'
 
-            result = self._run_engine(wrapped_query, timeout=30, log_query=jcoql_query, return_documents=True)
+            result = self._run_engine(wrapped_query, timeout=timeout, log_query=jcoql_query, return_documents=True)
 
             if result.returncode == 0 and "ECCEZIONE:" not in result.stdout:
                 # Legge il vero risultato dal motore invece di ricostruirlo in
@@ -1821,6 +1909,18 @@ class JCoFrameworkExecutor:
                     'error': self._extract_readable_error(result),
                     'executor': 'jco_framework'
                 }
+        except subprocess.TimeoutExpired:
+            # Stesso principio di execute_count_only(): messaggio esplicito
+            # invece del dump grezzo dell'eccezione col comando java intero.
+            self._cleanup_chaintemp_collections(jcoql_query)
+            return {
+                'success': False,
+                'error': (f"Timeout after {timeout}s ({timeout/60:.1f} min): the query did not "
+                          f"produce a result in time. Try increasing the timeout from the "
+                          f"dropdown, or use 'Count only' if the collection is very "
+                          f"large and you do not need to see the documents."),
+                'executor': 'jco_framework'
+            }
         except Exception as e:
             self._cleanup_chaintemp_collections(jcoql_query)
             return {'success': False, 'error': str(e), 'executor': 'jco_framework'}

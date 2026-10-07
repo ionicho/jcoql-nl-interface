@@ -117,7 +117,7 @@ export default function QueryExecutor({
         return server;
       }
     } catch (err) {
-      console.warn(`Impossibile recuperare il server di '${dbName}', uso il default MongoDB:`, err);
+      console.warn(`Could not retrieve the server of '${dbName}', using the MongoDB default:`, err);
     }
     return null;
   };
@@ -149,7 +149,7 @@ export default function QueryExecutor({
 
   const handleGenerate = async () => {
     if (!nlQuery.trim()) {
-      setError('Inserisci una query in linguaggio naturale');
+      setError('Enter a natural-language query');
       return;
     }
 
@@ -216,7 +216,7 @@ export default function QueryExecutor({
       });
 
       if (!response.data.is_valid) {
-        setError('Query generata non valida — vedi i dettagli sopra.');
+        setError('The generated query is not valid — see the details above.');
       }
     } catch (err) {
       // Preferisce il dettaglio vero che il backend manda in
@@ -224,7 +224,7 @@ export default function QueryExecutor({
       // quota Gemini, gestito lì con un messaggio chiaro) al messaggio
       // generico di Axios (err.message, es. "Request failed with status
       // code 500"), tornando a quest'ultimo solo se il dettaglio manca.
-      setError('Errore generazione: ' + (err.response?.data?.detail || err.message));
+      setError('Generation error: ' + (err.response?.data?.detail || err.message));
     } finally {
       setIsGenerating(false);
     }
@@ -251,7 +251,7 @@ export default function QueryExecutor({
 
   const handleExecute = async () => {
     if (!jcoqlQuery.trim()) {
-      setError('Nessuna query JCoQL da eseguire');
+      setError('No J-CO-QL+ query to execute');
       return;
     }
 
@@ -279,7 +279,7 @@ export default function QueryExecutor({
           try {
             parsedResults = JSON.parse(data.results);
           } catch (e) {
-            console.error('Errore parsing results:', e);
+            console.error('Error parsing results:', e);
             parsedResults = data.results;
           }
         }
@@ -308,11 +308,11 @@ export default function QueryExecutor({
         if (data.jcoql_query) setJcoqlQuery(executedFull);
         recordHistory(true, { executedQuery: executedFull, count: data.count, elapsedSeconds: data.execution_time_seconds });
       } else {
-        setError('Errore esecuzione: ' + data.error);
+        setError('Execution error: ' + data.error);
         recordHistory(false, { elapsedSeconds: data.execution_time_seconds });
       }
     } catch (err) {
-      setError('Errore esecuzione: ' + (err.response?.data?.detail || err.message));
+      setError('Execution error: ' + (err.response?.data?.detail || err.message));
       recordHistory(false);
     } finally {
       setIsExecuting(false);
@@ -369,14 +369,14 @@ export default function QueryExecutor({
       <div>
         <h2 className="qe-header-title">🔍 Query Executor</h2>
         <p className="qe-header-subtitle">
-          Genera ed esegui query JCoQL su MongoDB
+          Generate and execute J-CO-QL+ queries
         </p>
       </div>
 
       {/* --- INPUT: LINGUAGGIO NATURALE (unico in tutta l'app, sempre visibile) --- */}
       <div className="bg-white rounded-lg shadow-md p-6">
         <label className="block text-sm font-medium text-gray-700 mb-2">
-          Query in Linguaggio Naturale
+          Natural-Language Query
         </label>
         <div className="flex gap-2 items-start">
           <textarea
@@ -391,7 +391,7 @@ export default function QueryExecutor({
                 handleGenerate();
               }
             }}
-            placeholder="Es: Prodotti di elettronica con sconto maggiore del 20%"
+            placeholder="E.g.: Electronics products with a discount greater than 20%"
             rows={2}
             className="flex-1 px-4 py-3 leading-relaxed border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#007bff] focus:border-transparent resize-none overflow-y-auto"
             style={{ maxHeight: '200px', minHeight: '60px' }}
@@ -400,10 +400,10 @@ export default function QueryExecutor({
             <button
               type="button"
               onClick={() => setNlQuery('')}
-              title="Cancella il testo"
+              title="Clear the text"
               className="px-4 py-3 rounded-lg font-medium border border-gray-300 text-gray-600 hover:bg-gray-50 transition-colors"
             >
-              🗑️ Pulisci
+              🗑️ Clear
             </button>
           )}
           <button
@@ -428,7 +428,7 @@ export default function QueryExecutor({
             // (px-3).
             className="px-6 py-2 rounded-lg text-sm font-semibold transition-colors"
           >
-            {isGenerating ? '⏳ Generazione...' : '✦ Genera'}
+            {isGenerating ? '⏳ Generating...' : '✦ Generate'}
           </button>
         </div>
       </div>
@@ -453,7 +453,7 @@ export default function QueryExecutor({
             invece di generarla — resta lì come spazio bianco fisso. */}
         <div className="mb-3">
           <label className="block text-sm font-medium text-gray-700 mb-2">
-            Query JCoQL+
+            J-CO-QL+ Query
           </label>
           {/* I tre elementi (checkbox, Salva, Esegui) distribuiti lungo
               tutta la riga, con "Esegui su MongoDB" fino al bordo destro
@@ -462,7 +462,7 @@ export default function QueryExecutor({
             <div className="flex items-center flex-wrap gap-3">
               <label
                 className="flex items-center gap-2.5 text-xs text-gray-600 cursor-pointer select-none"
-                title="Non salva il risultato in una collezione temporanea per mostrarlo qui - mostra solo il numero di documenti prodotti. Da usare su collezioni grandi (es. JOIN/GROUP su dataset con decine di migliaia di documenti), dove salvare l'intero risultato solo per leggerlo è il vero collo di bottiglia."
+                title="Does not save the result into a temporary collection to show it here - it only shows the number of documents produced. Use it on large collections (e.g. JOIN/GROUP on datasets with tens of thousands of documents), where saving the whole result just to read it is the real bottleneck."
               >
                 {/* Il gap del flex container non produce spazio visibile
                     qui perché il testo dopo <input/> è un nodo di testo
@@ -474,7 +474,7 @@ export default function QueryExecutor({
                   checked={countOnly}
                   onChange={(e) => setCountOnly(e.target.checked)}
                 />
-                <span style={{ marginLeft: '6px' }}>Solo conteggio (database grandi)</span>
+                <span style={{ marginLeft: '6px' }}>Count only (large databases)</span>
               </label>
               {/* Timeout di esecuzione: 5 minuti selezionato di default,
                   sovrascrive sempre i default interni (30s/300s a seconda
@@ -484,7 +484,7 @@ export default function QueryExecutor({
                   esplicito, mai un timeout silenzioso. */}
               <label
                 className="flex items-center gap-2.5 text-xs text-gray-600 select-none"
-                title="Tempo massimo di attesa per l'esecuzione della query sul motore J-CO, prima di interromperla e mostrare un messaggio esplicito invece di aspettare indefinitamente."
+                title="Maximum time to wait for the query to run on the J-CO engine, before interrupting it and showing an explicit message instead of waiting indefinitely."
               >
                 <span>Timeout: </span>
                 <select
@@ -492,19 +492,19 @@ export default function QueryExecutor({
                   onChange={(e) => setTimeoutSeconds(Number(e.target.value))}
                   className="text-xs text-gray-600 border border-gray-300 rounded px-1.5 py-1 cursor-pointer bg-white"
                 >
-                  <option value={120}>2 minuti</option>
-                  <option value={300}>5 minuti</option>
-                  <option value={600}>10 minuti</option>
-                  <option value={900}>15 minuti</option>
-                  <option value={1200}>20 minuti</option>
-                  <option value={-1}>Nessun timeout</option>
+                  <option value={120}>2 minutes</option>
+                  <option value={300}>5 minutes</option>
+                  <option value={600}>10 minutes</option>
+                  <option value={900}>15 minutes</option>
+                  <option value={1200}>20 minutes</option>
+                  <option value={-1}>No timeout</option>
                 </select>
               </label>
             </div>
             {jcoqlQuery.trim() && (
               <button
                 onClick={handleSaveFavorite}
-                title="Salva questa query nei preferiti"
+                title="Save this query to favorites"
                 style={{
                   border: 'none',
                   WebkitAppearance: 'none',
@@ -515,7 +515,7 @@ export default function QueryExecutor({
                 }}
                 className="px-3 py-2 bg-yellow-100 hover:bg-yellow-200 text-yellow-800 rounded-lg text-sm font-medium transition-colors"
               >
-                ⭐ Salva
+                ⭐ Save
               </button>
             )}
             <button
@@ -537,7 +537,7 @@ export default function QueryExecutor({
               // più largo in orizzontale.
               className="px-5 py-2 rounded-lg text-sm font-semibold transition-colors"
             >
-              {isExecuting ? '⏳ Esecuzione...' : '► Esegui su MongoDB'}
+              {isExecuting ? '⏳ Executing...' : '► Execute'}
             </button>
           </div>
           <div
@@ -553,10 +553,10 @@ export default function QueryExecutor({
                       : 'bg-red-100 text-red-800'
                   }`}
                 >
-                  {generationInfo.is_valid ? '✅ Valida' : '❌ Invalida'}
+                  {generationInfo.is_valid ? '✅ Valid' : '❌ Invalid'}
                 </span>
                 <span className="text-xs text-gray-500">
-                  Tentativi: {generationInfo.attempts}
+                  Attempts: {generationInfo.attempts}
                 </span>
                 {typeof generationInfo.generationTimeSeconds === 'number' && (
                   <span className="text-xs text-gray-500">
@@ -575,14 +575,14 @@ export default function QueryExecutor({
         <textarea
           value={jcoqlQuery}
           onChange={(e) => handleQueryEdit(e.target.value)}
-          placeholder="Es: GET COLLECTION hotels; FILTER CASE WHERE .location.city = 'Milano' KEEP OTHERS;"
+          placeholder="E.g.: GET COLLECTION hotels; FILTER CASE WHERE .location.city = 'Milan' KEEP OTHERS;"
           rows={6}
           className="w-full px-4 py-3 border-2 border-gray-300 rounded-lg focus:outline-none focus:border-[#007bff] font-mono text-sm"
         />
 
         {generationInfo && !generationInfo.is_valid && generationInfo.validation_errors.length > 0 && (
           <div className="mt-3 bg-red-50 border border-red-200 rounded-lg p-4">
-            <h3 className="text-sm font-semibold text-red-800 mb-2">⚠️ Errori di Validazione:</h3>
+            <h3 className="text-sm font-semibold text-red-800 mb-2">⚠️ Validation Errors:</h3>
             <ul className="space-y-1">
               {generationInfo.validation_errors.map((err, idx) => (
                 <li key={idx} className="text-sm text-red-700">• {err.message}</li>
@@ -592,7 +592,7 @@ export default function QueryExecutor({
         )}
 
         <p className="mt-2 text-xs text-gray-500">
-          💡 Tip: Puoi incollare, modificare o scrivere qui il codice JCoQL per lavorare direttamente, senza passare dall&apos;AI.
+          💡 Tip: You can paste, edit or write J-CO-QL+ code here to work directly, without going through the AI.
         </p>
       </div>
 
@@ -608,7 +608,7 @@ export default function QueryExecutor({
         <div className="bg-white rounded-lg shadow-md p-6">
           <div className="flex justify-between items-center mb-4">
             <h2 className="text-xl font-bold text-gray-800">
-              📊 Risultati ({results.count} documenti)
+              📊 Results ({results.count} documents)
               {typeof results.execution_time_seconds === 'number' && (
                 <span className="ml-2 text-sm font-normal text-gray-500">
                   ⏱️ {results.execution_time_seconds}s
@@ -666,7 +666,7 @@ export default function QueryExecutor({
 
           {results.count === 0 ? (
             <div className="text-center py-8 text-gray-500">
-              Nessun risultato trovato
+              No results found
             </div>
           ) : results.results.length === 0 ? (
             // Modalità "solo conteggio": il motore ha prodotto
@@ -675,9 +675,9 @@ export default function QueryExecutor({
             // l'esito atteso, non un errore o un caso da confondere con
             // "nessun risultato trovato" sopra (quello è per count === 0).
             <div className="text-center py-8 text-gray-500 text-sm">
-              📊 Modalità solo conteggio attiva: {results.count} documenti prodotti dal motore,
-              contenuto non recuperato. Se la query conteneva un SAVE AS esplicito verso una
-              collezione con un nome a tua scelta, puoi ispezionarla con MongoDB Compass.
+              📊 Count-only mode is on: {results.count} documents produced by the engine,
+              content not retrieved. If the query contained an explicit SAVE AS into a
+              collection with a name of your choice, you can inspect it with MongoDB Compass.
             </div>
           ) : (
             <div className="space-y-4 max-h-96 overflow-y-auto border border-gray-100 rounded p-2 bg-gray-50">
@@ -693,7 +693,7 @@ export default function QueryExecutor({
                       </span>
                     )}
                     <span className="text-xs bg-[#e7f3ff] text-[#0056b3] px-2 py-1 rounded">
-                      Documento #{index + 1}
+                      Document #{index + 1}
                     </span>
                   </div>
                   <pre className="text-sm overflow-x-auto">
@@ -707,7 +707,7 @@ export default function QueryExecutor({
           {results.mongo_query && (
             <details className="mt-4 text-sm">
               <summary className="cursor-pointer text-gray-600 hover:text-gray-800 font-medium">
-                🔍 Visualizza query MongoDB tradotta
+                🔍 View translated MongoDB query
               </summary>
               <pre className="mt-2 bg-gray-900 text-green-400 p-3 rounded overflow-x-auto">
                 {JSON.stringify(results.mongo_query, null, 2)}
@@ -721,7 +721,7 @@ export default function QueryExecutor({
       {results && !Array.isArray(results.results) && (
         <div className="bg-red-50 border border-red-200 rounded-lg p-4">
           <p className="text-red-800">
-            ⚠️ Errore nella risposta del server:<br/>
+            ⚠️ Error in the server response:<br/>
             <code>{JSON.stringify(results, null, 2)}</code>
           </p>
         </div>

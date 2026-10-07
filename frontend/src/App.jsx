@@ -79,7 +79,7 @@ function MainInterface() {
   useEffect(() => {
     axios.get(`${API_BASE_URL}/api/parsers`)
       .then(res => setActiveParser(res.data.current_name || res.data.current))
-      .catch(err => console.error('Errore caricamento parser attivo:', err))
+      .catch(err => console.error('Error loading active parser:', err))
   }, [])
 
   // --- EFFECT: CARICAMENTO INIZIALE DA LOCAL STORAGE ---
@@ -93,7 +93,7 @@ function MainInterface() {
       // rimasta da una sessione precedente.
       localStorage.removeItem('jcoql_join_config')
     } catch (err) {
-      console.warn('Errore caricamento configurazioni salvate:', err)
+      console.warn('Error loading saved settings:', err)
     }
   }, [])
 
@@ -112,8 +112,8 @@ function MainInterface() {
         setSelectedLlm(newLlm)
       }
     } catch (error) {
-      console.error('Errore durante il cambio LLM:', error)
-      showToast('Errore nel cambio LLM', 'error')
+      console.error('Error while switching LLM:', error)
+      showToast('Error switching LLM', 'error')
     }
   }
 
@@ -125,7 +125,7 @@ function MainInterface() {
     try {
       localStorage.setItem('jcoql_selected_databases', JSON.stringify(databases))
     } catch (err) {
-      console.warn('Errore salvataggio in localStorage:', err)
+      console.warn('Error saving to localStorage:', err)
     }
   }
 
@@ -142,11 +142,11 @@ function MainInterface() {
       {/* ════════════════ HEADER ════════════════ */}
       <header className="app-header">
         <div className="header-content">
-          <h1> JCoQL+ Natural Language Interface</h1>
+          <h1> J-CO-QL+ Natural Language Interface</h1>
           
           <div className="header-info">
             <span className="info-item">
-              <strong>Parser:</strong> {activeParser || 'Caricamento...'}
+              <strong>Parser:</strong> {activeParser || 'Loading...'}
             </span>
             <span className="info-item">
               <strong>LLM:</strong>
@@ -154,11 +154,13 @@ function MainInterface() {
                 value={selectedLlm} 
                 onChange={handleLlmChange} 
                 className="llm-selector"
-                title={`Attuale: ${selectedLlm === 'gemini' ? 'Cloud (Google API)' : 'Locale (Ollama)'}`}
+                title={`Current: ${selectedLlm === 'gemini' ? 'Cloud (Google API)' : 'Local (Ollama)'}`}
               >
                 <option value="gemini">☁️ Gemini (Cloud)</option>
-                <option value="llama">🏠 Llama (Locale - 4.7GB)</option>
-                <option value="gemma">🏠 Gemma (Locale - 5.4GB) </option>
+                <option value="llama">🏠 Llama 3.1 8B (Local - 4.7GB)</option>
+                <option value="gemma">🏠 Gemma 1 7B (Local - 5.4GB) </option>
+                <option value="llama32">🏠 Llama 3.2 3B (Local - 2GB)</option>
+                <option value="gemma4">🏠 Gemma 4 E4B (Local - 6.6GB)</option>
               </select>
             </span>
           </div>
@@ -171,18 +173,48 @@ function MainInterface() {
           </div>
         </div>
 
+        {/* I 4 blocchi VRAM qui sotto (Llama 3.1, Gemma 1.7, Llama 3.2,
+            Gemma4) usano tutti lo stesso formato generico `ollama ps` +
+            `ollama stop <nome-modello>` (uniformato il 04/10: Llama e
+            Gemma indicavano prima "l'altro" modello per nome in modo
+            fisso — ollama stop gemma / ollama stop — pensato quando
+            erano gli unici due disponibili; con 4 modelli locali non è
+            più pratico indicarlo per nome, meglio controllare cos'è
+            davvero caricato con `ollama ps`). */}
         {selectedLlm === 'llama' && (
           <div style={{ marginTop: '12px', padding: '10px', background: 'rgba(255, 204, 0, 0.2)', border: '1px solid rgba(255, 204, 0, 0.5)', borderRadius: '6px', fontSize: '13px' }}>
-            <strong>⚠️ Nota VRAM:</strong> Llama richiede 4.7GB. 
-            Se hai appena usato Gemma, riavvia Ollama per liberare memoria: 
-            <code style={{ background: 'rgba(0,0,0,0.3)', padding: '2px 6px', borderRadius: '4px', marginLeft: '6px' }}>ollama stop gemma</code>
+            <strong>⚠️ VRAM note:</strong> Llama 3.1 8B requires ~4.7GB.
+            If you have just used another local model, check what is still loaded and stop it:
+            <code style={{ background: 'rgba(0,0,0,0.3)', padding: '2px 6px', borderRadius: '4px', marginLeft: '6px' }}>ollama ps</code>
+            {' '}then{' '}
+            <code style={{ background: 'rgba(0,0,0,0.3)', padding: '2px 6px', borderRadius: '4px', marginLeft: '6px' }}>ollama stop &lt;model-name&gt;</code>
           </div>
         )}
         {selectedLlm === 'gemma' && (
           <div style={{ marginTop: '12px', padding: '10px', background: 'rgba(255, 204, 0, 0.2)', border: '1px solid rgba(255, 204, 0, 0.5)', borderRadius: '6px', fontSize: '13px' }}>
-            <strong>⚠️ Nota VRAM:</strong> Gemma richiede 5.4GB. 
-            Se hai appena usato Llama, riavvia Ollama per liberare memoria: 
-            <code style={{ background: 'rgba(0,0,0,0.3)', padding: '2px 6px', borderRadius: '4px', marginLeft: '6px' }}>ollama stop</code>
+            <strong>⚠️ VRAM note:</strong> Gemma 1 7B requires ~5.4GB.
+            If you have just used another local model, check what is still loaded and stop it:
+            <code style={{ background: 'rgba(0,0,0,0.3)', padding: '2px 6px', borderRadius: '4px', marginLeft: '6px' }}>ollama ps</code>
+            {' '}then{' '}
+            <code style={{ background: 'rgba(0,0,0,0.3)', padding: '2px 6px', borderRadius: '4px', marginLeft: '6px' }}>ollama stop &lt;model-name&gt;</code>
+          </div>
+        )}
+        {selectedLlm === 'llama32' && (
+          <div style={{ marginTop: '12px', padding: '10px', background: 'rgba(255, 204, 0, 0.2)', border: '1px solid rgba(255, 204, 0, 0.5)', borderRadius: '6px', fontSize: '13px' }}>
+            <strong>⚠️ VRAM note:</strong> Llama 3.2 3B requires ~2GB.
+            If you have just used another local model, check what is still loaded and stop it:
+            <code style={{ background: 'rgba(0,0,0,0.3)', padding: '2px 6px', borderRadius: '4px', marginLeft: '6px' }}>ollama ps</code>
+            {' '}then{' '}
+            <code style={{ background: 'rgba(0,0,0,0.3)', padding: '2px 6px', borderRadius: '4px', marginLeft: '6px' }}>ollama stop &lt;model-name&gt;</code>
+          </div>
+        )}
+        {selectedLlm === 'gemma4' && (
+          <div style={{ marginTop: '12px', padding: '10px', background: 'rgba(255, 204, 0, 0.2)', border: '1px solid rgba(255, 204, 0, 0.5)', borderRadius: '6px', fontSize: '13px' }}>
+            <strong>⚠️ VRAM note:</strong> Gemma 4 E4B requires ~6.6GB.
+            If you have just used another local model, check what is still loaded and stop it:
+            <code style={{ background: 'rgba(0,0,0,0.3)', padding: '2px 6px', borderRadius: '4px', marginLeft: '6px' }}>ollama ps</code>
+            {' '}then{' '}
+            <code style={{ background: 'rgba(0,0,0,0.3)', padding: '2px 6px', borderRadius: '4px', marginLeft: '6px' }}>ollama stop &lt;model-name&gt;</code>
           </div>
         )}
       </header>
@@ -242,7 +274,7 @@ function MainInterface() {
       {/* ════════════════ FOOTER ════════════════ */}
       <footer className="app-footer">
         <p>Iotti Nicholas</p>
-        <p>JCoQL+ NL Interface | Università degli Studi di Bergamo</p>
+        <p>J-CO-QL+ NL Interface | University of Bergamo</p>
       </footer>
     </div>
   )

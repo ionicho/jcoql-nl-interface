@@ -311,11 +311,41 @@
   color: #374151;
 }
 
-.add-db-form input {
+.add-db-form input,
+.add-db-form select {
   padding: 6px;
   border: 1px solid #d1d5db;
   border-radius: 3px;
   font-size: 11px;
+}
+
+/* AGGIUNTO 03/10/2026 — integrazione JCO DS: nota sotto il campo
+   "Collection" nel form di aggiunta database, stesso tono di
+   .input-info più sopra in questo file. */
+.field-hint {
+  margin: 0;
+  font-size: 11px;
+  color: #6b7280;
+  font-style: italic;
+}
+
+/* AGGIUNTO 03/10/2026 — integrazione JCO DS: sottotitolo di ogni
+   sezione dell'elenco database, raggruppata per server di appartenenza
+   (vedi groupDatabasesByServer in DatabaseSelector.jsx). */
+.server-group {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.server-group-label {
+  font-size: 11px;
+  font-weight: 600;
+  color: #0056b3;
+  text-transform: uppercase;
+  letter-spacing: 0.02em;
+  padding: 2px 0;
+  border-bottom: 1px solid #e7f3ff;
 }
 
 .connect-btn {

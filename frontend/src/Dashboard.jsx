@@ -22,7 +22,7 @@ export default function Dashboard() {
       setStats(res.data);
       setLoading(false);
     } catch (err) {
-      console.error('Errore caricamento stats:', err);
+      console.error('Error loading stats:', err);
       setLoading(false);
     }
   };
@@ -32,7 +32,7 @@ export default function Dashboard() {
       <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-gray-50 to-gray-100">
         <div className="text-center">
           <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto mb-4"></div>
-          <p className="text-lg font-semibold text-gray-700">Caricamento dashboard...</p>
+          <p className="text-lg font-semibold text-gray-700">Loading dashboard...</p>
         </div>
       </div>
     );
@@ -42,7 +42,7 @@ export default function Dashboard() {
     return (
       <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-gray-50 to-gray-100">
         <div className="text-center">
-          <p className="text-lg font-semibold text-red-600">Errore caricamento statistiche</p>
+          <p className="text-lg font-semibold text-red-600">Error loading statistics</p>
         </div>
       </div>
     );
@@ -58,7 +58,7 @@ export default function Dashboard() {
             to="/" 
             className="absolute top-8 right-8 bg-white text-blue-600 hover:bg-blue-50 px-4 py-2 rounded-lg font-semibold text-sm transition-all shadow-md hover:shadow-lg"
           >
-            ← Torna all'Interfaccia
+            ← Back to the Interface
           </Link>
           
           <div className="flex items-center gap-4 mb-2 pr-48">
@@ -73,9 +73,9 @@ export default function Dashboard() {
           <div className="bg-white rounded-lg shadow-md p-6 border-l-4 border-green-500">
             <div className="flex items-start justify-between">
               <div>
-                <p className="text-xs font-bold text-gray-500 uppercase tracking-widest">Executor Attivo</p>
+                <p className="text-xs font-bold text-gray-500 uppercase tracking-widest">Active Executor</p>
                 <p className="text-3xl font-bold text-gray-900 mt-2 capitalize">{stats.executor?.name || 'N/A'}</p>
-                <p className="text-xs text-gray-600 mt-2">✅ Operativo</p>
+                <p className="text-xs text-gray-600 mt-2">✅ Operational</p>
               </div>
             </div>
           </div>
@@ -85,7 +85,7 @@ export default function Dashboard() {
               <div>
                 <p className="text-xs font-bold text-gray-500 uppercase tracking-widest">Parser</p>
                 <p className="text-3xl font-bold text-gray-900 mt-2">{stats.executor?.parser || 'N/A'}</p>
-                <p className="text-xs text-gray-600 mt-2">Attivo su questo server</p>
+                <p className="text-xs text-gray-600 mt-2">Running on this server</p>
               </div>
             </div>
           </div>
@@ -96,7 +96,7 @@ export default function Dashboard() {
           <div className="bg-white rounded-lg shadow-md p-6 border border-gray-200">
             <div className="flex items-start justify-between">
               <div>
-                <p className="text-xs font-bold text-gray-500 uppercase tracking-widest">Database Connessi</p>
+                <p className="text-xs font-bold text-gray-500 uppercase tracking-widest">Connected Databases</p>
                 <p className="text-3xl font-bold text-gray-900 mt-2">{stats.databases?.count || 0}</p>
               </div>
             </div>
@@ -105,7 +105,7 @@ export default function Dashboard() {
           <div className="bg-white rounded-lg shadow-md p-6 border border-gray-200">
             <div className="flex items-start justify-between">
               <div>
-                <p className="text-xs font-bold text-gray-500 uppercase tracking-widest">Collezioni Totali</p>
+                <p className="text-xs font-bold text-gray-500 uppercase tracking-widest">Total Collections</p>
                 <p className="text-3xl font-bold text-gray-900 mt-2">{stats.databases?.collections_total || 0}</p>
               </div>
             </div>
@@ -128,7 +128,7 @@ export default function Dashboard() {
         <div className="bg-white rounded-lg shadow-md p-6 border border-gray-200">
           <div className="flex items-center gap-3 mb-6">
             <span className="text-3xl">🗄️</span>
-            <h2 className="text-2xl font-bold text-gray-800">Database Connessi</h2>
+            <h2 className="text-2xl font-bold text-gray-800">Connected Databases</h2>
           </div>
           
           <div className="space-y-3">
@@ -136,7 +136,7 @@ export default function Dashboard() {
               <div key={`db-${idx}`} className="p-4 rounded-lg border-2 border-blue-200 bg-blue-50">
                 <div className="flex justify-between items-center">
                   <h3 className="font-bold text-gray-800">{db}</h3>
-                  <span className="text-xs bg-blue-500 text-white px-3 py-1 rounded-full">✓ Connesso</span>
+                  <span className="text-xs bg-blue-500 text-white px-3 py-1 rounded-full">✓ Connected</span>
                 </div>
               </div>
             ))}
@@ -147,7 +147,7 @@ export default function Dashboard() {
         <div className="bg-white rounded-lg shadow-md p-6 border border-gray-200">
           <div className="flex items-center gap-3 mb-6">
             <span className="text-3xl" style={{ color: '#0056b3' }}>✦</span>
-            <h2 className="text-2xl font-bold text-gray-800">LLM Disponibili</h2>
+            <h2 className="text-2xl font-bold text-gray-800">Available LLMs</h2>
           </div>
           
           <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
@@ -163,7 +163,7 @@ export default function Dashboard() {
                 <div className="flex justify-between items-center">
                   <h3 className="font-bold text-gray-800 capitalize">{llm}</h3>
                   {llm === stats.llms?.current && (
-                    <span className="text-xs bg-green-500 text-white px-2 py-1 rounded">✓ Attivo</span>
+                    <span className="text-xs bg-green-500 text-white px-2 py-1 rounded">✓ Active</span>
                   )}
                 </div>
               </div>
@@ -182,21 +182,21 @@ export default function Dashboard() {
         <div className="bg-gradient-to-br from-green-50 to-emerald-50 rounded-lg p-8 border border-green-300">
           <div className="flex items-center gap-3 mb-6">
             <span className="text-3xl">✅</span>
-            <h2 className="text-2xl font-bold text-gray-800">Features Implementate</h2>
+            <h2 className="text-2xl font-bold text-gray-800">Implemented Features</h2>
           </div>
 
           <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
             {[
               {  name: 'JCo Framework', desc: 'Official Java implementation' },
               {  name: 'ANTLR3 Parser', desc: 'Grammar validation' },
-              {  name: 'Multi-Database', desc: 'Schema discovery per DB' },
-              {  name: 'JOIN nativo', desc: 'JOIN OF COLLECTIONS (JCoQL+)' },
-              {  name: 'GROUP', desc: 'Raggruppamento nativo' },
-              {  name: 'EXPAND', desc: 'Espansione array' },
-              {  name: 'MERGE/INTERSECT/SUBTRACT', desc: 'Operazioni insiemistiche' },
-              {  name: 'SAVE AS/TO FILE', desc: 'Persistenza dei risultati' },
+              {  name: 'Multi-Database', desc: 'Per-database schema discovery' },
+              {  name: 'Native JOIN', desc: 'JOIN OF COLLECTIONS (J-CO-QL+)' },
+              {  name: 'GROUP', desc: 'Native grouping' },
+              {  name: 'EXPAND', desc: 'Array expansion' },
+              {  name: 'MERGE/INTERSECT/SUBTRACT', desc: 'Set operations' },
+              {  name: 'SAVE AS/TO FILE', desc: 'Result persistence' },
               {  name: 'Factory Pattern', desc: 'Plug-and-play architecture' },
-              {  name: 'Solo conteggio', desc: 'Modalità count-only per collezioni grandi' },
+              {  name: 'Count only', desc: 'Count-only mode for large collections' },
             ].map((feature) => (
               <div key={feature.name} className="bg-white rounded-lg p-4 border border-green-200">
                 <h3 className="font-bold text-gray-800 text-sm mb-1">{feature.name}</h3>
@@ -219,18 +219,18 @@ export default function Dashboard() {
         <div className="bg-gray-50 rounded-lg p-8 border border-gray-300">
           <div className="flex items-center gap-3 mb-6">
             <span className="text-3xl">🚫</span>
-            <h2 className="text-2xl font-bold text-gray-800">Non generabili da linguaggio naturale</h2>
+            <h2 className="text-2xl font-bold text-gray-800">Not generable from natural language</h2>
           </div>
           <p className="text-sm text-gray-600 mb-6">
-            Comandi previsti dalla grammatica JCoQL+ ma senza istruzioni/esempi nel prompt dell'LLM —
-            per usarli serve scriverli a mano nel pannello query.
+            Commands defined by the J-CO-QL+ grammar but with no instructions/examples in the LLM prompt —
+            to use them they must be written by hand in the query panel.
           </p>
 
           <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
             {[
-              {  name: 'TRAJECTORY MATCHING', desc: 'Matching di traiettorie/percorsi geospaziali' },
+              {  name: 'TRAJECTORY MATCHING', desc: 'Geospatial trajectory/path matching' },
               {  name: 'Fuzzy Logic', desc: 'FUZZY OPERATOR/EVALUATOR/MODEL, CRISP EVALUATOR' },
-              {  name: 'JAVA/JAVASCRIPT FUNCTION', desc: 'Funzioni custom incorporate nel comando' },
+              {  name: 'JAVA/JAVASCRIPT FUNCTION', desc: 'Custom functions embedded in the command' },
             ].map((feature) => (
               <div key={feature.name} className="bg-white rounded-lg p-4 border border-gray-200">
                 <h3 className="font-bold text-gray-800 text-sm mb-1">{feature.name}</h3>
@@ -243,8 +243,8 @@ export default function Dashboard() {
         {/* ════════════════ FOOTER ════════════════ */}
         <div className="text-center py-8 text-gray-600 text-sm border-t border-gray-200">
           <p>Iotti Nicholas</p>
-          <p>JCoQL+ Natural Language Interface • Università degli Studi di Bergamo </p>
-          <p className="text-xs text-gray-500 mt-2">Dashboard aggiornato automaticamente ogni 10 secondi</p>
+          <p>J-CO-QL+ Natural Language Interface • University of Bergamo </p>
+          <p className="text-xs text-gray-500 mt-2">Dashboard refreshes automatically every 10 seconds</p>
         </div>
 
       </div>

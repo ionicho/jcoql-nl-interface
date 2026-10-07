@@ -21,7 +21,7 @@ export function loadHistory() {
     const raw = localStorage.getItem(STORAGE_KEY);
     return raw ? JSON.parse(raw) : [];
   } catch (err) {
-    console.warn('Errore caricamento cronologia:', err);
+    console.warn('Error loading history:', err);
     return [];
   }
 }
@@ -30,14 +30,14 @@ export function persistHistory(history) {
   try {
     localStorage.setItem(STORAGE_KEY, JSON.stringify(history));
   } catch (err) {
-    console.warn('Errore salvataggio cronologia:', err);
+    console.warn('Error saving history:', err);
   }
 }
 
 function formatTimestamp(iso) {
   try {
     const d = new Date(iso);
-    return d.toLocaleString('it-IT', {
+    return d.toLocaleString('en-GB', {
       day: '2-digit',
       month: '2-digit',
       hour: '2-digit',
@@ -67,7 +67,7 @@ export default function History({ history, onLoad, onDelete, onClear }) {
         className="w-full flex justify-between items-center text-left bg-white appearance-none border-none"
       >
         <span className="text-lg font-bold text-gray-700">
-          🕘 Cronologia Query ({history.length}/{MAX_HISTORY_ENTRIES})
+          🕘 Query History ({history.length}/{MAX_HISTORY_ENTRIES})
         </span>
         <span className="text-gray-400">{expanded ? '▲' : '▼'}</span>
       </button>
@@ -79,28 +79,28 @@ export default function History({ history, onLoad, onDelete, onClear }) {
               type="text"
               value={search}
               onChange={(e) => setSearch(e.target.value)}
-              placeholder="Cerca nella cronologia..."
+              placeholder="Search history..."
               className="flex-1 px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#007bff] focus:border-transparent text-sm"
             />
             {history.length > 0 && (
               <button
                 onClick={onClear}
-                title="Cancella tutta la cronologia"
+                title="Clear the whole history"
                 className="px-3 py-2 bg-red-50 hover:bg-red-100 text-red-700 rounded-lg text-xs font-medium transition-colors flex-shrink-0"
               >
-                🗑️ Cancella tutto
+                🗑️ Clear all
               </button>
             )}
           </div>
 
           {history.length === 0 ? (
             <p className="text-sm text-gray-500 mt-3 text-center py-4">
-              Nessuna query eseguita ancora — ogni esecuzione (riuscita o
-              no) finisce qui automaticamente.
+              No queries executed yet — every execution (successful or
+              not) is added here automatically.
             </p>
           ) : filtered.length === 0 ? (
             <p className="text-sm text-gray-500 mt-3 text-center py-4">
-              Nessun risultato per questa ricerca.
+              No results for this search.
             </p>
           ) : (
             <div className="mt-3 space-y-2 max-h-80 overflow-y-auto overflow-x-hidden">
@@ -126,11 +126,11 @@ export default function History({ history, onLoad, onDelete, onClear }) {
                         </span>
                         {item.success && item.count !== null && item.count !== undefined && (
                           <span className="text-xs text-gray-400">
-                            · {item.count} doc.
+                            · {item.count} docs
                           </span>
                         )}
                         {item.countOnly && (
-                          <span className="text-xs text-gray-400">· 📊 solo conteggio</span>
+                          <span className="text-xs text-gray-400">· 📊 count only</span>
                         )}
                         {typeof item.elapsedSeconds === 'number' && (
                           <span className="text-xs text-gray-400">
@@ -150,14 +150,14 @@ export default function History({ history, onLoad, onDelete, onClear }) {
                     <div className="flex flex-col gap-1 flex-shrink-0">
                       <button
                         onClick={() => onLoad(item)}
-                        title="Carica nell'executor"
+                        title="Load into the executor"
                         className="px-2 py-1 bg-[#e7f3ff] hover:bg-[#cfe8ff] text-[#0056b3] rounded text-xs font-medium transition-colors"
                       >
                         📥
                       </button>
                       <button
                         onClick={() => onDelete(item.id)}
-                        title="Elimina dalla cronologia"
+                        title="Remove from history"
                         className="px-2 py-1 bg-red-50 hover:bg-red-100 text-red-700 rounded text-xs transition-colors"
                       >
                         🗑️

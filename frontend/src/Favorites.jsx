@@ -14,7 +14,7 @@ export function loadFavorites() {
     const raw = localStorage.getItem(STORAGE_KEY);
     return raw ? JSON.parse(raw) : [];
   } catch (err) {
-    console.warn('Errore caricamento preferiti:', err);
+    console.warn('Error loading favorites:', err);
     return [];
   }
 }
@@ -23,7 +23,7 @@ export function persistFavorites(favorites) {
   try {
     localStorage.setItem(STORAGE_KEY, JSON.stringify(favorites));
   } catch (err) {
-    console.warn('Errore salvataggio preferiti:', err);
+    console.warn('Error saving favorites:', err);
   }
 }
 
@@ -46,7 +46,7 @@ export default function Favorites({ favorites, onLoad, onDelete }) {
         className="w-full flex justify-between items-center text-left bg-yellow-100 appearance-none border-none"
       >
         <span className="text-lg font-bold text-yellow-800">
-          ⭐ Query Preferite ({favorites.length})
+          ⭐ Favorite Queries ({favorites.length})
         </span>
         <span className="text-gray-400">{expanded ? '▲' : '▼'}</span>
       </button>
@@ -57,18 +57,18 @@ export default function Favorites({ favorites, onLoad, onDelete }) {
             type="text"
             value={search}
             onChange={(e) => setSearch(e.target.value)}
-            placeholder="Cerca nei preferiti..."
+            placeholder="Search favorites..."
             className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#007bff] focus:border-transparent text-sm"
           />
 
           {favorites.length === 0 ? (
             <p className="text-sm text-gray-500 mt-3 text-center py-4">
-              Nessuna query salvata ancora — usa "⭐ Salva nei preferiti" dopo
-              aver generato o scritto una query.
+              No saved queries yet — use "⭐ Save" after
+              generating or writing a query.
             </p>
           ) : filtered.length === 0 ? (
             <p className="text-sm text-gray-500 mt-3 text-center py-4">
-              Nessun risultato per questa ricerca.
+              No results for this search.
             </p>
           ) : (
             <div className="mt-3 space-y-2 max-h-80 overflow-y-auto overflow-x-hidden">
@@ -91,14 +91,14 @@ export default function Favorites({ favorites, onLoad, onDelete }) {
                     <div className="flex flex-col gap-1 flex-shrink-0">
                       <button
                         onClick={() => onLoad(fav)}
-                        title="Carica nell'executor"
+                        title="Load into the executor"
                         className="px-2 py-1 bg-[#e7f3ff] hover:bg-[#cfe8ff] text-[#0056b3] rounded text-xs font-medium transition-colors"
                       >
                         📥
                       </button>
                       <button
                         onClick={() => onDelete(fav.id)}
-                        title="Elimina dai preferiti"
+                        title="Remove from favorites"
                         className="px-2 py-1 bg-red-50 hover:bg-red-100 text-red-700 rounded text-xs transition-colors"
                       >
                         🗑️

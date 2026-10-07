@@ -10,105 +10,101 @@ import './HelpGuide.css'
 
 const HELP_SECTIONS = [
   {
-    title: 'Selezione database nel menù — a cosa serve davvero',
+    title: 'Database selection in the menu — what it actually does',
     body: (
       <>
         <p>
-          Quando selezioni più database dal menù a sinistra, la selezione ha un effetto
-          diverso a seconda di cosa stai facendo:
+          When you select several databases from the menu on the left, the selection has a
+          different effect depending on what you are doing:
         </p>
         <ul>
           <li>
-            <strong>Generi una query in linguaggio naturale:</strong> tutti i database
-            selezionati vengono presi in considerazione.
+            <strong>You generate a query in natural language:</strong> all the selected
+            databases are taken into account.
           </li>
           <li>
-            <strong>Esegui una query già scritta</strong> (a mano o generata): se la query
-            specifica già da sé il database con <code>USE DB</code>, viene usato quello —
-            il menù non la sovrascrive. Il menù conta solo come database di partenza per
-            le query che non ne specificano uno proprio.
+            <strong>You execute a query that is already written</strong> (by hand or generated):
+            if the query already specifies its own database with <code>USE DB</code>, that
+            one is used — the menu does not override it. The menu only acts as the starting
+            database for queries that do not specify one.
           </li>
         </ul>
       </>
     ),
   },
   {
-    title: 'Cosa fa il pulsante "⭐ Salva"?',
+    title: 'What does the "⭐ Save" button do?',
     body: (
       <>
         <p>
-          Salva tra i "Preferiti" (colonna a destra) il testo attualmente presente in
-          entrambi i box — quello in linguaggio naturale e quello JCoQL+ — così come sono
-          in quel momento, non una "fotografia" di quando la query è stata generata. Da lì
-          puoi ricaricarla con un click in futuro, senza doverla riscrivere o rigenerare da
-          capo.
+          It saves to "Favorites" (right-hand column) the text currently in both boxes — the
+          natural-language one and the J-CO-QL+ one — exactly as they are at that moment, not a
+          "snapshot" of when the query was generated. From there you can reload it with one
+          click in the future, without rewriting or regenerating it from scratch.
         </p>
         <p>
-          Attenzione: Il meccanismo non sa se i due box sono ancora "in sincrono" tra loro — registra
-          semplicemente quello che c'è scritto in quel momento in entrambi. Quindi se generi
-          una query e poi modifichi a mano solo il box JCoQL+ (senza toccare il box del
-          linguaggio naturale), la richiesta in linguaggio naturale salvata potrebbe non
-          corrispondere più esattamente alla query JCoQL+ salvata insieme ad essa. Vale anche il
-          contrario: se modifichi solo il testo in linguaggio naturale senza premere di nuovo
-          "✦ Genera", viene salvata la query JCoQL+ vecchia (quella dell'ultima generazione o
-          modifica) insieme al nuovo testo in linguaggio naturale.
+          Note: the mechanism does not know whether the two boxes are still "in sync" with
+          each other — it simply records what is written in both at that moment. So if you
+          generate a query and then edit only the J-CO-QL+ box (without touching the
+          natural-language box), the saved natural-language request may no longer match the
+          J-CO-QL+ query saved with it. The opposite also holds: if you edit only the
+          natural-language text without pressing "✦ Generate" again, the old J-CO-QL+ query
+          (from the last generation or edit) is saved together with the new natural-language
+          text.
         </p>
         <p>
-          Il salvataggio resta solo nel tuo browser (non viene inviato al server): se cambi
-          browser o computer, i preferiti non ti seguono.
+          Favorites are stored only in your browser (they are not sent to the server): if you
+          change browser or computer, your favorites do not follow you.
         </p>
       </>
     ),
   },
   {
-    title: 'Cosa fa "Solo conteggio"?',
+    title: 'What does "Count only" do?',
     body: (
       <p>
-        Quando è attiva, l'interfaccia non recupera i documenti del risultato per
-        mostrarteli — restituisce solo il loro numero. Utile su collezioni grandi o query
-        pesanti (es. JOIN/GROUP su molti dati), dove costruire e mostrare l'intero
-        risultato richiederebbe tempo inutile se ti interessa solo "quanti sono". Con
-        questa opzione attiva, il comportamento dell'interfaccia rispecchia anche più da
-        vicino quello nativo del motore JCoQL+, che di norma calcola e riporta solo un
-        conteggio per la maggior parte dei comandi — normalmente è l'interfaccia stessa a
-        fare un passo in più dietro le quinte per recuperare anche i documenti veri, passo
-        che qui viene saltato.
+        When it is on, the interface does not ask the J-CO engine to serialize and print the
+        whole result as JSON — it only reads the count that the engine reports anyway, in the
+        same run, for most commands. Useful on large collections or heavy queries (e.g.
+        JOIN/GROUP on a lot of data), where building and transferring the whole result would
+        waste time if you only care about "how many". The engine computes the whole result
+        in both cases — only the cost of serializing and returning it is avoided here, not
+        the computation itself.
       </p>
     ),
   },
   {
-    title: 'Cercare o unire dati su più database insieme',
+    title: 'Searching or merging data across several databases',
     body: (
       <p>
-        Se selezioni due o più database che hanno tutti la stessa collezione (es.{' '}
-        <code>users</code>), e chiedi quella collezione, l'interfaccia unisce
-        automaticamente i risultati di tutti i database coinvolti — non serve scriverlo
-        esplicitamente. Funziona con un numero qualsiasi di database, non solo due; vengono
-        inclusi solo i database che hanno davvero quella collezione, gli altri vengono
-        ignorati automaticamente.
+        If you select two or more databases that all have the same collection (e.g.{' '}
+        <code>users</code>) and you ask for that collection, the interface automatically
+        merges the results from all the databases involved — you do not need to say so
+        explicitly. It works with any number of databases, not just two; only the databases
+        that really have that collection are included, the others are ignored automatically.
       </p>
     ),
   },
   {
-    title: 'JOIN tra più database o collezioni',
+    title: 'JOIN across several databases or collections',
     body: (
       <p>
-        Un JOIN unisce sempre due collezioni alla volta (anche quando appartengono a
-        database diversi). Per unire tre o più collezioni in sequenza, l'interfaccia
-        concatena più JOIN uno dopo l'altro dietro le quinte — puoi semplicemente
-        chiederlo in linguaggio naturale, ad esempio "utenti con i loro ordini, e gli
-        ordini con i prodotti acquistati".
+        A JOIN always combines two collections at a time (even when they belong to different
+        databases). To join three or more collections in sequence, the interface chains
+        several JOINs one after the other behind the scenes — you can simply ask for it in
+        natural language, for example "users with their orders, and the orders with the
+        products purchased".
       </p>
     ),
   },
   {
-    title: 'Cos\'è "ON DEFAULT SERVER"?',
+    title: 'What is "ON DEFAULT SERVER"?',
     body: (
       <p>
-        È una parte fissa della sintassi JCoQL+ che significa "usa la connessione al
-        database predefinita" — in questa installazione punta sempre al MongoDB in
-        esecuzione su <code>localhost:27017</code>. Puoi lasciarla così com'è in ogni
-        query, anche scritta a mano.
+        It is a fixed part of the J-CO-QL+ syntax meaning "use the default database
+        connection" — in this installation it always points to the MongoDB running on{' '}
+        <code>localhost:27017</code>. You can leave it as it is in every query, including
+        hand-written ones.
       </p>
     ),
   },
@@ -123,9 +119,9 @@ export default function HelpGuide() {
         type="button"
         className="help-btn"
         onClick={() => setIsOpen(true)}
-        title="Guida rapida sul funzionamento dell'interfaccia"
+        title="Quick guide to how the interface works"
       >
-        ❓ Guida
+        ❓ Guide
       </button>
 
       {isOpen && (
@@ -135,15 +131,15 @@ export default function HelpGuide() {
               type="button"
               className="help-close-btn"
               onClick={() => setIsOpen(false)}
-              aria-label="Chiudi"
+              aria-label="Close"
             >
               ✕
             </button>
 
-            <h2>Guida rapida</h2>
+            <h2>Quick guide</h2>
             <p className="help-intro">
-              Le domande più comuni su come si comporta l'interfaccia — non sulla sintassi
-              di JCoQL+.
+              The most common questions about how the interface behaves — not about the
+              J-CO-QL+ syntax.
             </p>
 
             {HELP_SECTIONS.map((section) => (

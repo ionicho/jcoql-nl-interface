@@ -1573,7 +1573,7 @@ async def generate_query(request: GenerateRequest):
             "jcoql_query": "",
             "is_valid": False,
             "attempts": 0,
-            "validation_errors": [{"message": "❌ Query NL vuota!"}],
+            "validation_errors": [{"message": "❌ Empty natural-language query!"}],
             "retrieved_examples": [],
             "llm_used": ACTIVE_LLM,
             "parser_used": parser.parser_name
@@ -2978,12 +2978,12 @@ Usa ESATTAMENTE i nomi campi dello schema. NESSUN testo aggiuntivo.
             if '429' in error_str or 'quota' in error_str.lower() or 'rate limit' in error_str.lower():
                 raise HTTPException(
                     status_code=429,
-                    detail="Limite di richieste della API Gemini raggiunto (quota gratuita esaurita per il momento) — riprova tra qualche decina di secondi."
+                    detail="Gemini API rate limit reached (free quota exhausted for now) — try again in a few tens of seconds."
                 )
             if 'timeout' in error_str.lower() or 'deadline' in error_str.lower():
                 raise HTTPException(
                     status_code=504,
-                    detail="La chiamata alla API Gemini ha impiegato troppo tempo (oltre 20s) — probabilmente per un limite di quota raggiunto poco prima. Riprova tra qualche decina di secondi."
+                    detail="The Gemini API call took too long (over 20s) — probably because a quota limit was hit shortly before. Try again in a few tens of seconds."
                 )
             raise HTTPException(status_code=500, detail=str(e))
 
@@ -3075,7 +3075,7 @@ def _local_prompt_mode() -> str:
 async def set_local_prompt_mode(mode: str):
     global LOCAL_PROMPT_MODE_RUNTIME
     if mode.lower() not in ("compact", "full"):
-        raise HTTPException(status_code=400, detail="mode deve essere 'compact' o 'full'")
+        raise HTTPException(status_code=400, detail="mode must be 'compact' or 'full'")
     LOCAL_PROMPT_MODE_RUNTIME = mode.lower()
     return {"success": True, "local_prompt_mode": _local_prompt_mode()}
 
@@ -3087,7 +3087,7 @@ async def get_local_prompt_mode():
 async def set_llm(llm_type: str):
     global ACTIVE_LLM
     if llm_type not in ["gemini", "llama", "gemma", "llama32", "gemma4"]:
-        raise HTTPException(status_code=400, detail="LLM non valido")
+        raise HTTPException(status_code=400, detail="Invalid LLM")
     ACTIVE_LLM = llm_type
     return {"success": True, "llm": ACTIVE_LLM}
 
@@ -3119,7 +3119,7 @@ async def execute_query(request: QueryRequest):
         timeout_seconds = request.timeout_seconds
 
         if not jcoql_query:
-            return {"success": False, "error": "Query vuota"}
+            return {"success": False, "error": "Empty query"}
 
         """
         2. Gestione JOIN mode (se presente)
@@ -3223,7 +3223,7 @@ async def execute_query(request: QueryRequest):
             """
             return {
                 "success": False,
-                "error": "Query non valida: " + "; ".join(e.message for e in errors) if errors else "Query non valida"
+                "error": "Invalid query: " + "; ".join(e.message for e in errors) if errors else "Invalid query"
             }
 
         query_logger.info(f"📤 Esecuzione: {jcoql_query}")
@@ -3316,7 +3316,7 @@ async def execute_query(request: QueryRequest):
                         actual_results = results
                         actual_count = 1 if results else 0
             else:
-                error_msg = execution_result.get('error', 'Errore sconosciuto')
+                error_msg = execution_result.get('error', 'Unknown error')
                 query_logger.error(f"❌ Errore Executor: {error_msg}")
                 return {"success": False, "error": error_msg, "execution_time_seconds": round(exec_elapsed, 3)}
 
@@ -3344,9 +3344,9 @@ async def execute_query(request: QueryRequest):
         if unresolved_refs:
             examples_str = ", ".join(f"{path} = {val!r}" for path, val in unresolved_refs)
             response["warning"] = (
-                f"Il risultato contiene riferimenti non risolti dentro un elemento espanso "
-                f"(es. {examples_str}) — se ti aspettavi anche i dati collegati a quel "
-                f"riferimento, potrebbe mancare un JOIN successivo nella query."
+                f"The result contains unresolved references inside an expanded element "
+                f"(e.g. {examples_str}) — if you also expected the data linked to that "
+                f"reference, a subsequent JOIN may be missing from the query."
             )
         return response
 
@@ -3399,13 +3399,13 @@ async def upload_collection(
         except json.JSONDecodeError as e:
             return JSONResponse(
                 status_code=400,
-                content={'success': False, 'error': f'File JSON non valido: {str(e)}'}
+                content={'success': False, 'error': f'Invalid JSON file: {str(e)}'}
             )
         
         if not isinstance(data, list) or len(data) == 0:
             return JSONResponse(
                 status_code=400,
-                content={'success': False, 'error': 'Il file deve contenere un array JSON non vuoto di documenti.'}
+                content={'success': False, 'error': 'The file must contain a non-empty JSON array of documents.'}
             )
         
         if not collection_name:
@@ -3419,7 +3419,7 @@ async def upload_collection(
             'success': True,
             'collection': collection_name,
             'documents_count': len(insert_result.inserted_ids),
-            'message': f'Collection "{collection_name}" creata con {len(insert_result.inserted_ids)} documenti'
+            'message': f'Collection "{collection_name}" created with {len(insert_result.inserted_ids)} documents'
         })
         
     except Exception as e:
@@ -3431,7 +3431,7 @@ async def delete_collection(collection_name: str):
         executor.db.drop_collection(collection_name)
         return JSONResponse(content={
             'success': True,
-            'message': f'Collection "{collection_name}" eliminata con successo'
+            'message': f'Collection "{collection_name}" deleted successfully'
         })
     except Exception as e:
         return JSONResponse(status_code=500, content={'success': False, 'error': str(e)})
@@ -3489,7 +3489,7 @@ async def select_database(database_name: str = Query(None), request: Request = N
                 pass
         
         if not database_name:
-            return {"success": False, "error": "database_name mancante"}
+            return {"success": False, "error": "database_name missing"}
         
         success = db_registry.set_current_database(database_name)
         
@@ -3512,10 +3512,10 @@ async def select_database(database_name: str = Query(None), request: Request = N
                 "success": True,
                 "current_database": database_name,
                 "collections": len(GLOBAL_SCHEMA) if GLOBAL_SCHEMA else 0,
-                "message": f"Database '{database_name}' selezionato"
+                "message": f"Database '{database_name}' selected"
             }
         
-        return {"success": False, "error": f"Database '{database_name}' non trovato"}
+        return {"success": False, "error": f"Database '{database_name}' not found"}
     except Exception as e:
         return {"success": False, "error": str(e)}
 
@@ -3580,7 +3580,7 @@ async def connect_database(
         if not connected:
             return {
                 "success": False,
-                "error": f"Connessione a '{database_name}' non riuscita (vedi log del server per il dettaglio)."
+                "error": f"Connection to '{database_name}' failed (see the server log for details)."
             }
 
         from backend.database_persistence import save_databases_to_file
@@ -3589,7 +3589,7 @@ async def connect_database(
         return {
             "success": True,
             "database": database_name,
-            "message": f"✅ Connesso a {database_name}"
+            "message": f"✅ Connected to {database_name}"
         }
     except Exception as e:
         return {"success": False, "error": str(e)}
@@ -3600,7 +3600,7 @@ async def disconnect_database(db_name: str):
         if db_name not in db_registry.databases:
             return {
                 "success": False,
-                "message": f"Database '{db_name}' non trovato"
+                "message": f"Database '{db_name}' not found"
             }
         
         """
@@ -3637,7 +3637,7 @@ async def disconnect_database(db_name: str):
         
         return {
             "success": True,
-            "message": f"Database '{db_name}' scollegato con successo"
+            "message": f"Database '{db_name}' disconnected successfully"
         }
     except Exception as err:
         db_logger.error(f"❌ Errore scollegamento database '{db_name}': {err}")
@@ -3648,7 +3648,7 @@ async def get_database_info(db_name: str):
     info = db_registry.get_database_info(db_name)
     if info:
         return info
-    return {"error": f"Database '{db_name}' non trovato"}
+    return {"error": f"Database '{db_name}' not found"}
 
 @app.get("/api/stats")
 async def get_stats():

@@ -17,6 +17,53 @@ import React, { useState, useEffect } from 'react';
 import { showToast } from './Toast';
 import './DatabaseSelector.css';
 
+/**
+ * AGGIUNTO 03/10/2026 — integrazione JCO DS: etichetta e chiave di
+ * raggruppamento per il server a cui appartiene un database. "server"
+ * arriva già popolato per OGNI database (anche quelli MongoDB, con un
+ * descrittore sintetizzato lato backend — vedi
+ * DatabaseRegistry._server_descriptor in database_registry.py), quindi
+ * qui non c'è un ramo "server assente" da gestire a parte.
+ */
+function serverLabel(server) {
+  const type = server?.type || 'mongodb';
+  const host = server?.host || 'localhost';
+  const port = server?.port ?? (type === 'mongodb' ? 27017 : '');
+  if (type === 'mongodb') return `MongoDB — ${host}:${port}`;
+  if (type === 'jcods') return `JCO DS — ${host}:${port}`;
+  return `${type} — ${host}:${port}`;
+}
+
+function serverKey(server) {
+  const type = server?.type || 'mongodb';
+  const host = server?.host || 'localhost';
+  const port = server?.port ?? (type === 'mongodb' ? 27017 : '');
+  return `${type}:${host}:${port}`;
+}
+
+/**
+ * Raggruppa l'elenco piatto di database per server di appartenenza,
+ * preservando l'ordine di prima apparizione (non un ordine alfabetico a
+ * sé) — così il gruppo "MongoDB locale" (il più popolato, di solito)
+ * resta in genere in cima perché arriva primo dal backend.
+ */
+function groupDatabasesByServer(databases) {
+  const groups = [];
+  const byKey = new Map();
+
+  for (const db of databases) {
+    const key = serverKey(db.server);
+    if (!byKey.has(key)) {
+      const group = { key, label: serverLabel(db.server), databases: [] };
+      byKey.set(key, group);
+      groups.push(group);
+    }
+    byKey.get(key).databases.push(db);
+  }
+
+  return groups;
+}
+
 export default function DatabaseSelector({ onDatabasesChange, selectedDatabases }) {
   // ================== STATE ==================
 
@@ -38,7 +85,7 @@ export default function DatabaseSelector({ onDatabasesChange, selectedDatabases 
         }
       }
     } catch (err) {
-      console.warn('Errore lettura database selezionati da localStorage:', err);
+      console.warn('Error reading selected databases from localStorage:', err);
     }
     return new Set(['jcoql_test']);
   });
@@ -47,10 +94,17 @@ export default function DatabaseSelector({ onDatabasesChange, selectedDatabases 
   const [removingDb, setRemovingDb] = useState(null); //per rimozione di un database
 
   const [showAddForm, setShowAddForm] = useState(false);
+  // AGGIUNTO 03/10/2026 — integrazione JCO DS: "serverType" seleziona il
+  // ramo del form mostrato sotto. 'mongodb' resta il default, stesso
+  // comportamento di sempre.
   const [newDbForm, setNewDbForm] = useState({
+    serverType: 'mongodb',
     dbName: '',
     mongoUri: 'mongodb://localhost:27017',
-    databaseName: ''
+    databaseName: '',
+    serverHost: 'localhost',
+    serverPort: '17017',
+    collections: ''
   });
 
   /**
@@ -61,38 +115,71 @@ export default function DatabaseSelector({ onDatabasesChange, selectedDatabases 
   }, []);
 
   /**
-   * Aggiunge un nuovo database
-
-   * Nota: i tre parametri (dbName, mongoUri, databaseName) sono
-   * concatenati direttamente nella query string senza
-   * encodeURIComponent — un valore con caratteri speciali (es. uno
-   * spazio, una '@' in mongoUri se contiene credenziali, una '&') altera
-   * la query string risultante invece di essere passato come valore
-   * letterale del parametro.
+   * Aggiunge un nuovo database, MongoDB (default, comportamento di
+   * sempre) o JCO DS (il server alternativo dei professori:
+   * https://github.com/JcoProjectTeam — aggiunto 03/10/2026).
+   *
+   * Nota: a differenza della versione precedente, qui i parametri sono
+   * passati attraverso URLSearchParams, che li percentuale-codifica da
+   * solo — prima erano concatenati a mano nella query string senza
+   * encodeURIComponent, quindi un valore con caratteri speciali (uno
+   * spazio, una '@' in mongoUri con credenziali, una '&') alterava la
+   * query string invece di essere passato come valore letterale.
    */
   const handleAddDatabase = async () => {
+    const isJcoDs = newDbForm.serverType === 'jcods';
+
     if (!newDbForm.dbName || !newDbForm.databaseName) {
-      showToast('Compila tutti i campi!', 'error');
+      showToast('Please fill in all fields!', 'error');
+      return;
+    }
+    if (isJcoDs && (!newDbForm.serverHost || !newDbForm.serverPort || !newDbForm.collections.trim())) {
+      showToast('JCO DS requires host, port and at least one collection!', 'error');
       return;
     }
 
     try {
       setLoading(true);
+
+      const params = new URLSearchParams({
+        db_name: newDbForm.dbName,
+        database_name: newDbForm.databaseName,
+      });
+
+      if (isJcoDs) {
+        params.set('server_type', 'jcods');
+        params.set('server_host', newDbForm.serverHost);
+        params.set('server_port', newDbForm.serverPort);
+        params.set('collections', newDbForm.collections);
+      } else {
+        params.set('mongo_uri', newDbForm.mongoUri);
+      }
+
       const response = await fetch(
-        `http://127.0.0.1:8000/api/databases/connect?db_name=${newDbForm.dbName}&mongo_uri=${newDbForm.mongoUri}&database_name=${newDbForm.databaseName}`,
+        `http://127.0.0.1:8000/api/databases/connect?${params.toString()}`,
         { method: 'POST' }
       );
 
-      if (response.ok) {
-        showToast('Database aggiunto!', 'success');
-        setNewDbForm({ dbName: '', mongoUri: 'mongodb://localhost:27017', databaseName: '' });
+      const data = await response.json().catch(() => null);
+
+      if (response.ok && data && data.success !== false) {
+        showToast('Database added!', 'success');
+        setNewDbForm({
+          serverType: 'mongodb',
+          dbName: '',
+          mongoUri: 'mongodb://localhost:27017',
+          databaseName: '',
+          serverHost: 'localhost',
+          serverPort: '17017',
+          collections: ''
+        });
         setShowAddForm(false);
         loadAvailableDatabases(); // Ricarica lista
       } else {
-        showToast('Errore aggiunta database', 'error');
+        showToast(`Error adding database: ${data?.error || 'unknown error'}`, 'error');
       }
     } catch (err) {
-      showToast(`Errore: ${err.message}`, 'error');
+      showToast(`Error: ${err.message}`, 'error');
     } finally {
       setLoading(false);
     }
@@ -103,7 +190,7 @@ export default function DatabaseSelector({ onDatabasesChange, selectedDatabases 
    * Non elimina i dati, solo disconnette
    */
   const handleRemoveDatabase = async (dbName) => {
-    if (!window.confirm(`Scollega '${dbName}'? I dati rimangono intatti.`)) {
+    if (!window.confirm(`Disconnect '${dbName}'? The data stays intact.`)) {
       return;
     }
 
@@ -126,12 +213,12 @@ export default function DatabaseSelector({ onDatabasesChange, selectedDatabases 
           onDatabasesChange(Array.from(newSet));
         }
         
-        showToast(`Database '${dbName}' scollegato`, 'success');
+        showToast(`Database '${dbName}' disconnected`, 'success');
       } else {
-        showToast('Errore durante scollegamento', 'error');
+        showToast('Error while disconnecting', 'error');
       }
     } catch (err) {
-      showToast(`Errore: ${err.message}`, 'error');
+      showToast(`Error: ${err.message}`, 'error');
     } finally {
       setRemovingDb(null);
     }
@@ -164,9 +251,14 @@ export default function DatabaseSelector({ onDatabasesChange, selectedDatabases 
       }
 
       const data = await response.json();
-      const dbNames = data.databases.map(db => db.name);
-      
-      setAvailableDatabases(dbNames);
+      // AGGIUNTO 03/10/2026 — integrazione JCO DS: da qui in giù si tiene
+      // l'oggetto completo di ogni database (non solo il nome) perché
+      // serve anche "server" per raggruppare la lista nel render
+      // sottostante — vedi groupDatabasesByServer più in basso nel file.
+      const dbList = data.databases;
+      const dbNames = dbList.map(db => db.name);
+
+      setAvailableDatabases(dbList);
 
       // Preserva la selezione corrente se è ancora valida (vedi il
       // commento sopra la funzione); altrimenti prende il primo database
@@ -179,7 +271,7 @@ export default function DatabaseSelector({ onDatabasesChange, selectedDatabases 
         return dbNames.length > 0 ? new Set([dbNames[0]]) : new Set();
       });
     } catch (err) {
-      setError(`Errore caricamento database: ${err.message}`);
+      setError(`Error loading databases: ${err.message}`);
       console.error(err);
     } finally {
       setLoading(false);
@@ -209,46 +301,54 @@ export default function DatabaseSelector({ onDatabasesChange, selectedDatabases 
   if (loading) {
     return (
       <div className="database-selector">
-        <div className="loading">⏳ Caricamento database...</div>
+        <div className="loading">⏳ Loading databases...</div>
       </div>
     );
   }
 
   return (
     <div className="database-selector">
-      <h2>Database</h2>
+      <h2>Databases</h2>
 
       {error && <div className="error-box">{error}</div>}
 
       <div className="mode-content">
-          {/* Database checkboxes CON BOTTONE RIMUOVI */}
-          <label className="section-label">Database selezionabili:</label>
-          <div className="checkboxes">
-            {availableDatabases.length === 0 ? (
-              <p className="no-databases">Nessun database disponibile</p>
-            ) : (
-              availableDatabases.map(db => (
-                <div key={db} className="checkbox-with-remove">
-                  <label className="checkbox-label">
-                    <input
-                      type="checkbox"
-                      checked={multiSelected.has(db)}
-                      onChange={() => handleMultiToggle(db)}
-                    />
-                    <span>{db}</span>
-                  </label>
-                  <button
-                    onClick={() => handleRemoveDatabase(db)}
-                    disabled={removingDb === db}
-                    className="remove-db-btn"
-                    title="Scollega questo database"
-                  >
-                    {removingDb === db ? '⏳' : '✖️'}
-                  </button>
+          {/* Database checkboxes CON BOTTONE RIMUOVI, raggruppati per
+              server di appartenenza (AGGIUNTO 03/10/2026 — integrazione
+              JCO DS: una sezione per server, col nome/tipo di server
+              come sottotitolo, invece di un unico elenco piatto). */}
+          <label className="section-label">Available databases:</label>
+          {availableDatabases.length === 0 ? (
+            <p className="no-databases">No database available</p>
+          ) : (
+            groupDatabasesByServer(availableDatabases).map(group => (
+              <div key={group.key} className="server-group">
+                <div className="server-group-label">{group.label}</div>
+                <div className="checkboxes">
+                  {group.databases.map(db => (
+                    <div key={db.name} className="checkbox-with-remove">
+                      <label className="checkbox-label">
+                        <input
+                          type="checkbox"
+                          checked={multiSelected.has(db.name)}
+                          onChange={() => handleMultiToggle(db.name)}
+                        />
+                        <span>{db.name}</span>
+                      </label>
+                      <button
+                        onClick={() => handleRemoveDatabase(db.name)}
+                        disabled={removingDb === db.name}
+                        className="remove-db-btn"
+                        title="Disconnect this database"
+                      >
+                        {removingDb === db.name ? '⏳' : '✖️'}
+                      </button>
+                    </div>
+                  ))}
                 </div>
-              ))
-            )}
-          </div>
+              </div>
+            ))
+          )}
       </div>
 
       {/* ──────────── ADD DATABASE FORM ──────────── */}
@@ -256,51 +356,103 @@ export default function DatabaseSelector({ onDatabasesChange, selectedDatabases 
         onClick={() => setShowAddForm(!showAddForm)} 
         className="add-db-toggle"
       >
-        {showAddForm ? '✖️ Chiudi' : '➕ Aggiungi Database'}
+        {showAddForm ? '✖️ Close' : '➕ Add Database'}
       </button>
 
       {showAddForm && (
         <div className="add-db-form">
-          <h4>Connetti Nuovo Database</h4>
-          
+          <h4>Connect New Database</h4>
+
+          {/* AGGIUNTO 03/10/2026 — integrazione JCO DS: scelta del server.
+              "MongoDB locale" resta selezionato di default, stesso
+              comportamento di sempre per chi non tocca questo campo. */}
           <div className="form-group">
-            <label>MongoDB URI:</label>
-            <input
-              type="text"
-              value={newDbForm.mongoUri}
-              onChange={(e) => setNewDbForm({...newDbForm, mongoUri: e.target.value})}
-            />
+            <label>Server:</label>
+            <select
+              value={newDbForm.serverType}
+              onChange={(e) => setNewDbForm({...newDbForm, serverType: e.target.value})}
+            >
+              <option value="mongodb">Local MongoDB</option>
+              <option value="jcods">JCO DS (professors' server)</option>
+            </select>
           </div>
 
+          {newDbForm.serverType === 'mongodb' ? (
+            <div className="form-group">
+              <label>MongoDB URI:</label>
+              <input
+                type="text"
+                value={newDbForm.mongoUri}
+                onChange={(e) => setNewDbForm({...newDbForm, mongoUri: e.target.value})}
+              />
+            </div>
+          ) : (
+            <>
+              <div className="form-group">
+                <label>JCO DS host:</label>
+                <input
+                  type="text"
+                  placeholder="e.g. localhost"
+                  value={newDbForm.serverHost}
+                  onChange={(e) => setNewDbForm({...newDbForm, serverHost: e.target.value})}
+                />
+              </div>
+              <div className="form-group">
+                <label>JCO DS port:</label>
+                <input
+                  type="text"
+                  placeholder="e.g. 17017"
+                  value={newDbForm.serverPort}
+                  onChange={(e) => setNewDbForm({...newDbForm, serverPort: e.target.value})}
+                />
+              </div>
+            </>
+          )}
+
           <div className="form-group">
-            <label>Nome Database MongoDB:</label>
+            <label>{newDbForm.serverType === 'mongodb' ? 'MongoDB database name:' : 'Database name on JCO DS:'}</label>
             <input
               type="text"
-              placeholder="es: my_database"
+              placeholder="e.g. my_database"
               value={newDbForm.databaseName}
               onChange={(e) => setNewDbForm({...newDbForm, databaseName: e.target.value})}
             />
           </div>
-          
+
+          {newDbForm.serverType === 'jcods' && (
+            <div className="form-group">
+              <label>Collections (comma-separated):</label>
+              <input
+                type="text"
+                placeholder="e.g. testcoll, othercoll"
+                value={newDbForm.collections}
+                onChange={(e) => setNewDbForm({...newDbForm, collections: e.target.value})}
+              />
+              <p className="field-hint">
+                J-CO-QL+ has no command to list the collections of a JCO DS database — they must be entered here by hand.
+              </p>
+            </div>
+          )}
+
           <div className="form-group">
-            <label>Nome Database (interno):</label>
+            <label>Database name (internal):</label>
             <input
               type="text"
-              placeholder="es: production_db"
+              placeholder="e.g. production_db"
               value={newDbForm.dbName}
               onChange={(e) => setNewDbForm({...newDbForm, dbName: e.target.value})}
             />
           </div>
-          
+
           <button onClick={handleAddDatabase} className="connect-btn">
-            ✅ Connetti
+            ✅ Connect
           </button>
         </div>
       )}
 
       {/* ──────────── SUMMARY ──────────── */}
       <div className="summary">
-        <div className="summary-title">Database Selezionati ({selectedDatabases ? selectedDatabases.length : 0}):</div>
+        <div className="summary-title">Selected Databases ({selectedDatabases ? selectedDatabases.length : 0}):</div>
         <div className="summary-badges">
           {selectedDatabases && selectedDatabases.map(db => (
             <span key={db} className="badge">{db}</span>
@@ -310,7 +462,7 @@ export default function DatabaseSelector({ onDatabasesChange, selectedDatabases 
 
       {/* ──────────── REFRESH BUTTON ──────────── */}
       <button onClick={loadAvailableDatabases} className="refresh-btn">
-        <span style={{ color: '#7c3aed', fontSize: '18px', lineHeight: 1, verticalAlign: 'middle' }}>↻</span> Ricarica Database
+        <span style={{ color: '#7c3aed', fontSize: '18px', lineHeight: 1, verticalAlign: 'middle' }}>↻</span> Reload Databases
       </button>
     </div>
   );
