@@ -1,26 +1,27 @@
 # Setup — jcoql-nl-interface
 
-Guida passo-passo per far girare il progetto da zero su una macchina nuova, in
-ordine. Ogni passo qui esiste perché durante lo sviluppo saltarlo o farlo
-nell'ordine sbagliato ha causato un errore concreto — sono raccolti qui apposta
-per non doverli riscoprire uno per uno.
+Step-by-step guide to get the project running from scratch on a new machine, in
+order. Every step here exists because during development skipping it or doing it
+in the wrong order caused a concrete error — they are collected here on purpose
+so you do not have to rediscover them one by one.
 
 ---
 
-## 1. Prerequisiti
+## 1. Prerequisites
 
-| Software | Versione | Note |
+| Software | Version | Notes |
 |---|---|---|
 | Python | 3.x | |
-| Node.js | — | per il frontend |
-| MongoDB | — | in esecuzione in locale su `localhost:27017` |
-| Java | 8+ | necessario per il motore J-CO Framework e il parser ANTLR3 ufficiale |
-| Ollama | — | solo se vuoi usare Llama/Gemma in locale; opzionale se usi solo Gemini |
-| Gradle | — | solo se modifichi il fork `jco-framework`, non necessario per usare l'interfaccia così com'è |
+| Node.js | — | for the frontend |
+| MongoDB | — | running locally on `localhost:27017` |
+| Java | 8+ | needed by the J-CO Framework engine and the official ANTLR3 parser |
+| Ollama | — | only if you want to use Llama/Gemma locally; optional if you only use Gemini |
+| Gradle | — | only if you modify the `jco-framework` fork, not needed to use the interface as it is |
+| JCO DS server | — | only if you want to query JCO DS databases (https://github.com/JcoProjectTeam); optional |
 
 ---
 
-## 2. Clona e installa le dipendenze
+## 2. Clone and install the dependencies
 
 ```bash
 git clone https://github.com/ionicho/jcoql-nl-interface.git
@@ -39,152 +40,179 @@ cd ..
 
 ---
 
-## 3. Variabili d'ambiente
+## 3. Environment variables
 
 ```bash
 cp .env.example .env
 ```
 
-Apri `.env` e imposta almeno `GEMINI_API_KEY` (necessaria anche se pensi di usare
-solo i modelli locali: alcuni percorsi del codice la richiedono comunque
-all'avvio). Le altre variabili (`ACTIVE_LLM`, `ACTIVE_PARSER`, `ACTIVE_EXECUTOR`,
-`JCOQL_DEBUG`) hanno un default sensato e non serve toccarle per un primo avvio:
+Open `.env` and set at least `GEMINI_API_KEY` (needed even if you plan to use
+only the local models: some code paths require it at start-up anyway).
+The other variables (`ACTIVE_LLM`, `ACTIVE_PARSER`, `ACTIVE_EXECUTOR`,
+`LOCAL_PROMPT_MODE`, `JCOQL_DEBUG`) have a sensible default and you do not need to touch them for a first start:
 
-- `ACTIVE_LLM` — default `gemini`. Cambiabile anche a runtime dalla UI, non solo da qui.
-- `ACTIVE_PARSER` — default `antlr3_official`. **Non ha un modo per cambiarlo a runtime**, solo da qui + riavvio.
-- `ACTIVE_EXECUTOR` — default `jco_framework`. **È l'unico usato e testato in questo progetto** — esiste anche `python_translator` (traduzione diretta senza motore Java, copertura limitata a `GET COLLECTION`+`FILTER` semplice), ma non è quello su cui si basano gli esempi/i test di questo repository. Non cambiarlo se non stai facendo un esperimento apposito.
+- `ACTIVE_LLM` — default `gemini`. Can also be changed at runtime from the UI, not only from here.
+- `ACTIVE_PARSER` — default `antlr3_official`. **There is no way to change it at runtime**, only here + restart.
+- `ACTIVE_EXECUTOR` — default `jco_framework`. **It is the only one used and tested in this project** — `python_translator` also exists (direct translation without the Java engine, coverage limited to `GET COLLECTION`+simple `FILTER`), but it is not the one the examples/tests of this repository are based on. Do not change it unless you are running a specific experiment.
+- `LOCAL_PROMPT_MODE` — default `compact`. Prompt mode for the local models (`compact` or `full`); it can also be changed at runtime with `POST /api/set_local_prompt_mode?mode=compact|full`.
 
 ---
 
-## 4. Ollama (solo se vuoi Llama/Gemma in locale)
+## 4. Ollama (only if you want local models)
 
-Se non ti interessano i modelli locali, salta questo passo — Gemini funziona senza Ollama.
+If you are not interested in local models, skip this step — Gemini works without Ollama.
 
-1. Installa Ollama: https://ollama.com
-2. Scarica i due modelli usati dal progetto (i nomi esatti contano, sono hardcoded in `backend/llm_local.py`):
+1. Install Ollama: https://ollama.com
+2. Download the models used by the project (the exact names matter, they are hardcoded in `backend/llm_local.py`; you only need the ones you want to use):
    ```bash
    ollama pull llama3.1:8b-instruct-q4_K_M
    ollama pull gemma:7b-instruct-q4_K_M
+   ollama pull llama3.2:3b-instruct-q4_K_M
+   ollama pull gemma4:e4b-it-q4_K_M
    ```
-3. Verifica che Ollama sia in esecuzione prima di selezionare Llama/Gemma dalla UI — se non lo è, o se il modello non è stato scaricato con questo esatto tag, la generazione fallisce con un errore che risale fino all'endpoint `/api/generate` (l'eccezione non è gestita dentro `llm_local.py`, la vedi propagata).
-4. Nota VRAM: passare da Gemma a Llama nella stessa sessione può richiedere un riavvio di Ollama per liberare memoria — te lo ricorda anche un avviso nella UI quando selezioni Llama.
+3. Check that Ollama is running before selecting a local model from the UI — if it is not, or if the model was not downloaded with this exact tag, generation fails with an error that bubbles up to the `/api/generate` endpoint (the exception is not handled inside `llm_local.py`, you see it propagated).
+4. VRAM note: switching between local models in the same session may require stopping the loaded one (`ollama ps`, then `ollama stop <model-name>`) to free memory — the UI also reminds you of this when you select a local model.
 
 ---
 
-## 5. Dati di esempio in MongoDB
+## 5. Sample data in MongoDB
 
-Il database di riferimento usato da tutti gli esempi RAG e dai test è `jcoql_test`,
-con 5 collection: `hotels`, `restaurants`, `products`, `orders`, `users`.
+The reference database used by all the RAG examples and by the tests is `jcoql_test`.
+The repository ships the seed files in `backend/database/data_*.json` (hotels, restaurants,
+products, orders, users and a fixed dictionary `category_translations`). The collections
+the test campaign uses are `products`, `orders`, `users` and `category_translations`.
 
-**Opzione A — rigenera i dati da zero:**
+**Option A — regenerate the data from scratch:**
 ```bash
 python backend/database/sample_data.py
 ```
-Va lanciato dalla **radice del progetto** (usa percorsi relativi tipo
-`backend/database/data_....json`) e crea 5 file `data_*.json` in
-`backend/database/`. Nota: non usa un seed casuale fisso, quindi ogni esecuzione
-genera dati leggermente diversi dalla precedente (nomi, prezzi, rating cambiano) —
-se ti basta "dati di prova plausibili" va benissimo, se ti serve riprodurre
-esattamente un run precedente non funziona così com'è.
+It must be launched from the **project root** (it uses relative paths like
+`backend/database/data_....json`) and creates the `data_*.json` files in
+`backend/database/`. Note: it does not use a fixed random seed, so every run
+generates slightly different data from the previous one (names, prices, ratings change) —
+if "plausible test data" is enough this is fine, if you need to reproduce
+exactly a previous run it does not work as it is. It also overwrites the existing
+`data_*.json` files, so if you only need the dictionary, copy that file by hand instead.
 
-Poi importa ciascun file in MongoDB, ad esempio con `mongoimport`:
+Then import each file into MongoDB, for example with `mongoimport`:
 ```bash
-mongoimport --db jcoql_test --collection hotels --file backend/database/data_hotels.json --jsonArray
-mongoimport --db jcoql_test --collection restaurants --file backend/database/data_restaurants.json --jsonArray
 mongoimport --db jcoql_test --collection products --file backend/database/data_products.json --jsonArray
 mongoimport --db jcoql_test --collection orders --file backend/database/data_orders.json --jsonArray
 mongoimport --db jcoql_test --collection users --file backend/database/data_users.json --jsonArray
+mongoimport --db jcoql_test --collection category_translations --file backend/database/data_category_translations.json --jsonArray
 ```
-(adatta i nomi dei campi array/formato JSON al comando/tool che preferisci usare — va bene anche MongoDB Compass.)
+(add `hotels` and `restaurants` the same way if you want them; adapt the array field names/JSON format to the command/tool you prefer — MongoDB Compass is fine too.)
 
-**Opzione B — hai già un database MongoDB popolato:** salta questo passo, e
-collega il tuo database dalla UI (sidebar → "Connetti nuovo database") o
-modificando la connessione di default in `main.py`/`.env`.
+**Option B — you already have a populated MongoDB database:** skip this step, and
+connect your database from the UI (sidebar → "➕ Add Database") or
+by changing the default connection in `main.py`/`.env`.
 
-**Nota opzionale — per provare `GET DICTIONARY`/`TRANSLATE`:** questo comando richiede
-una collection con struttura specifica, `{ "key": "...", "value": "..." }` per ogni
-documento (il motore legge esattamente questi due nomi di campo, nessun altro). Non è
-creata dai passi sopra: se vuoi provare questa funzionalità, creane una a mano con
-MongoDB Compass o `mongoimport`, ad esempio con 3-4 coppie chiave-valore a piacere.
+**Note on `GET DICTIONARY`/`TRANSLATE`:** this command requires a collection with a
+specific structure, `{ "key": "...", "value": "..." }` for each document
+(the engine reads exactly these two field names, no others). `category_translations`
+above has this structure.
 
 ---
 
-## 6. Carica gli esempi RAG in ChromaDB
+## 6. Load the RAG examples into ChromaDB
 
-**Passo obbligatorio, non saltabile:** il backend si aspetta che la collection
-ChromaDB `jcoql_examples` esista già all'avvio (usa `get_collection`, non
-`get_or_create_collection` — se la collection non c'è, l'inizializzazione fallisce
-silenziosamente e la generazione delle query non ha esempi da cui partire).
+**Mandatory step, cannot be skipped:** the backend expects the ChromaDB collection
+`jcoql_examples` to already exist at start-up (it uses `get_collection`, not
+`get_or_create_collection` — if the collection is not there, initialization fails
+silently and query generation has no examples to start from).
 
 ```bash
 python backend/database/load_examples.py
 ```
 
-Scansiona **tutti** i file `.txt` presenti in `examples/validated/` (percorso
-calcolato rispetto alla posizione dello script, non alla cartella da cui lo
-lanci) e ricrea la collection da zero ogni volta che lo rilanci — sicuro da
-rilanciare dopo aver modificato o aggiunto un file di esempi.
+It scans **all** the `.txt` files in `examples/validated/` (path
+computed relative to the script's location, not to the folder you launch it
+from) and recreates the collection from scratch every time you rerun it — safe to
+rerun after modifying or adding an examples file.
 
-Se lo rilanci **a backend già avviato**, riavvia anche il backend: altrimenti
-resta collegato al riferimento della collection precedente (chiusa/sostituita nel
-frattempo) invece di quella appena ricreata.
+If you rerun it **with the backend already running**, restart the backend too: otherwise
+it stays attached to the reference of the previous collection (closed/replaced in the
+meantime) instead of the one just recreated.
 
 ---
 
-## 7. Avvio
+## 7. Start
 
 ```bash
-# Terminale 1 — Backend (dalla radice del progetto: main.py importa
-# moduli con path tipo "backend.xxx", va lanciato da lì)
+# Terminal 1 — Backend (from the project root: main.py imports
+# modules with paths like "backend.xxx", it must be launched from there)
 venv\Scripts\activate
 uvicorn main:app --reload
 
-# Terminale 2 — Frontend
+# Terminal 2 — Frontend
 cd frontend
 npm run dev
 ```
 
-Apri il browser su **http://localhost:5173**.
+Open your browser at **http://localhost:5173**.
 
 ---
 
-## 8. Verifica che sia tutto a posto
+## 8. Optional: connect a JCO DS database
 
-Checklist rapida dopo il primo avvio:
+1. Start your JCO DS server (https://github.com/JcoProjectTeam) and note its host and port
+   (the examples in this project use `localhost` and `17017`).
+2. In the UI, sidebar → "➕ Add Database" → Server: "JCO DS (professors' server)".
+3. Fill in the internal name, host, port, the database name on JCO DS and the
+   **collections, comma-separated**: J-CO-QL+ has no command to list the collections of a
+   database, so the interface cannot discover them by itself.
+4. Click "✅ Connect". The schema of each listed collection is discovered through the Java
+   engine; if the server is stopped, the host/port are wrong or a collection does not
+   exist, the connection fails and the reason is in the backend log.
 
-- [ ] Il backend si avvia senza errori in console (in particolare: nessun errore su ChromaDB/`jcoql_examples` — se lo vedi, torna al passo 6)
-- [ ] Dalla UI, digitando una richiesta in linguaggio naturale semplice (es. "hotel a Milano") ottieni una query JCoQL+ generata e risultati
-- [ ] La Dashboard (`/dashboard`) mostra database e collezioni connesse coerenti con quello che ti aspetti
-- [ ] Se usi anche i modelli locali: selezionando Llama/Gemma dalla UI, la generazione funziona (altrimenti torna al passo 4)
-- [ ] Se hai collegato più di un database: dal form JOIN nella sidebar, un JOIN tra due collezioni con lo stesso nome su database diversi restituisce risultati (non un errore "Invalid database")
+Queries on that database declare the server explicitly, for example:
+```
+USE DB testds ON SERVER 'jcods' 'http://localhost:17017';
+GET COLLECTION testcoll@testds;
+```
 
 ---
 
-## 9. Debug
+## 9. Check that everything is fine
 
-La query completa mandata al motore Java (prolog + comando, `USE DB` incluso) è
-**sempre** stampata in console, indipendentemente da `JCOQL_DEBUG` — utile per
-verificare al volo cosa è stato eseguito davvero senza dover attivare nulla. Il resto
-dei log diagnostici (esempi RAG recuperati per ogni richiesta, riepilogo
-dell'esecuzione) compare solo se richiesto esplicitamente:
+Quick checklist after the first start:
+
+- [ ] The backend starts without errors in the console (in particular: no errors about ChromaDB/`jcoql_examples` — if you see one, go back to step 6)
+- [ ] From the UI, typing a simple natural-language request (e.g. "products with a discount greater than 20%") you get a generated J-CO-QL+ query and results
+- [ ] The Dashboard (`/dashboard`) shows connected databases and collections consistent with what you expect
+- [ ] If you also use the local models: selecting one from the UI, generation works (otherwise go back to step 4)
+- [ ] If you connected more than one database: asking for a JOIN between two collections with the same name on different databases (or writing it by hand in the query panel) returns results (not an "Invalid database" error)
+- [ ] The "❓ Guide" button opens the quick guide
+
+---
+
+## 10. Debug
+
+The full query sent to the Java engine (prolog + command, `USE DB` included) is
+**always** printed in the console, regardless of `JCOQL_DEBUG` — useful to
+check at a glance what was actually executed without enabling anything. The rest
+of the diagnostic logs (RAG examples retrieved for each request, execution
+summary) appears only if explicitly requested:
 
 ```bash
 set JCOQL_DEBUG=true          # Windows (PowerShell: $env:JCOQL_DEBUG="true")
 # export JCOQL_DEBUG=true     # Linux/Mac
 ```
 
-Di default è spento. I file di log applicativi (non il debug sopra) si trovano
-comunque sempre in `logs/` (creata automaticamente al primo avvio, un file per
-sessione con timestamp nel nome).
+It is off by default. The application log files (not the debug above) are
+always found in `logs/` (created automatically at first start, one file per
+session with a timestamp in the name).
 
 ---
 
-## 10. Problemi comuni e dove guardare
+## 11. Common problems and where to look
 
-| Sintomo | Causa più probabile |
+| Symptom | Most likely cause |
 |---|---|
-| Errore all'avvio su ChromaDB/`jcoql_examples` | Passo 6 (`load_examples.py`) non eseguito prima del primo avvio |
-| "Modello non trovato" o "connection refused" selezionando Llama/Gemma | Ollama non in esecuzione, o modello non scaricato con il tag esatto (passo 4) |
-| La generazione funziona ma i risultati sono su un database inatteso | Verifica quale database è "corrente" in sidebar — è uno stato del processo, non per singola richiesta |
-| Upload di file/gestione collection da UI non disponibile | Funzionalità intenzionalmente disattivata in questa versione (richiede lavoro architetturale non ancora fatto sul lato multi-database) |
-| Uno script standalone (es. `test_retrieval.py`, `sample_data.py`) dà `FileNotFoundError` | Quasi sempre un problema di working directory: questi script usano percorsi relativi e vanno lanciati dalla radice del progetto, non dalla cartella in cui si trovano |
+| Error at start-up about ChromaDB/`jcoql_examples` | Step 6 (`load_examples.py`) not run before the first start |
+| "Model not found" or "connection refused" when selecting a local model | Ollama not running, or model not downloaded with the exact tag (step 4) |
+| Generation works but the results are on an unexpected database | Check which database is "current" in the sidebar — it is a state of the process, not per request |
+| Generation uses a collection you did not expect (e.g. one named after a previous test) | Leftover collections from earlier `SAVE AS` queries appear in the schema; delete them (`python pulisci_collezioni.py` removes everything in `jcoql_test` except the four base collections) |
+| A query on a JCO DS database does not return | Check the DS-Server is running and the collection exists; use the Timeout selector so the wait is bounded |
+| File upload/collection management from the UI not available | Feature intentionally disabled in this version (requires architectural work not yet done on the multi-database side) |
+| A standalone script (e.g. `test_retrieval.py`, `sample_data.py`) gives `FileNotFoundError` | Almost always a working-directory problem: these scripts use relative paths and must be launched from the project root, not from the folder they are in |

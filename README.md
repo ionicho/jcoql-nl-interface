@@ -1,88 +1,97 @@
-# JCoQL+ Natural Language Interface
+# J-CO-QL+ Natural Language Interface
 
-Sistema di traduzione Natural Language → JCoQL+ con RAG (Retrieval-Augmented Generation), validazione tramite parser ANTLR3 ufficiale ed esecuzione su database MongoDB reale tramite il motore J-CO Framework.
+A Natural Language → J-CO-QL+ translation system with RAG (Retrieval-Augmented Generation), validation through the official ANTLR3 parser, and execution on real databases (MongoDB and JCO DS) through the J-CO Framework engine.
 
-**Università degli Studi di Bergamo**
-**Tesi Magistrale** - Nicholas Iotti
-**Relatori:** Prof. Giuseppe Psaila, Prof. Paolo Fosci
-
----
-
-## Obiettivo
-
-Permettere agli utenti di interrogare database MongoDB usando **linguaggio naturale** invece di scrivere query JCoQL+ manualmente, con:
-- Generazione automatica di query JCoQL+ tramite LLM (multi-provider: cloud e locale)
-- Validazione tramite il parser ANTLR3 ufficiale del progetto J-CO
-- Esecuzione reale tramite il motore J-CO Framework, non una reimplementazione
-- Supporto a 10 comandi del linguaggio, inclusi JOIN cross-database e concatenati, MERGE su N database, GENERATE, GET DICTIONARY
-- Multi-database, con scoperta automatica dello schema (inclusi tipi e valori di esempio per campo) e riconoscimento approssimato dei campi
-
-> Nota metodologica: le sezioni di questo README riportano solo dati verificati con test diretti sul sistema. Dove una misura non è stata riverificata di recente, è segnalato esplicitamente.
+**University of Bergamo**
+**Master's Thesis** - Nicholas Iotti
+**Supervisors:** Prof. Giuseppe Psaila, Prof. Paolo Fosci
 
 ---
 
-## Architettura
+## Goal
+
+Let users query databases using **natural language** instead of writing J-CO-QL+ queries by hand, with:
+- Automatic generation of J-CO-QL+ queries through an LLM (multi-provider: cloud and local)
+- Validation through the official ANTLR3 parser of the J-CO project
+- Real execution through the J-CO Framework engine, not a reimplementation
+- Support for 10 language commands, including cross-database and chained JOINs, MERGE over N databases, GENERATE, GET DICTIONARY
+- Multiple databases (MongoDB and JCO DS), with automatic schema discovery (including types and sample values per field) and approximate field-name matching
+
+> Methodological note: the sections of this README only report data verified with direct tests on the system. Where a measurement has not been re-verified recently, this is stated explicitly.
+
+> Note on languages: the user interface is in English. The system prompt, the RAG examples and the test requests used so far are written in Italian; the natural-language examples below are shown translated into English for readability.
+
+---
+
+## Architecture
 
 ```
 ┌─────────────────────────────────────────────────────────┐
 │  USER INPUT                                              │
-│  • Natural Language: "Raggruppa gli ordini per stato"    │
-│  • Direct JCoQL+: GET COLLECTION hotels; ...              │
+│  • Natural Language: "Group the orders by status"        │
+│  • Direct J-CO-QL+: GET COLLECTION hotels; ...            │
 └──────────────────┬────────────────────────────────────────┘
                    ↓
 ┌─────────────────────────────────────────────────────────┐
 │  RAG RETRIEVAL (ChromaDB)                                │
-│  • Esempi validati, caricati da examples/validated/*.txt │
-│  • Embedding locali: all-MiniLM-L6-v2                    │
-│  • Top-N esempi semanticamente più simili                │
+│  • Validated examples, loaded from examples/validated/*.txt │
+│  • Local embeddings: all-MiniLM-L6-v2                    │
+│  • Top-N semantically most similar examples              │
 └──────────────────┬────────────────────────────────────────┘
                    ↓
 ┌─────────────────────────────────────────────────────────┐
-│  LLM GENERATION (multi-provider, selezione if/elif,      │
-│  non una vera Factory)                                   │
+│  LLM GENERATION (multi-provider, selected with if/elif,  │
+│  not a real Factory)                                     │
 │  • Google Gemini (cloud)                                 │
-│  • Llama 3.1 / Gemma via Ollama (locale)                 │
-│  • Schema MongoDB reale del database attivo nel prompt    │
-│    (tipo e valori di esempio per campo, non solo il nome) │
-│  • Grammatica JCoQL+ completa nel prompt, non un sottoinsieme │
+│  • Llama 3.1 8B, Llama 3.2 3B, Gemma 1 7B, Gemma 4 E4B   │
+│    via Ollama (local)                                    │
+│  • Real schema of the selected databases in the prompt   │
+│    (type and sample values per field, not just the name)  │
+│  • Gemini: complete prompt with the full J-CO-QL+ grammar │
+│  • Local models: "compact" prompt (default) or "full"     │
+│    (see section "Prompt modes for local models")          │
 └──────────────────┬────────────────────────────────────────┘
                    ↓
 ┌─────────────────────────────────────────────────────────┐
-│  PARSER VALIDATION + RIPARAZIONI DETERMINISTICHE          │
-│  • ANTLR3 Official (repository del progetto J-CO)         │
-│  • Repair loop automatico sugli errori di validazione     │
-│  • Riparazioni mirate per errori ricorrenti non risolti    │
-│    in modo affidabile dal solo prompt (vedi sezione        │
-│    "Riparazioni deterministiche" più sotto)                │
+│  PARSER VALIDATION + DETERMINISTIC REPAIRS                │
+│  • ANTLR3 Official (J-CO project repository)              │
+│  • Automatic repair loop on validation errors             │
+│  • Targeted repairs for recurring errors that the prompt  │
+│    alone does not fix reliably (see section               │
+│    "Deterministic repairs" below)                         │
 └──────────────────┬────────────────────────────────────────┘
                    ↓
 ┌─────────────────────────────────────────────────────────┐
 │  JCO FRAMEWORK EXECUTOR                                   │
-│  • Motore Java ufficiale J-CO, lanciato come subprocess    │
-│  • Strategia "auto SAVE AS": ogni query riceve in coda     │
-│    un SAVE AS verso una collection temporanea univoca;     │
-│    il risultato è riletto da MongoDB e la collection       │
-│    cancellata subito dopo — è il motore stesso a calcolare │
-│    il risultato, non una ricostruzione lato Python          │
-│  • Modalità alternativa "solo conteggio" (opzionale, per   │
-│    collezioni grandi): nessun SAVE AS aggiunto, si legge    │
-│    solo il conteggio già stampato su stdout dal motore      │
-│    (vedi sezione "Scalabilità" più sotto)                   │
+│  • Official J-CO Java engine, launched as a subprocess    │
+│  • "Auto SAVE AS" strategy: every query gets a SAVE AS    │
+│    to a unique temporary collection appended at the end;  │
+│    the result is read back from MongoDB and the           │
+│    collection is deleted right after — the engine itself  │
+│    computes the result, not a reconstruction on the       │
+│    Python side                                            │
+│  • Alternative "Count only" mode (optional, for large     │
+│    collections): no SAVE AS is added, only the count the  │
+│    engine already prints on stdout is read (see section   │
+│    "Scalability" below)                                   │
+│  • Configurable execution timeout (2-20 minutes, or none) │
 └──────────────────┬────────────────────────────────────────┘
                    ↓
 ┌─────────────────────────────────────────────────────────┐
-│  MONGODB EXECUTION                                         │
-│  • Multi-database, con switching da interfaccia            │
-│  • Schema discovery ricorsiva per ogni database connesso    │
+│  DATABASE EXECUTION                                        │
+│  • Multiple databases, switching from the interface        │
+│  • MongoDB and JCO DS servers                              │
+│  • Recursive schema discovery for every connected database │
 └──────────────────┬────────────────────────────────────────┘
                    ↓
 ┌─────────────────────────────────────────────────────────┐
 │  RESULTS VISUALIZATION                                     │
-│  • Documenti JSON, sintassi JCoQL+ completa eseguita        │
-│  • Conteggio reale (non limitato ai documenti visualizzati) │
-│  • Query preferite salvabili e ricercabili (localStorage)   │
-│  • Cronologia automatica delle ultime 50 query eseguite,    │
-│    successo o errore (localStorage, stesso pattern)         │
+│  • JSON documents, full J-CO-QL+ syntax executed           │
+│  • Real count (not limited to the displayed documents)     │
+│  • Favorite queries, savable and searchable (localStorage) │
+│  • Automatic history of the last 50 executed queries,      │
+│    success or error (localStorage, same pattern)           │
+│  • Built-in quick guide ("❓ Guide" button)                 │
 └─────────────────────────────────────────────────────────┘
 ```
 
@@ -90,18 +99,19 @@ Permettere agli utenti di interrogare database MongoDB usando **linguaggio natur
 
 ## Quick Start
 
-> Guida rapida. Per la procedura completa passo-passo (inclusi i comandi
-> esatti per Ollama, il seed di MongoDB, e l'ordine corretto in cui
-> lanciare tutto la prima volta), vedi **[SETUP.md](SETUP.md)**.
+> Quick guide. For the complete step-by-step procedure (including the exact
+> commands for Ollama, the MongoDB seed, and the correct order in which to
+> start everything the first time), see **[SETUP.md](SETUP.md)**.
 
 ### Prerequisites
 
 - **Python 3.x**
 - **Node.js**
 - **MongoDB**
-- **Ollama** (per LLM locali, opzionale)
-- **Java 8+** (per il motore J-CO Framework e il parser ANTLR3)
-- **Gradle** (per compilare il framework J-CO, se modificato)
+- **Ollama** (for local LLMs, optional)
+- **Java 8+** (for the J-CO Framework engine and the ANTLR3 parser)
+- **Gradle** (to build the J-CO Framework, if modified)
+- **A JCO DS server** (optional, only to query JCO DS databases)
 
 ### Installation
 ```bash
@@ -122,30 +132,30 @@ npm install
 
 # 4. Environment variables
 cp .env.example .env
-# Modifica .env con la tua GEMINI_API_KEY
+# Edit .env with your GEMINI_API_KEY
 
 # 5. MongoDB
-# Assicurati che MongoDB sia in esecuzione. Per popolare il database di
-# esempio "jcoql_test" da zero, vedi SETUP.md (sezione "Dati di esempio").
+# Make sure MongoDB is running. To populate the example database
+# "jcoql_test" from scratch, see SETUP.md (section "Sample data").
 
-# 6. Carica gli esempi in ChromaDB
+# 6. Load the examples into ChromaDB
 python backend/database/load_examples.py
 ```
 
-`load_examples.py` scansiona **tutti** i file `.txt` presenti in `examples/validated/`
-(percorso calcolato rispetto alla posizione dello script, non alla cartella da cui lo
-lanci) e ricrea la collection ChromaDB da zero a ogni esecuzione — dopo averlo lanciato,
-**riavvia il backend**, altrimenti resta collegato al riferimento della collection precedente.
+`load_examples.py` scans **all** the `.txt` files in `examples/validated/`
+(path computed relative to the script's location, not to the folder you launch it
+from) and recreates the ChromaDB collection from scratch on every run — after running it,
+**restart the backend**, otherwise it stays attached to the reference of the previous collection.
 
-> Questo era già tutto quello che serve per un avvio "al volo" se hai già un ambiente
-> pronto. Per un ambiente nuovo (Ollama, modelli locali, seed MongoDB, verifica finale),
-> segui **[SETUP.md](SETUP.md)** in ordine — evita gran parte degli errori più comuni
-> incontrati durante lo sviluppo (percorsi relativi, ordine di avvio, modelli Ollama
-> non scaricati).
+> This is all you need for a quick start if you already have a ready environment.
+> For a new environment (Ollama, local models, MongoDB seed, final check),
+> follow **[SETUP.md](SETUP.md)** in order — it avoids most of the common errors
+> met during development (relative paths, start-up order, Ollama models
+> not downloaded).
 
 ### Run
 ```bash
-# Terminal 1: Backend (dalla radice del progetto - gli import usano il pacchetto "backend")
+# Terminal 1: Backend (from the project root - imports use the "backend" package)
 venv\Scripts\activate
 uvicorn main:app --reload
 
@@ -154,189 +164,238 @@ cd frontend
 npm run dev
 ```
 
-Apri il browser su: **http://localhost:5173**
+Open your browser at: **http://localhost:5173**
 
 ### Debug
 
-Il sistema stampa log diagnostici dettagliati (query completa mandata al motore Java,
-esempi RAG recuperati per ogni richiesta, riepilogo dell'esecuzione) — la query completa
-è sempre visibile in console, il resto solo se richiesto esplicitamente:
+The system prints detailed diagnostic logs (the full query sent to the Java engine,
+the RAG examples retrieved for each request, an execution summary) — the full query
+is always visible in the console, the rest only if explicitly requested:
 ```bash
 set JCOQL_DEBUG=true   # Windows (PowerShell: $env:JCOQL_DEBUG="true")
 # export JCOQL_DEBUG=true   # Linux/Mac
 ```
-Di default è spento, per non intasare la console durante un uso normale.
+It is off by default, to avoid cluttering the console during normal use.
 
 ---
 
-## Stack Tecnologico
+## Technology Stack
 
 ### Backend
 - **Framework:** FastAPI
-- **Database:** MongoDB
-- **Vector DB:** ChromaDB (persistente, locale)
-- **LLM Cloud:** Google Gemini
-- **LLM Locale:** Ollama (Llama 3.1, Gemma)
-- **Embeddings:** sentence-transformers (all-MiniLM-L6-v2, locali)
-- **Parser:** ANTLR3 (repository ufficiale del progetto J-CO)
-- **Executor:** motore J-CO Framework (Java), lanciato come subprocess
+- **Databases:** MongoDB, JCO DS
+- **Vector DB:** ChromaDB (persistent, local)
+- **Cloud LLM:** Google Gemini
+- **Local LLMs:** Ollama (Llama 3.1 8B, Llama 3.2 3B, Gemma 1 7B, Gemma 4 E4B)
+- **Embeddings:** sentence-transformers (all-MiniLM-L6-v2, local)
+- **Parser:** ANTLR3 (official J-CO project repository)
+- **Executor:** J-CO Framework engine (Java), launched as a subprocess
 
 ### Frontend
 - **Framework:** React
 - **Build:** Vite
 - **Routing:** React Router
 - **HTTP:** Axios
-- **Persistenza locale:** localStorage (query preferite, cronologia automatica ultime 50 query)
+- **Local persistence:** localStorage (favorite queries, automatic history of the last 50 queries)
 
 ---
 
 ## Database Integration
 
 ### Multi-Database
-- Selezione di uno o più database da interfaccia (un'unica modalità, la selezione
-  "singolo database" precedente è stata rimossa perché ridondante)
-- Scoperta automatica dello schema per ogni database connesso, inclusi campi annidati,
-  tipo osservato e valori di esempio reali per campo
-- Riconoscimento approssimato dei nomi di campo (basato su `difflib`, non su liste di
-  parole chiave scritte a mano) per gestire richieste cross-lingua
-- La generazione riceve l'elenco completo dei database selezionati (non solo il primo),
-  necessario perché l'LLM possa usare i nomi reali in query che coinvolgono più database
-  invece di indovinarli
+- Selection of one or more databases from the interface (a single mode: the previous
+  "single database" selection was removed because it was redundant)
+- Automatic schema discovery for every connected database, including nested fields,
+  observed type and real sample values per field
+- Approximate field-name matching (based on `difflib`, not on hand-written keyword
+  lists) to handle cross-language requests
+- Generation receives the full list of selected databases (not just the first one),
+  needed so that the LLM can use real names in queries involving several databases
+  instead of guessing them
+- When several selected databases share the same collection (e.g. `users`) and that
+  collection is requested, the results are merged automatically with a `MERGE`
 
-### Query Execution — esempi verificati
+### JCO DS databases
 
-**Modalità 1: Linguaggio Naturale → JCoQL+**
+Besides MongoDB, a database stored in a **JCO DS** server (J-CO Document Store, the
+alternative document store of the J-CO project: https://github.com/JcoProjectTeam) can be
+connected from the interface ("➕ Add Database" in the sidebar → server
+"JCO DS (professors' server)"). The form asks for host, port, database name and the list
+of its collections.
+
+- Schema discovery goes through the Java engine itself (there is no Python client for the
+  JCO DS binary protocol), sampling the documents of each listed collection.
+- Queries on a JCO DS database declare the server explicitly and qualify collections with
+  `@database`:
+  ```
+  USE DB testds ON SERVER 'jcods' 'http://localhost:17017';
+  GET COLLECTION testcoll@testds;
+  ```
+  while MongoDB databases keep using `ON DEFAULT SERVER`.
+- **Collections must be listed by hand** when connecting: J-CO-QL+ has no command to list
+  the collections of a database (there is no "SHOW COLLECTIONS"), so they cannot be
+  discovered automatically as with MongoDB.
+- The same connection can also be registered through `POST /api/databases/connect`
+  (optional parameters `server_type=jcods`, `server_host`, `server_port`, `collections`).
+
+### Query Execution — verified examples
+
+**Mode 1: Natural Language → J-CO-QL+**
 ```
-Input: "Raggruppa gli ordini per stato"
+Input: "Group the orders by status"
   ↓
-Query generata: GET COLLECTION orders;
-                GROUP PARTITION TRUE BY .status INTO .orders_by_status;
+Generated query: GET COLLECTION orders;
+                 GROUP PARTITION TRUE BY .status INTO .orders_by_status;
   ↓
-Esecuzione: risultato reale letto dal motore, nessuna ricostruzione lato Python
+Execution: real result read from the engine, no reconstruction on the Python side
 ```
 
-**Modalità 2: Query JCoQL+ diretta, con JOIN cross-database**
+**Mode 2: Direct J-CO-QL+ query, with cross-database JOIN**
 ```
 Input: USE DB jcoql_test ON DEFAULT SERVER;
        USE DB test_db ON DEFAULT SERVER;
        JOIN OF COLLECTIONS users@jcoql_test AS t1, users@test_db AS t2
        CASE WHERE .t1.user_id = .t2.id;
   ↓
-Esecuzione: 5 documenti reali, letti dal motore
+Execution: 5 real documents, read from the engine
 ```
 
-**Modalità 3: Più JOIN nella stessa richiesta ("join concatenati")**
+**Mode 3: Several JOINs in the same request ("chained joins")**
 ```
-Input: "ordini con l'utente che li ha effettuati e i prodotti acquistati"
+Input: "orders with the user who placed them and the products purchased"
   ↓
-Query generata: JOIN (ordini↔utenti) → SAVE AS intermedio → EXPAND
-                dell'array articoli → JOIN (articoli↔prodotti)
+Generated query: JOIN (orders↔users) → intermediate SAVE AS → EXPAND
+                 of the items array → JOIN (items↔products)
   ↓
-Esecuzione: 6 documenti reali; le collection intermedie sono cancellate
-            automaticamente a fine esecuzione
+Execution: 6 real documents; the intermediate collections are deleted
+           automatically at the end of the execution
 ```
 
 ---
 
-## Comandi JCoQL+ Supportati
+## Supported J-CO-QL+ Commands
 
-Il sistema supporta 10 comandi principali del linguaggio, tutti eseguiti dal motore
-J-CO Framework reale (non da una reimplementazione Python del linguaggio):
+The system supports 10 main commands of the language, all executed by the real
+J-CO Framework engine (not by a Python reimplementation of the language):
 
-| Comando | Stato | Note |
+| Command | Status | Notes |
 |---|---|---|
-| `GET COLLECTION` (database) | Completo | Operatori di confronto, `AND`/`OR`, `IN_RANGE`, campi annidati |
-| `GET COLLECTION FROM WEB` / `FROM FILE` | Completo | Il percorso di `FROM FILE` è risolto rispetto alla working directory del processo Java |
-| `FILTER` + `GENERATE` (`BUILD`/`ADD FIELDS`/`REMOVE FIELDS`) | Completo | `KEEP`/`DROP OTHERS` validi solo dopo una `CASE WHERE`; nessuna aritmetica diretta come valore di campo (solo riferimenti, letterali, funzioni) |
-| `JOIN OF COLLECTIONS` | Completo, solo `INNER` | Cross-database funzionante (nativo, `@db1`/`@db2`); `LEFT`/`RIGHT`/`FULL OUTER` non esistono nella grammatica JCoQL+, non implementati per scelta |
-| Join concatenati (più `JOIN` nella stessa query) | Completo | Tramite `SAVE AS` intermedio, con pulizia automatica delle collezioni temporanee; se la chiave di join è dentro un array serve un `EXPAND` intermedio (il confronto `=` richiede stesso tipo sui due lati, un array non è mai "uguale" a un valore singolo anche se lo contiene) |
-| `GROUP PARTITION` | Completo | Multi-partizione nello stesso comando, `ORDER BY` (richiede `TYPE NUMERIC`/`STRING`/`BOOLEAN` esplicito) |
-| `EXPAND UNPACK` | Completo | Multi-clausola nello stesso comando |
-| `MERGE COLLECTIONS` | Completo | Numero qualunque di collezioni/database, `REMOVE DUPLICATES` opzionale |
-| `INTERSECT COLLECTIONS` | Verificato solo su dati disgiunti | Mai testato un caso con overlap reale |
-| `SUBTRACT COLLECTIONS` | Verificato solo su dati disgiunti | Come sopra |
-| `GET DICTIONARY` + `TRANSLATE` | Completo | Riparazione automatica se l'LLM genera `TRANSLATE` senza il `GET DICTIONARY` corrispondente (vedi sotto) |
-| `SAVE AS coll@db` | Completo | `@database` sempre obbligatorio, altrimenti non scrive su MongoDB (by design) |
-| `SAVE TO FILE` | Verificato | Percorsi relativi risolti rispetto alla working directory del processo Java |
+| `GET COLLECTION` (database) | Complete | Comparison operators, `AND`/`OR`, `IN_RANGE`, nested fields |
+| `GET COLLECTION FROM WEB` / `FROM FILE` | Complete | The `FROM FILE` path is resolved relative to the working directory of the Java process |
+| `FILTER` + `GENERATE` (`BUILD`/`ADD FIELDS`/`REMOVE FIELDS`) | Complete | `KEEP`/`DROP OTHERS` valid only after a `CASE WHERE`; no direct arithmetic as a field value (only references, literals, functions); missing values are tested with `FIELD .field IS NULL` / `IS NOT NULL` (`WITHOUT`/`WITH` test whether the key is absent/present in the document, not whether it is `null`) |
+| `JOIN OF COLLECTIONS` | Complete, `INNER` only | Cross-database working (native, `@db1`/`@db2`); `LEFT`/`RIGHT`/`FULL OUTER` do not exist in the J-CO-QL+ grammar, deliberately not implemented |
+| Chained joins (several `JOIN`s in the same query) | Complete | Through an intermediate `SAVE AS`, with automatic cleanup of the temporary collections; if the join key is inside an array an intermediate `EXPAND` is needed (the `=` comparison requires the same type on both sides, an array is never "equal" to a single value even if it contains it) |
+| `GROUP PARTITION` | Complete | Multi-partition in the same command, `ORDER BY` (requires an explicit `TYPE NUMERIC`/`STRING`/`BOOLEAN`; ordering exists only inside `GROUP PARTITION`) |
+| `EXPAND UNPACK` | Complete | Multi-clause in the same command |
+| `MERGE COLLECTIONS` | Complete | Any number of collections/databases, optional `REMOVE DUPLICATES` |
+| `INTERSECT COLLECTIONS` | Verified only on disjoint data | A case with real overlap has never been tested |
+| `SUBTRACT COLLECTIONS` | Verified only on disjoint data | As above |
+| `GET DICTIONARY` + `TRANSLATE` | Complete | Automatic repair if the LLM generates `TRANSLATE` without the corresponding `GET DICTIONARY` (see below) |
+| `SAVE AS coll@db` | Complete | `@database` always required, otherwise nothing is written to MongoDB (by design) |
+| `SAVE TO FILE` | Verified | Relative paths are resolved relative to the working directory of the Java process |
 
-**Non implementati, fuori dallo scope attuale:** `LOOKUP FROM WEB`, `TRAJECTORY MATCHING`,
-le 7 varianti di `CREATE FUZZY` (due delle quali, `CREATE JAVA/JAVASCRIPT FUNCTION`,
-permetterebbero l'esecuzione di codice arbitrario lato server generato da un prompt in
-linguaggio naturale — evitate per ragioni di sicurezza, non solo di complessità
-implementativa).
+**Not implemented, out of the current scope:** `LOOKUP FROM WEB`, `TRAJECTORY MATCHING`,
+the 7 variants of `CREATE FUZZY` (two of which, `CREATE JAVA/JAVASCRIPT FUNCTION`,
+would allow execution of arbitrary server-side code generated from a natural-language
+prompt — avoided for security reasons, not only for implementation complexity).
+These commands exist in the grammar and can be written by hand in the query panel, but
+the LLM is given no instructions or examples for them (the Dashboard lists them under
+"Not generable from natural language").
 
-Per ogni comando, il risultato mostrato è quello vero calcolato dal motore J-CO: la
-query ricevuta viene fatta seguire in modo trasparente da un `SAVE AS` verso una
-collection temporanea a nome univoco, il cui contenuto viene poi riletto da MongoDB e la
-collection cancellata — non c'è più nessuna ricostruzione della semantica dei comandi
-lato Python (vedi architettura sopra).
-
----
-
-## Scalabilità su collezioni di grandi dimensioni
-
-Ogni query (tranne `GET COLLECTION`) riceve normalmente il `SAVE AS` automatico
-descritto sopra — l'unico modo per rileggere dal browser un risultato che il
-motore altrimenti calcola solo in memoria e stampa come mero conteggio su
-stdout. Anche per un comando di sola lettura, questo comporta una scrittura
-reale su MongoDB dell'intero risultato prima di poterlo rileggere.
-
-Su collezioni grandi o con documenti complessi, questa scrittura può diventare
-il vero collo di bottiglia, indipendentemente dal costo di calcolo del comando
-stesso. Verificato dal vivo: un `GROUP PARTITION` su ~21.000 documenti
-falliva con `Payload document size is larger than maximum of 16777216` (limite
-BSON di MongoDB, 16MB) nonostante il calcolo si completasse in ~25s — a
-fallire era il salvataggio del gruppo risultante, non il calcolo.
-
-Per questi casi, una modalità alternativa (checkbox "📊 Solo conteggio
-(database grandi)" nel pannello query) esegue la query così com'è, senza
-alcun `SAVE AS` aggiunto, leggendo solo il conteggio che il motore stampa
-comunque su stdout — nessuna lettura o scrittura extra su MongoDB. Verificato
-dal vivo su due casi distinti:
-- **Risolve** il caso sopra (GROUP + EXPAND sul limite BSON): con questa
-  modalità l'esecuzione completa con successo, 25 gruppi, nessun errore.
-- **Non risolve** un JOIN completamente senza filtro tra due collezioni
-  grandi (~50.000 × ~21.000 documenti): qui il costo dominante è il calcolo
-  combinatorio stesso (confronto nested-loop non indicizzato), non la
-  persistenza — né la modalità normale né quella "solo conteggio" completano
-  in tempi ragionevoli.
-
-Le due classi di collo di bottiglia — persistenza del risultato vs calcolo
-combinatorio del motore — sono quindi distinte e richiedono mitigazioni
-diverse; solo la prima è affrontata da questa modalità.
+For every command, the displayed result is the true one computed by the J-CO engine: the
+received query is transparently followed by a `SAVE AS` to a temporary collection with a
+unique name, whose content is then read back from MongoDB and the collection deleted —
+there is no longer any reconstruction of the command semantics on the Python side (see
+architecture above).
 
 ---
 
-## Riparazioni deterministiche
+## Prompt modes for local models
 
-Durante lo sviluppo alcuni errori di generazione si sono ripresentati più volte in modo
-sistematico, anche dopo aver rafforzato l'istruzione nel prompt e verificato che l'esempio
-RAG pertinente venisse effettivamente recuperato. In quei casi, invece di continuare a
-insistere sul prompt, l'errore viene riconosciuto e corretto direttamente nel codice dopo
-la generazione:
+Local models receive a prompt in one of two modes:
 
-- **`TRANSLATE` senza `GET DICTIONARY`**: se la query generata usa `TRANSLATE(...)` ma non
-  registra mai il dizionario con `GET DICTIONARY`, il nome del dizionario viene cercato
-  nella richiesta originale dell'utente (pattern tipo "dizionario X") e la riga mancante
-  viene aggiunta automaticamente.
-- **`@database` mancante o inventato** su un riferimento a collection dentro `JOIN`/`MERGE`:
-  aggiunto se assente; se il modello ha inventato un nome che coincide con una collection
-  invece di un database reale, la riga `USE DB` fittizia viene rimossa e sostituita con il
-  database corretto (confrontato contro l'elenco dei database realmente registrati, non
-  contro un elenco scritto a mano).
-- **Disallineamento di tipo in un `JOIN`**: se la condizione confronta lo stesso nome di
-  campo tra due collezioni con tipi diversi per quel campo secondo lo schema scoperto (es.
-  un intero contro una stringa), è un segnale che il nome coincide ma il significato no —
-  qui il sistema non sceglie un sostituto, segnala l'incongruenza e forza un altro
-  tentativo di generazione con l'evidenza concreta.
+- **`compact`** (default): a condensed set of language rules plus the real schema and the
+  retrieved RAG examples.
+- **`full`**: the complete set of rules plus the Basic grammar (`JCoQLBasic`, instead of the
+  full grammar, to fit the context of local models), and a reminder to use the full path
+  of nested fields.
+
+The mode can be set with the `LOCAL_PROMPT_MODE` environment variable or changed at
+runtime without restarting, through `POST /api/set_local_prompt_mode?mode=compact|full`
+(current value: `GET /api/local_prompt_mode`). Cloud Gemini is not affected by this setting: it always receives the complete prompt with
+the full J-CO-QL+ grammar.
+
+---
+
+## Scalability on large collections
+
+Every query (except `GET COLLECTION`) normally receives the automatic `SAVE AS`
+described above — the only way to read back in the browser a result that the
+engine otherwise computes only in memory and prints as a bare count on
+stdout. Even for a read-only command, this means a real write to MongoDB of the
+entire result before it can be read back.
+
+On large collections or with complex documents, this write can become
+the real bottleneck, regardless of the computation cost of the command
+itself. Verified live: a `GROUP PARTITION` on ~21,000 documents
+failed with `Payload document size is larger than maximum of 16777216` (MongoDB's
+BSON limit, 16MB) even though the computation completed in ~25s — what failed
+was saving the resulting group, not the computation.
+
+For these cases, an alternative mode (checkbox "📊 Count only
+(large databases)" in the query panel) runs the query as it is, without
+any added `SAVE AS`, reading only the count that the engine prints
+anyway on stdout — no extra reads or writes on MongoDB. Verified
+live on two distinct cases:
+- **Solves** the case above (GROUP + EXPAND hitting the BSON limit): with this
+  mode the execution completes successfully, 25 groups, no errors.
+- **Does not solve** a completely unfiltered JOIN between two large
+  collections (~50,000 × ~21,000 documents): here the dominant cost is the
+  combinatorial computation itself (non-indexed nested-loop comparison), not
+  persistence — neither the normal mode nor the "count only" mode completes in
+  reasonable time.
+
+The two classes of bottleneck — result persistence vs. combinatorial computation of
+the engine — are therefore distinct and need different mitigations; only the first is
+addressed by this mode.
+
+For long-running queries, the query panel also has a **Timeout** selector (2, 5, 10, 15,
+20 minutes, or **No timeout**). When the time expires, the backend always answers with an
+explicit error message, never a silent timeout.
+
+---
+
+## Deterministic repairs
+
+During development some generation errors recurred systematically, even after
+strengthening the instruction in the prompt and verifying that the relevant RAG example
+was actually retrieved. In those cases, instead of insisting on the prompt, the error
+is recognized and fixed directly in code after generation:
+
+- **`TRANSLATE` without `GET DICTIONARY`**: if the generated query uses `TRANSLATE(...)` but never
+  registers the dictionary with `GET DICTIONARY`, the dictionary name is looked up in the
+  user's original request (pattern like "dictionary X") and the missing line
+  is added automatically.
+- **Missing or invented `@database`** on a collection reference inside `JOIN`/`MERGE`:
+  added if absent; if the model invented a name that matches a collection
+  instead of a real database, the fictitious `USE DB` line is removed and replaced with the
+  correct database (checked against the list of actually registered databases, not
+  against a hand-written list).
+- **Type mismatch in a `JOIN`**: if the condition compares the same field name between two
+  collections that have different types for that field according to the discovered schema (e.g.
+  an integer against a string), it is a sign that the name matches but the meaning does not —
+  here the system does not choose a replacement, it reports the inconsistency and forces another
+  generation attempt with the concrete evidence.
+- **`IS NOT NULL` syntax**: forms such as `ISNOTNULL`/`ISNULL` (invalid in the lexer, which
+  requires the spaces) are normalized to `IS NOT NULL`/`IS NULL`, adding the missing `FIELD` keyword.
 
 ---
 
 ## Architecture Patterns
 
-Il sistema usa il **Factory Pattern** per due componenti — non per la selezione del
-LLM, che è realizzata con un semplice `if`/`elif` sul provider richiesto, non una vera
-classe Factory:
+The system uses the **Factory Pattern** for two components — not for the selection of
+the LLM, which is implemented with a simple `if`/`elif` on the requested provider, not a real
+Factory class:
 
 ```python
 # backend/parsers/parser_factory.py
@@ -352,38 +411,63 @@ class ExecutorFactory:
         return JcoFrameworkExecutor()
 ```
 
-> Esiste anche un secondo executor (`python_translator.py`, traduzione diretta
-> JCoQL+→MongoDB senza passare dal motore Java, selezionabile con
-> `ACTIVE_EXECUTOR=python_translator`), pensato come fallback leggero limitato a
-> `GET COLLECTION`+`FILTER` semplice. Il progetto usa e testa sempre e solo
-> `jco_framework` (il default): è quello a cui si riferisce l'intero README.
+> A second executor also exists (`python_translator.py`, direct J-CO-QL+→MongoDB
+> translation without going through the Java engine, selectable with
+> `ACTIVE_EXECUTOR=python_translator`), meant as a lightweight fallback limited to
+> `GET COLLECTION`+simple `FILTER`. The project always uses and tests only
+> `jco_framework` (the default): it is what this whole README refers to.
 
 ---
 
-## Limitazioni Note
+## Known Limitations
 
-- **Scelta della chiave di JOIN via linguaggio naturale**: quando due collezioni
-  condividono un nome di campo che però si riferisce a entità diverse (es. un campo
-  `user_id` presente in entrambe, ma stringa identificativa in una e numero progressivo
-  interno nell'altra), il modello può comunque scegliere il campo sbagliato al primo
-  tentativo, nonostante lo schema mostri tipo e valori di esempio reali per ciascun campo.
-  Il controllo di disallineamento di tipo (sezione sopra) intercetta il caso più comune e
-  forza un altro tentativo, ma non garantisce che il tentativo successivo sia corretto —
-  resta un limite del ragionamento del modello linguistico, non del meccanismo di verifica.
-  L'interfaccia non offre più un form dedicato per costruire un JOIN nativo dalla sidebar
-  (rimosso perché ridondante — un JOIN resta comunque scrivibile a mano o generabile via
-  NL nel pannello query, con lo stesso motore e la stessa sintassi cross-database).
-- **`INTERSECT`/`SUBTRACT`**: l'uguaglianza fra documenti (basata sul contenuto,
-  esclusa `_id`) è verificata solo su collezioni prive di sovrapposizione reale.
-- **Modelli LLM locali**: nei test comparativi, Llama e Gemma mostrano un tasso di
-  successo sensibilmente inferiore al provider cloud sugli stessi input, oltre a una
-  latenza per chiamata più alta.
-- **Percorsi relativi**: sia lato Java (classpath, file di configurazione del motore)
-  sia lato script Python (`load_examples.py`), diversi bug incontrati durante lo
-  sviluppo sono derivati da percorsi relativi risolti rispetto alla cartella di lancio
-  invece che a un riferimento assoluto — un'indagine approfondita su uno di questi casi
-  (il comando `SAVE AS`, e la causa radice trovata poi nel fork del motore J-CO stesso)
-  è documentata in un report tecnico separato.
+- **JOIN key choice via natural language**: when two collections
+  share a field name that refers to different entities (e.g. a `user_id` field present in
+  both, but an identifying string in one and an internal sequence number
+  in the other), the model may still choose the wrong field at the first
+  attempt, even though the schema shows the type and real sample values for each field.
+  The type-mismatch check (section above) catches the most common case and
+  forces another attempt, but does not guarantee that the next attempt is correct —
+  it remains a limit of the language model's reasoning, not of the verification mechanism.
+  The interface no longer offers a dedicated form to build a native JOIN from the sidebar
+  (removed because redundant — a JOIN can still be written by hand or generated via
+  NL in the query panel, with the same engine and the same cross-database syntax).
+- **`INTERSECT`/`SUBTRACT`**: equality between documents (content-based,
+  excluding `_id`) is verified only on collections with no real overlap.
+- **Local LLM models**: in the comparative tests, the local models show a
+  noticeably lower success rate than the cloud provider on the same inputs, as well as a
+  higher latency per call; the smaller models struggle most on difficult requests
+  (3-way JOINs, MERGE of subsets, arithmetic, which is not supported by the language).
+- **Leftover collections**: `SAVE AS` in a query leaves the saved collection in the
+  database, and from then on it appears in the schema passed to the LLM, which may use it
+  instead of the original collection. Delete test collections between runs.
+- **JCO DS**: the collections of a JCO DS database must be listed by hand (see above).
+  A request on a collection that does not exist in the DS-Server was observed to hang
+  instead of returning an error (the cause was not confirmed with the server logs); the
+  execution timeout selector bounds the wait.
+- **Relative paths**: both on the Java side (classpath, engine configuration files)
+  and on the Python script side (`load_examples.py`), several bugs met during
+  development derived from relative paths resolved against the launch folder
+  instead of an absolute reference — an in-depth investigation of one of these cases
+  (the `SAVE AS` command, and the root cause later found in the J-CO engine fork itself)
+  is documented in a separate technical report.
+
+---
+
+## Test Scripts
+
+The scripts used for the test campaign are in the project root:
+
+| Script | Purpose |
+|---|---|
+| `verify_execution.py` | Executes the generated queries and compares the result with an expected one (exact / count only / different / invalid) |
+| `repeatability.py` | Repeats the same request several times on each model and records the generated queries |
+| `rerun_rounds.py`, `rerun_extended.py` | Re-run the test rounds / the extended test set on selected models and prompt modes |
+| `extended_tests.py` | Defines the extended test set (additional common and difficult requests) and its expected results |
+| `paraphrase.py` | Tests the robustness of the generation to paraphrased requests |
+| `pulisci_collezioni.py` | Deletes the temporary collections left in `jcoql_test` (keeps `products`, `orders`, `users`, `category_translations`) |
+
+Results are saved as CSV files (`*_runs.csv`, `*_riepilogo.csv`, `test_campaign_log.csv`).
 
 ---
 
@@ -391,18 +475,20 @@ class ExecutorFactory:
 
 ```
 jcoql-nl-interface/
-├── main.py                        # FastAPI backend (va lanciato dalla radice)
+├── main.py                        # FastAPI backend (must be launched from the root)
 ├── .env
 ├── requirements.txt
 │
 ├── backend/
 │   ├── query_corrector.py
-│   ├── join_executor.py           # Costruisce query JOIN native (solo INNER)
-│   ├── rag_examples_extended.txt  # Iniettato SEMPRE in ogni prompt - solo pattern
-│   │                               # sintattici generici, nessun nome di campo legato
-│   │                               # a un database specifico
-│   ├── jcoql_syntax_official.txt  # Grammatica completa JCoQL.g, iniettata nel prompt
-│   ├── jcoql_syntax_basic_official.txt  # Grammatica Basic, copia fedele (non iniettata)
+│   ├── join_executor.py           # Builds native JOIN queries (INNER only)
+│   ├── llm_local.py               # Ollama models (Llama 3.1/3.2, Gemma 1/4)
+│   ├── database_persistence.py    # Saves/restores the connected databases
+│   ├── rag_examples_extended.txt  # ALWAYS injected into every prompt - only generic
+│   │                               # syntactic patterns, no field names tied to
+│   │                               # a specific database
+│   ├── jcoql_syntax_official.txt  # Full JCoQL.g grammar, injected into the prompt
+│   ├── jcoql_syntax_basic_official.txt  # Basic grammar, used by local models in "full" mode
 │   │
 │   ├── parsers/
 │   │   ├── parser_factory.py
@@ -410,37 +496,40 @@ jcoql-nl-interface/
 │   │
 │   ├── executors/
 │   │   ├── executor_factory.py
-│   │   └── jco_framework_executor_v2.py  # Strategia "auto SAVE AS"
+│   │   └── jco_framework_executor_v2.py  # "Auto SAVE AS" strategy
 │   │
 │   └── database/
-│       ├── schema_discovery.py    # Scopre campi, tipi e valori di esempio
-│       └── load_examples.py       # Scansiona examples/validated/*.txt, percorsi
-│                                    # assoluti rispetto alla posizione dello script
+│       ├── database_registry.py   # Connected databases (MongoDB and JCO DS)
+│       ├── schema_discovery.py    # Discovers fields, types and sample values
+│       └── load_examples.py       # Scans examples/validated/*.txt, absolute paths
+│                                    # relative to the script's location
 │
 ├── examples/validated/
-│   └── *.txt                       # Esempi RAG, caricati automaticamente tutti
+│   └── *.txt                       # RAG examples, all loaded automatically
 │
 ├── frontend/
 │   ├── src/
 │   │   ├── App.jsx
-│   │   ├── QueryExecutor.jsx       # Pannello unico: input, query editabile, risultati
-│   │   ├── Favorites.jsx           # Query preferite, ricerca, localStorage
-│   │   ├── History.jsx             # Cronologia automatica (max 50), localStorage
-│   │   ├── DatabaseSelector.jsx    # Selezione multi-database, scoperta schema
+│   │   ├── QueryExecutor.jsx       # Single panel: input, editable query, results
+│   │   ├── Favorites.jsx           # Favorite queries, search, localStorage
+│   │   ├── History.jsx             # Automatic history (max 50), localStorage
+│   │   ├── DatabaseSelector.jsx    # Multi-database selection, schema discovery
+│   │   ├── HelpGuide.jsx           # Quick guide on how the interface behaves
+│   │   ├── Toast.jsx               # Non-blocking notifications
 │   │   └── Dashboard.jsx
 │   └── package.json
 │
-└── chroma_data/                    # Storage persistente ChromaDB
+└── chroma_data/                    # Persistent ChromaDB storage
 ```
 
 ---
 
 ## Contributors
 
-**Nicholas Iotti** - Università degli Studi di Bergamo
+**Nicholas Iotti** - University of Bergamo
 GitHub: [@ionicho](https://github.com/ionicho)
 
-**Relatori:**
+**Supervisors:**
 - Prof. Giuseppe Psaila
 - Prof. Paolo Fosci
 
@@ -448,4 +537,4 @@ GitHub: [@ionicho](https://github.com/ionicho)
 
 ## License
 
-Progetto tesi magistrale - Università degli Studi di Bergamo
+Master's thesis project - University of Bergamo
