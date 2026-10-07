@@ -124,7 +124,7 @@ Query: GET COLLECTION orders; FILTER CASE WHERE .priority = 'urgent' KEEP OTHERS
 
 Titolo: Ordini senza tracking
 Descrizione: Ordini senza numero tracking
-Query: GET COLLECTION orders; FILTER CASE WHERE WITHOUT .tracking_number KEEP OTHERS;
+Query: GET COLLECTION orders; FILTER CASE WHERE FIELD .tracking_number IS NULL KEEP OTHERS;
 
 Titolo: Ordini fascia media
 Descrizione: Ordini con totale tra 100 e 300

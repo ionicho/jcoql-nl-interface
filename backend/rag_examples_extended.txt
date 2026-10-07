@@ -42,7 +42,7 @@ il valore numerico.
 
 === ESEMPIO: Verifica Presenza Campo ===
 NL: "Elementi dove un certo campo è presente/valorizzato (non nullo)"
-QUERY: GET COLLECTION collezione; FILTER CASE WHERE FIELD .campo ISNOTNULL KEEP OTHERS;
+QUERY: GET COLLECTION collezione; FILTER CASE WHERE FIELD .campo IS NOT NULL KEEP OTHERS;
 NOTA: Molti campi opzionali possono avere valore null per una parte dei documenti -
 usa questo pattern quando l'utente chiede esplicitamente "presente"/"registrato"/
 "assegnato" su un campo.

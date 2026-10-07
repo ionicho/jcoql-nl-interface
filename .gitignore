@@ -156,3 +156,7 @@ connected_databases.json
 # ===== DOCKER =====
 docker-compose.override.yml
 .dockerignore
+_da_eliminare/
+main_backup_*.py
+ablation_*
+commitmsg.txt

@@ -1,0 +1,307 @@
+﻿modello,id,variante,query_nl,valida,tentativi,tempo_gen_s,query_jcoql,esito,dettaglio
+gemini,P1,originale,Mostrami i prodotti con uno sconto maggiore del 20%,SI,1,4.6,GET COLLECTION products; FILTER CASE WHERE .discount > 20;,ESATTO,"8 documenti, stesso insieme di _id"
+gemini,P1,parafrasi 1,Quali prodotti hanno uno sconto oltre il 20%?,SI,1,3.5,GET COLLECTION products; FILTER CASE WHERE .discount > 20;,ESATTO,"8 documenti, stesso insieme di _id"
+gemini,P1,parafrasi 2,Elenca i prodotti scontati di più del 20 per cento,SI,1,3.5,GET COLLECTION products; FILTER CASE WHERE .discount > 20;,ESATTO,"8 documenti, stesso insieme di _id"
+gemini,P1,parafrasi 3,Voglio vedere i prodotti il cui sconto supera il 20%,SI,1,3.6,GET COLLECTION products; FILTER CASE WHERE .discount > 20;,ESATTO,"8 documenti, stesso insieme di _id"
+gemini,P2,originale,Mostrami i prodotti con un rating compreso tra 3 e 4.5,SI,1,3.2,"GET COLLECTION products; FILTER CASE WHERE .rating IN_RANGE [3.0, 4.5];",ESATTO,"25 documenti, stesso insieme di _id"
+gemini,P2,parafrasi 1,Quali prodotti hanno un rating tra 3 e 4.5?,SI,1,3.7,"GET COLLECTION products; FILTER CASE WHERE .rating IN_RANGE [3.0, 4.5];",ESATTO,"25 documenti, stesso insieme di _id"
+gemini,P2,parafrasi 2,Elenca i prodotti con valutazione da 3 a 4.5,SI,1,3.7,"GET COLLECTION products; FILTER CASE WHERE .rating IN_RANGE [ 3.0 , 4.5 ];",ESATTO,"25 documenti, stesso insieme di _id"
+gemini,P2,parafrasi 3,Dammi i prodotti il cui rating va da 3 a 4.5 compresi,SI,1,3.8,"GET COLLECTION products; FILTER CASE WHERE .rating IN_RANGE [3.0, 4.5];",ESATTO,"25 documenti, stesso insieme di _id"
+gemini,P3,originale,Mostrami i prodotti che non sono biologici,SI,1,3.5,GET COLLECTION products; FILTER CASE WHERE .organic = FALSE;,ESATTO,"27 documenti, stesso insieme di _id"
+gemini,P3,parafrasi 1,Quali prodotti non sono biologici?,SI,1,3.3,GET COLLECTION products; FILTER CASE WHERE .organic = FALSE;,ESATTO,"27 documenti, stesso insieme di _id"
+gemini,P3,parafrasi 2,Elenca i prodotti non bio,SI,1,3.9,GET COLLECTION products; FILTER CASE WHERE .organic = FALSE;,ESATTO,"27 documenti, stesso insieme di _id"
+gemini,P3,parafrasi 3,Fammi vedere solo i prodotti che non risultano biologici,SI,1,3.2,GET COLLECTION products; FILTER CASE WHERE .organic = FALSE;,ESATTO,"27 documenti, stesso insieme di _id"
+gemini,P4,originale,Mostrami i prodotti biologici oppure quelli con uno sconto superiore al 30%,SI,1,3.6,GET COLLECTION products; FILTER CASE WHERE .organic = TRUE OR .discount > 30;,ESATTO,"3 documenti, stesso insieme di _id"
+gemini,P4,parafrasi 1,Quali prodotti sono biologici o hanno uno sconto oltre il 30%?,SI,1,3.5,GET COLLECTION products; FILTER CASE WHERE .organic = TRUE OR .discount > 30;,ESATTO,"3 documenti, stesso insieme di _id"
+gemini,P4,parafrasi 2,Elenca i prodotti bio e anche quelli scontati di più del 30%,SI,1,3.5,"GET COLLECTION biologici;
+SAVE AS chaintemp1@jcoql_test;
+GET COLLECTION products;
+FILTER CASE WHERE .discount > 30;
+SAVE AS chaintemp2@jcoql_test;
+MERGE COLLECTIONS chaintemp1@jcoql_test, chaintemp2@jcoql_test;",ESATTO,"3 documenti, stesso insieme di _id"
+gemini,P4,parafrasi 3,"Voglio i prodotti biologici, più quelli con sconto maggiore del 30%",SI,1,5.7,"GET COLLECTION biologici;
+SAVE AS temp_bio_subset@jcoql_test;
+GET COLLECTION products;
+FILTER CASE WHERE .discount > 30;
+SAVE AS temp_discount_subset@jcoql_test;
+MERGE COLLECTIONS temp_bio_subset@jcoql_test, temp_discount_subset@jcoql_test;",ESATTO,"3 documenti, stesso insieme di _id"
+gemini,P5,originale,Mostrami i prodotti biologici con un rating di almeno 4,SI,1,4.0,GET COLLECTION products; FILTER CASE WHERE .organic = TRUE AND .rating >= 4;,ESATTO,"2 documenti, stesso insieme di _id"
+gemini,P5,parafrasi 1,Quali prodotti biologici hanno rating 4 o superiore?,SI,1,3.5,GET COLLECTION products; FILTER CASE WHERE .organic = TRUE AND .rating >= 4;,ESATTO,"2 documenti, stesso insieme di _id"
+gemini,P5,parafrasi 2,Elenca i prodotti bio con valutazione minima 4,SI,1,3.5,GET COLLECTION biologici; FILTER CASE WHERE .rating >= 4;,ESATTO,"2 documenti, stesso insieme di _id"
+gemini,P5,parafrasi 3,Dammi i prodotti biologici che hanno un rating non inferiore a 4,SI,1,3.7,GET COLLECTION products; FILTER CASE WHERE .organic = TRUE AND .rating >= 4;,ESATTO,"2 documenti, stesso insieme di _id"
+gemini,P6,originale,Espandi le recensioni dei prodotti in righe separate,SI,1,3.9,"GET COLLECTION products;
+EXPAND UNPACK TRUE ARRAY .reviews TO .review;",ESATTO (solo conteggio),56
+gemini,P6,parafrasi 1,Metti ogni recensione dei prodotti su una riga a parte,SI,1,3.8,"GET COLLECTION products;
+EXPAND UNPACK TRUE ARRAY .reviews TO .review;",ESATTO (solo conteggio),56
+gemini,P6,parafrasi 2,Trasforma le recensioni dei prodotti in righe singole,SI,1,3.4,"GET COLLECTION products;
+EXPAND UNPACK TRUE ARRAY .reviews TO .review;",ESATTO (solo conteggio),56
+gemini,P6,parafrasi 3,Voglio una riga per ogni recensione dei prodotti,SI,1,3.5,"GET COLLECTION products;
+EXPAND UNPACK TRUE ARRAY .reviews TO .review;",ESATTO (solo conteggio),56
+gemini,P7,originale,Collega ogni ordine all'utente che lo ha effettuato,SI,1,3.5,"JOIN OF COLLECTIONS orders@jcoql_test AS a, users@jcoql_test AS b CASE WHERE .a.user_id = .b._id;",ESATTO (solo conteggio),2
+gemini,P7,parafrasi 1,Associa ogni ordine al suo utente,SI,1,3.4,"JOIN OF COLLECTIONS orders@jcoql_test AS a, users@jcoql_test AS b CASE WHERE .a.user_id = .b._id;",ESATTO (solo conteggio),2
+gemini,P7,parafrasi 2,"Per ogni ordine, aggiungi i dati dell'utente che l'ha fatto",SI,1,3.6,"JOIN OF COLLECTIONS orders@jcoql_test AS a, users@jcoql_test AS b CASE WHERE .a.user_id = .b._id;",ESATTO (solo conteggio),2
+gemini,P7,parafrasi 3,Unisci gli ordini con gli utenti che li hanno effettuati,SI,1,3.4,"JOIN OF COLLECTIONS orders@jcoql_test AS a, users@jcoql_test AS b CASE WHERE .a.user_id = .b._id;",ESATTO (solo conteggio),2
+gemini,P8,originale,Raggruppa i prodotti per categoria,SI,1,3.6,"GET COLLECTION products;
+GROUP PARTITION TRUE BY .category INTO .prodotti_per_categoria;",ESATTO (solo conteggio),5 n gruppi
+gemini,P8,parafrasi 1,Dividi i prodotti in gruppi in base alla categoria,SI,1,3.6,"GET COLLECTION products;
+GROUP PARTITION TRUE BY .category INTO .prodotti_per_categoria;",ESATTO (solo conteggio),5 n gruppi
+gemini,P8,parafrasi 2,Organizza i prodotti per categoria,SI,1,3.6,"GET COLLECTION products;
+GROUP PARTITION TRUE BY .category INTO .prodotti_per_categoria;",ESATTO (solo conteggio),5 n gruppi
+gemini,P8,parafrasi 3,Fammi vedere i prodotti raggruppati per categoria,SI,1,3.4,"GET COLLECTION products;
+GROUP PARTITION TRUE BY .category INTO .risultato;",ESATTO (solo conteggio),5 n gruppi
+gemini,P9,originale,Mostrami gli ordini superiori a 100 euro insieme all'utente che li ha effettuati,SI,1,3.5,"JOIN OF COLLECTIONS orders@jcoql_test AS a, users@jcoql_test AS b CASE WHERE .a.user_id = .b._id;
+FILTER CASE WHERE .a.total > 100;",ESATTO (solo conteggio),2
+gemini,P9,parafrasi 1,Quali ordini superano i 100 euro? Mostrali con il relativo utente,SI,2,4.8,"JOIN OF COLLECTIONS orders@jcoql_test AS a, users@jcoql_test AS b CASE WHERE .a.user_id = .b._id;
+FILTER CASE WHERE .a.total > 100;",ESATTO (solo conteggio),2
+gemini,P9,parafrasi 2,Collega gli ordini di importo maggiore di 100 euro ai loro utenti,SI,1,3.5,"GET COLLECTION orders;
+FILTER CASE WHERE .total > 100;
+SAVE AS chaintemp1@jcoql_test;
+JOIN OF COLLECTIONS chaintemp1@jcoql_test AS a, users@jcoql_test AS b
+CASE WHERE .a.user_id = .b._id;",ESATTO (solo conteggio),2
+gemini,P9,parafrasi 3,Elenca gli ordini oltre 100 euro con i dati di chi li ha fatti,SI,1,3.4,"USE DB jcoql_test ON DEFAULT SERVER;
+JOIN OF COLLECTIONS orders@jcoql_test AS a, users@jcoql_test AS b CASE WHERE .a.user_id = .b._id;
+FILTER CASE WHERE .a.total > 100;",ESATTO (solo conteggio),2
+gemini,P10,originale,Mostrami le recensioni dei prodotti con un voto superiore a 4,SI,1,3.7,"GET COLLECTION products;
+EXPAND UNPACK TRUE ARRAY .reviews TO .elemento;
+FILTER CASE WHERE .elemento.item.rating > 4;",ESATTO (solo conteggio),24
+gemini,P10,parafrasi 1,Quali recensioni hanno un voto oltre 4?,SI,1,3.5,"GET COLLECTION products;
+EXPAND UNPACK TRUE ARRAY .reviews TO .elemento;
+FILTER CASE WHERE .elemento.item.rating > 4;",ESATTO (solo conteggio),24
+gemini,P10,parafrasi 2,Elenca le recensioni dei prodotti con voto maggiore di 4,SI,1,3.6,"GET COLLECTION products;
+EXPAND UNPACK TRUE ARRAY .reviews TO .elemento;
+FILTER CASE WHERE .elemento.item.rating > 4;",ESATTO (solo conteggio),24
+gemini,P10,parafrasi 3,Voglio vedere le recensioni con voto più alto di 4,SI,1,4.6,"GET COLLECTION products;
+EXPAND UNPACK TRUE ARRAY .reviews TO .elemento;
+FILTER CASE WHERE .elemento.item.rating > 4;",ESATTO (solo conteggio),24
+gemini,P11,originale,Mostrami i prodotti senza nessuno sconto,SI,1,4.8,GET COLLECTION products; FILTER CASE WHERE .discount = 0;,ESATTO,"7 documenti, stesso insieme di _id"
+gemini,P11,parafrasi 1,Quali prodotti non hanno alcuno sconto?,SI,1,4.0,GET COLLECTION products; FILTER CASE WHERE .discount = 0;,ESATTO,"7 documenti, stesso insieme di _id"
+gemini,P11,parafrasi 2,Elenca i prodotti con sconto pari a zero,SI,1,3.5,GET COLLECTION prodotti_unificati; FILTER CASE WHERE .discount = 0;,DIVERSO,"attesi 7 documenti, ottenuti 6"
+gemini,P11,parafrasi 3,Fammi vedere i prodotti che non sono scontati,SI,1,3.4,GET COLLECTION products; FILTER CASE WHERE .discount = 0;,ESATTO,"7 documenti, stesso insieme di _id"
+gemini,P12,originale,"Unisci i prodotti biologici e quelli scontati in un'unica collezione, senza duplicati",SI,1,3.6,"GET COLLECTION biologici;
+SAVE AS temp_bio_merge@jcoql_test;
+GET COLLECTION discounted;
+SAVE AS temp_scontati_merge@jcoql_test;
+MERGE COLLECTIONS temp_bio_merge@jcoql_test, temp_scontati_merge@jcoql_test REMOVE DUPLICATES;",ESATTO,"24 documenti, stesso insieme di _id"
+gemini,P12,parafrasi 1,"Metti insieme i prodotti bio e quelli scontati in una sola collezione, senza ripetizioni",SI,1,3.7,"GET COLLECTION biologici;
+SAVE AS temp_bio_merge@jcoql_test;
+GET COLLECTION discounted;
+SAVE AS temp_scontati_merge@jcoql_test;
+MERGE COLLECTIONS temp_bio_merge@jcoql_test, temp_scontati_merge@jcoql_test REMOVE DUPLICATES;",ESATTO,"24 documenti, stesso insieme di _id"
+gemini,P12,parafrasi 2,"Crea un'unica collezione con i prodotti biologici e quelli scontati, evitando i duplicati",SI,1,3.6,"GET COLLECTION biologici;
+SAVE AS temp_bio_merge@jcoql_test;
+GET COLLECTION discounted;
+SAVE AS temp_discounted_merge@jcoql_test;
+MERGE COLLECTIONS temp_bio_merge@jcoql_test, temp_discounted_merge@jcoql_test REMOVE DUPLICATES;",ESATTO,"24 documenti, stesso insieme di _id"
+gemini,P12,parafrasi 3,"Fondi in una collezione sola i prodotti biologici e i prodotti in sconto, senza doppioni",SI,1,3.6,"GET COLLECTION biologici;
+SAVE AS temp_bio_scontati_merge@jcoql_test;
+GET COLLECTION scontati;
+SAVE AS temp_scontati_merge@jcoql_test;
+MERGE COLLECTIONS temp_bio_scontati_merge@jcoql_test, temp_scontati_merge@jcoql_test REMOVE DUPLICATES;",ESATTO,"24 documenti, stesso insieme di _id"
+gemma4,P1,originale,Mostrami i prodotti con uno sconto maggiore del 20%,SI,1,15.6,GET COLLECTION products; FILTER CASE WHERE .discount > 20;,ESATTO,"8 documenti, stesso insieme di _id"
+gemma4,P1,parafrasi 1,Quali prodotti hanno uno sconto oltre il 20%?,SI,1,4.8,GET COLLECTION products; FILTER CASE WHERE .discount > 20;,ESATTO,"8 documenti, stesso insieme di _id"
+gemma4,P1,parafrasi 2,Elenca i prodotti scontati di più del 20 per cento,SI,1,5.0,GET COLLECTION products; FILTER CASE WHERE .discount > 20;,ESATTO,"8 documenti, stesso insieme di _id"
+gemma4,P1,parafrasi 3,Voglio vedere i prodotti il cui sconto supera il 20%,SI,1,5.4,GET COLLECTION products; FILTER CASE WHERE .discount > 20;,ESATTO,"8 documenti, stesso insieme di _id"
+gemma4,P2,originale,Mostrami i prodotti con un rating compreso tra 3 e 4.5,SI,1,6.4,"GET COLLECTION products; FILTER CASE WHERE .rating IN_RANGE [3, 4.5];",ESATTO,"25 documenti, stesso insieme di _id"
+gemma4,P2,parafrasi 1,Quali prodotti hanno un rating tra 3 e 4.5?,SI,1,5.0,"GET COLLECTION products; FILTER CASE WHERE .rating IN_RANGE [3, 4.5];",ESATTO,"25 documenti, stesso insieme di _id"
+gemma4,P2,parafrasi 2,Elenca i prodotti con valutazione da 3 a 4.5,SI,1,5.4,"GET COLLECTION products; FILTER CASE WHERE .rating IN_RANGE [3, 4.5];",ESATTO,"25 documenti, stesso insieme di _id"
+gemma4,P2,parafrasi 3,Dammi i prodotti il cui rating va da 3 a 4.5 compresi,SI,1,7.4,"GET COLLECTION products; FILTER CASE WHERE .rating IN_RANGE [3, 4.5];",ESATTO,"25 documenti, stesso insieme di _id"
+gemma4,P3,originale,Mostrami i prodotti che non sono biologici,SI,1,5.7,GET COLLECTION products; FILTER CASE WHERE NOT (.organic = TRUE);,ESATTO,"27 documenti, stesso insieme di _id"
+gemma4,P3,parafrasi 1,Quali prodotti non sono biologici?,SI,1,5.1,GET COLLECTION products; FILTER CASE WHERE NOT (.organic = TRUE);,ESATTO,"27 documenti, stesso insieme di _id"
+gemma4,P3,parafrasi 2,Elenca i prodotti non bio,SI,1,7.8,"GET COLLECTION products;
+FILTER CASE WHERE .organic = FALSE;",ESATTO,"27 documenti, stesso insieme di _id"
+gemma4,P3,parafrasi 3,Fammi vedere solo i prodotti che non risultano biologici,SI,1,4.3,GET COLLECTION products; FILTER CASE WHERE .organic = FALSE;,ESATTO,"27 documenti, stesso insieme di _id"
+gemma4,P4,originale,Mostrami i prodotti biologici oppure quelli con uno sconto superiore al 30%,SI,1,5.4,GET COLLECTION products; FILTER CASE WHERE .organic = TRUE OR .discount > 30;,ESATTO,"3 documenti, stesso insieme di _id"
+gemma4,P4,parafrasi 1,Quali prodotti sono biologici o hanno uno sconto oltre il 30%?,SI,1,5.5,GET COLLECTION products; FILTER CASE WHERE .organic = TRUE OR .discount > 30;,ESATTO,"3 documenti, stesso insieme di _id"
+gemma4,P4,parafrasi 2,Elenca i prodotti bio e anche quelli scontati di più del 30%,SI,1,6.7,GET COLLECTION products; FILTER CASE WHERE .organic = TRUE OR .discount > 30;,ESATTO,"3 documenti, stesso insieme di _id"
+gemma4,P4,parafrasi 3,"Voglio i prodotti biologici, più quelli con sconto maggiore del 30%",SI,1,6.7,GET COLLECTION products; FILTER CASE WHERE .organic = TRUE OR .discount > 30;,ESATTO,"3 documenti, stesso insieme di _id"
+gemma4,P5,originale,Mostrami i prodotti biologici con un rating di almeno 4,SI,1,4.3,GET COLLECTION products; FILTER CASE WHERE .organic = TRUE AND .rating >= 4;,ESATTO,"2 documenti, stesso insieme di _id"
+gemma4,P5,parafrasi 1,Quali prodotti biologici hanno rating 4 o superiore?,SI,1,6.1,GET COLLECTION products; FILTER CASE WHERE .organic = TRUE AND .rating >= 4;,ESATTO,"2 documenti, stesso insieme di _id"
+gemma4,P5,parafrasi 2,Elenca i prodotti bio con valutazione minima 4,SI,1,4.5,"GET COLLECTION bio;
+FILTER CASE WHERE .organic = TRUE AND .rating >= 4;",ESATTO,"2 documenti, stesso insieme di _id"
+gemma4,P5,parafrasi 3,Dammi i prodotti biologici che hanno un rating non inferiore a 4,SI,1,5.2,GET COLLECTION products; FILTER CASE WHERE .organic = TRUE AND .rating >= 4;,ESATTO,"2 documenti, stesso insieme di _id"
+gemma4,P6,originale,Espandi le recensioni dei prodotti in righe separate,SI,1,5.2,"GET COLLECTION products;
+EXPAND UNPACK TRUE ARRAY .reviews TO .review;",ESATTO (solo conteggio),56
+gemma4,P6,parafrasi 1,Metti ogni recensione dei prodotti su una riga a parte,SI,1,4.6,GET COLLECTION products; EXPAND UNPACK TRUE ARRAY .reviews TO .review;,ESATTO (solo conteggio),56
+gemma4,P6,parafrasi 2,Trasforma le recensioni dei prodotti in righe singole,SI,1,4.4,"GET COLLECTION products;
+EXPAND UNPACK TRUE ARRAY .reviews TO .review;",ESATTO (solo conteggio),56
+gemma4,P6,parafrasi 3,Voglio una riga per ogni recensione dei prodotti,SI,1,4.4,"GET COLLECTION products;
+EXPAND UNPACK TRUE ARRAY .reviews TO .review;",ESATTO (solo conteggio),56
+gemma4,P7,originale,Collega ogni ordine all'utente che lo ha effettuato,SI,1,5.9,"JOIN OF COLLECTIONS orders@jcoql_test AS o, users@jcoql_test AS u CASE WHERE .o.user_id = .u._id;",ESATTO (solo conteggio),2
+gemma4,P7,parafrasi 1,Associa ogni ordine al suo utente,SI,1,6.4,"JOIN OF COLLECTIONS orders@jcoql_test AS o, users@jcoql_test AS u CASE WHERE .o.user_id = .u._id;",ESATTO (solo conteggio),2
+gemma4,P7,parafrasi 2,"Per ogni ordine, aggiungi i dati dell'utente che l'ha fatto",SI,1,6.3,"GET COLLECTION orders; JOIN OF COLLECTIONS orders@jcoql_test AS a, users@jcoql_test AS b CASE WHERE .a.user_id = .b._id;",ESATTO (solo conteggio),2
+gemma4,P7,parafrasi 3,Unisci gli ordini con gli utenti che li hanno effettuati,SI,1,5.9,"GET COLLECTION orders; JOIN OF COLLECTIONS orders@jcoql_test AS a, users@jcoql_test AS b CASE WHERE .a.user_id = .b._id;",ESATTO (solo conteggio),2
+gemma4,P8,originale,Raggruppa i prodotti per categoria,SI,1,4.6,GET COLLECTION products; GROUP PARTITION TRUE BY .category INTO .risultato;,ESATTO (solo conteggio),5 n gruppi
+gemma4,P8,parafrasi 1,Dividi i prodotti in gruppi in base alla categoria,SI,1,4.4,GET COLLECTION products; GROUP PARTITION TRUE BY .category INTO .risultato;,ESATTO (solo conteggio),5 n gruppi
+gemma4,P8,parafrasi 2,Organizza i prodotti per categoria,SI,1,6.3,GET COLLECTION products; GROUP PARTITION TRUE BY .category INTO .risultato;,ESATTO (solo conteggio),5 n gruppi
+gemma4,P8,parafrasi 3,Fammi vedere i prodotti raggruppati per categoria,SI,1,4.4,GET COLLECTION products; GROUP PARTITION TRUE BY .category INTO .risultato;,ESATTO (solo conteggio),5 n gruppi
+gemma4,P9,originale,Mostrami gli ordini superiori a 100 euro insieme all'utente che li ha effettuati,SI,1,7.2,"JOIN OF COLLECTIONS orders@jcoql_test AS a, users@jcoql_test AS b CASE WHERE .a.user_id = .b._id AND .a.total > 100;",ESATTO (solo conteggio),2
+gemma4,P9,parafrasi 1,Quali ordini superano i 100 euro? Mostrali con il relativo utente,SI,1,6.7,"GET COLLECTION orders; FILTER CASE WHERE .total > 100; JOIN OF COLLECTIONS orders@jcoql_test AS a, users@jcoql_test AS b CASE WHERE .a.user_id = .b._id;",ESATTO (solo conteggio),2
+gemma4,P9,parafrasi 2,Collega gli ordini di importo maggiore di 100 euro ai loro utenti,SI,1,7.3,"GET COLLECTION orders; FILTER CASE WHERE .total > 100; JOIN OF COLLECTIONS orders@jcoql_test AS a, users@jcoql_test AS b CASE WHERE .a.user_id = .b._id;",ESATTO (solo conteggio),2
+gemma4,P9,parafrasi 3,Elenca gli ordini oltre 100 euro con i dati di chi li ha fatti,SI,1,7.7,"GET COLLECTION orders; FILTER CASE WHERE .total > 100; JOIN OF COLLECTIONS orders@jcoql_test AS a, users@jcoql_test AS b CASE WHERE .a.user_id = .b._id;",ESATTO (solo conteggio),2
+gemma4,P10,originale,Mostrami le recensioni dei prodotti con un voto superiore a 4,SI,1,8.4,GET COLLECTION products; EXPAND UNPACK TRUE ARRAY .reviews TO .r; FILTER CASE WHERE .r.item.rating > 4;,ESATTO (solo conteggio),24
+gemma4,P10,parafrasi 1,Quali recensioni hanno un voto oltre 4?,SI,1,10.1,GET COLLECTION products; EXPAND UNPACK TRUE ARRAY .reviews TO .elemento; FILTER CASE WHERE .elemento.item.rating > 4;,ESATTO (solo conteggio),24
+gemma4,P10,parafrasi 2,Elenca le recensioni dei prodotti con voto maggiore di 4,SI,1,8.1,GET COLLECTION products; EXPAND UNPACK TRUE ARRAY .reviews TO .c; FILTER CASE WHERE .c.item.rating > 4;,ESATTO (solo conteggio),24
+gemma4,P10,parafrasi 3,Voglio vedere le recensioni con voto più alto di 4,SI,1,11.0,GET COLLECTION products; EXPAND UNPACK TRUE ARRAY .reviews TO .c; FILTER CASE WHERE .c.item.rating > 4;,ESATTO (solo conteggio),24
+gemma4,P11,originale,Mostrami i prodotti senza nessuno sconto,SI,1,5.7,"GET COLLECTION products;
+FILTER CASE WHERE .discount = 0;",ESATTO,"7 documenti, stesso insieme di _id"
+gemma4,P11,parafrasi 1,Quali prodotti non hanno alcuno sconto?,SI,1,5.8,GET COLLECTION products; FILTER CASE WHERE .discount = 0;,ESATTO,"7 documenti, stesso insieme di _id"
+gemma4,P11,parafrasi 2,Elenca i prodotti con sconto pari a zero,SI,1,4.4,GET COLLECTION products; FILTER CASE WHERE .discount = 0;,ESATTO,"7 documenti, stesso insieme di _id"
+gemma4,P11,parafrasi 3,Fammi vedere i prodotti che non sono scontati,SI,1,5.5,GET COLLECTION products; FILTER CASE WHERE .discount = 0;,ESATTO,"7 documenti, stesso insieme di _id"
+gemma4,P12,originale,"Unisci i prodotti biologici e quelli scontati in un'unica collezione, senza duplicati",SI,1,7.9,"GET COLLECTION products;
+FILTER CASE WHERE .organic = TRUE;
+SAVE AS sub1@jcoql_test;
+GET COLLECTION products;
+FILTER CASE WHERE .discount > 0;
+SAVE AS sub2@jcoql_test;
+MERGE COLLECTIONS sub1@jcoql_test, sub2@jcoql_test REMOVE DUPLICATES;",ESATTO,"24 documenti, stesso insieme di _id"
+gemma4,P12,parafrasi 1,"Metti insieme i prodotti bio e quelli scontati in una sola collezione, senza ripetizioni",SI,1,13.6,"GET COLLECTION products;
+FILTER CASE WHERE .organic = TRUE;
+SAVE AS bio_subset@jcoql_test;
+GET COLLECTION products;
+FILTER CASE WHERE .discount > 0;
+SAVE AS discounted_subset@jcoql_test;
+MERGE COLLECTIONS bio_subset@jcoql_test, discounted_subset@jcoql_test REMOVE DUPLICATES;",ESATTO,"24 documenti, stesso insieme di _id"
+gemma4,P12,parafrasi 2,"Crea un'unica collezione con i prodotti biologici e quelli scontati, evitando i duplicati",SI,1,8.7,"GET COLLECTION products; FILTER CASE WHERE .organic = TRUE; SAVE AS bio_subset@jcoql_test;
+GET COLLECTION products; FILTER CASE WHERE .discount > 0; SAVE AS scontati_subset@jcoql_test;
+MERGE COLLECTIONS bio_subset@jcoql_test, scontati_subset@jcoql_test REMOVE DUPLICATES;",ESATTO,"24 documenti, stesso insieme di _id"
+gemma4,P12,parafrasi 3,"Fondi in una collezione sola i prodotti biologici e i prodotti in sconto, senza doppioni",SI,1,7.9,"GET COLLECTION products;
+FILTER CASE WHERE .organic = TRUE;
+SAVE AS sub1@jcoql_test;
+GET COLLECTION products;
+FILTER CASE WHERE .discount > 0;
+SAVE AS sub2@jcoql_test;
+MERGE COLLECTIONS sub1@jcoql_test, sub2@jcoql_test REMOVE DUPLICATES;",ESATTO,"24 documenti, stesso insieme di _id"
+llama32,P1,originale,Mostrami i prodotti con uno sconto maggiore del 20%,SI,1,7.8,"GET COLLECTION products;
+FILTER CASE WHERE .discount > 20;",ESATTO,"8 documenti, stesso insieme di _id"
+llama32,P1,parafrasi 1,Quali prodotti hanno uno sconto oltre il 20%?,SI,1,2.6,"GET COLLECTION products;
+FILTER CASE WHERE .discount > 20;",ESATTO,"8 documenti, stesso insieme di _id"
+llama32,P1,parafrasi 2,Elenca i prodotti scontati di più del 20 per cento,SI,1,2.9,GET COLLECTION products; FILTER CASE WHERE .discount > 0.2;,DIVERSO,"attesi 8 documenti, ottenuti 23"
+llama32,P1,parafrasi 3,Voglio vedere i prodotti il cui sconto supera il 20%,SI,1,2.9,"GET COLLECTION products;
+FILTER CASE WHERE .discount > 20;",ESATTO,"8 documenti, stesso insieme di _id"
+llama32,P2,originale,Mostrami i prodotti con un rating compreso tra 3 e 4.5,SI,1,2.8,"GET COLLECTION products;
+FILTER CASE WHERE .rating IN_RANGE [3.0, 4.5];",ESATTO,"25 documenti, stesso insieme di _id"
+llama32,P2,parafrasi 1,Quali prodotti hanno un rating tra 3 e 4.5?,SI,1,2.9,"GET COLLECTION products;
+FILTER CASE WHERE .rating IN_RANGE [3.0, 4.5];",ESATTO,"25 documenti, stesso insieme di _id"
+llama32,P2,parafrasi 2,Elenca i prodotti con valutazione da 3 a 4.5,SI,1,2.9,"GET COLLECTION products; FILTER CASE WHERE .rating IN_RANGE [ 3 , 4.5 ];",ESATTO,"25 documenti, stesso insieme di _id"
+llama32,P2,parafrasi 3,Dammi i prodotti il cui rating va da 3 a 4.5 compresi,SI,1,3.0,"GET COLLECTION products;
+FILTER CASE WHERE .rating IN_RANGE [3.0, 4.5];",ESATTO,"25 documenti, stesso insieme di _id"
+llama32,P3,originale,Mostrami i prodotti che non sono biologici,SI,1,2.9,GET COLLECTION products; FILTER CASE WHERE NOT (.organic = TRUE);,ESATTO,"27 documenti, stesso insieme di _id"
+llama32,P3,parafrasi 1,Quali prodotti non sono biologici?,SI,1,2.9,GET COLLECTION products; FILTER CASE WHERE NOT (.organic = TRUE);,ESATTO,"27 documenti, stesso insieme di _id"
+llama32,P3,parafrasi 2,Elenca i prodotti non bio,SI,1,3.0,GET COLLECTION products; FILTER CASE WHERE NOT (.organic = TRUE);,ESATTO,"27 documenti, stesso insieme di _id"
+llama32,P3,parafrasi 3,Fammi vedere solo i prodotti che non risultano biologici,SI,1,2.8,"GET COLLECTION products;
+FILTER CASE WHERE NOT (.organic = TRUE);",ESATTO,"27 documenti, stesso insieme di _id"
+llama32,P4,originale,Mostrami i prodotti biologici oppure quelli con uno sconto superiore al 30%,SI,1,3.0,"GET COLLECTION products;
+FILTER CASE WHERE .organic = TRUE OR .discount > 30;",ESATTO,"3 documenti, stesso insieme di _id"
+llama32,P4,parafrasi 1,Quali prodotti sono biologici o hanno uno sconto oltre il 30%?,SI,1,2.9,"GET COLLECTION products;
+FILTER CASE WHERE .organic = TRUE OR .discount > 30;",ESATTO,"3 documenti, stesso insieme di _id"
+llama32,P4,parafrasi 2,Elenca i prodotti bio e anche quelli scontati di più del 30%,SI,1,3.0,GET COLLECTION products; FILTER CASE WHERE .organic = TRUE OR .discount > 30;,ESATTO,"3 documenti, stesso insieme di _id"
+llama32,P4,parafrasi 3,"Voglio i prodotti biologici, più quelli con sconto maggiore del 30%",SI,1,3.0,GET COLLECTION products; FILTER CASE WHERE .organic = TRUE OR .discount > 30;,ESATTO,"3 documenti, stesso insieme di _id"
+llama32,P5,originale,Mostrami i prodotti biologici con un rating di almeno 4,SI,1,2.9,"GET COLLECTION products;
+FILTER CASE WHERE .organic = TRUE AND .rating >= 4;",ESATTO,"2 documenti, stesso insieme di _id"
+llama32,P5,parafrasi 1,Quali prodotti biologici hanno rating 4 o superiore?,SI,1,2.9,"GET COLLECTION products;
+FILTER CASE WHERE .organic = TRUE AND .rating >= 4;",ESATTO,"2 documenti, stesso insieme di _id"
+llama32,P5,parafrasi 2,Elenca i prodotti bio con valutazione minima 4,SI,1,2.8,"GET COLLECTION products;
+FILTER CASE WHERE .organic = TRUE AND .rating >= 4;",ESATTO,"2 documenti, stesso insieme di _id"
+llama32,P5,parafrasi 3,Dammi i prodotti biologici che hanno un rating non inferiore a 4,SI,1,2.9,"GET COLLECTION products;
+FILTER CASE WHERE .organic = TRUE AND .rating >= 4;",ESATTO,"2 documenti, stesso insieme di _id"
+llama32,P6,originale,Espandi le recensioni dei prodotti in righe separate,SI,1,3.0,"GET COLLECTION products;
+EXPAND UNPACK TRUE ARRAY .reviews TO .review;",ESATTO (solo conteggio),56
+llama32,P6,parafrasi 1,Metti ogni recensione dei prodotti su una riga a parte,SI,1,2.9,GET COLLECTION products; FILTER CASE WHERE .price < 50 AND .discount > 0;,DIVERSO,"attesi 56 , ottenuti 1"
+llama32,P6,parafrasi 2,Trasforma le recensioni dei prodotti in righe singole,SI,1,2.9,"GET COLLECTION products;
+FILTER CASE WHERE SIZE(.reviews) > 0;",DIVERSO,"attesi 56 , ottenuti 0"
+llama32,P6,parafrasi 3,Voglio una riga per ogni recensione dei prodotti,SI,2,3.4,GET COLLECTION products; FILTER CASE WHERE .price < 50;,DIVERSO,"attesi 56 , ottenuti 1"
+llama32,P7,originale,Collega ogni ordine all'utente che lo ha effettuato,SI,1,2.9,"JOIN OF COLLECTIONS orders@jcoql_test AS o, users@jcoql_test AS u
+CASE WHERE .o.user_id = .u._id;",ESATTO (solo conteggio),2
+llama32,P7,parafrasi 1,Associa ogni ordine al suo utente,SI,1,3.2,"GET COLLECTION users;
+JOIN OF COLLECTIONS users@jcoql_test AS u, orders@jcoql_test AS o
+CASE WHERE .o.user_id = .u._id;",ESATTO (solo conteggio),2
+llama32,P7,parafrasi 2,"Per ogni ordine, aggiungi i dati dell'utente che l'ha fatto",SI,1,2.9,"GET COLLECTION users;
+EXPAND UNPACK TRUE ARRAY .orders TO .expanded_orders;
+FILTER CASE WHERE .expanded_orders.item.item.user = 'user_021';",DIVERSO,"attesi 2 , ottenuti 0"
+llama32,P7,parafrasi 3,Unisci gli ordini con gli utenti che li hanno effettuati,NO,3,4.1,"GET COLLECTION orders;
+FILTER CASE WHERE FIELD .tracking_number ISNOTNULL;
+SAVE AS trackingOrders@jcoql_test;",NON VALIDA,"[{'message': ""1.\tSyntax Error 1 at [2, 42]: Found ID ('ISNOTNULL') - no viable alternative at input 'ISNOTNULL'""}]"
+llama32,P8,originale,Raggruppa i prodotti per categoria,SI,1,2.8,"GET COLLECTION products;
+GROUP PARTITION TRUE BY .category INTO .items;",ESATTO (solo conteggio),5 n gruppi
+llama32,P8,parafrasi 1,Dividi i prodotti in gruppi in base alla categoria,SI,1,3.0,"GET COLLECTION products;
+GROUP PARTITION TRUE BY .category INTO .items;",ESATTO (solo conteggio),5 n gruppi
+llama32,P8,parafrasi 2,Organizza i prodotti per categoria,SI,1,2.9,"GET COLLECTION products;
+FILTER CASE WHERE .category = 'food';",DIVERSO,"attesi 5 n gruppi, ottenuti 12"
+llama32,P8,parafrasi 3,Fammi vedere i prodotti raggruppati per categoria,SI,1,2.7,"GET COLLECTION products;
+GROUP PARTITION TRUE BY .category INTO .items;",ESATTO (solo conteggio),5 n gruppi
+llama32,P9,originale,Mostrami gli ordini superiori a 100 euro insieme all'utente che li ha effettuati,SI,1,2.9,"GET COLLECTION orders;
+FILTER CASE WHERE .total > 100 AND .user_id = 'user_021';",DIVERSO,"attesi 2 , ottenuti 1"
+llama32,P9,parafrasi 1,Quali ordini superano i 100 euro? Mostrali con il relativo utente,SI,3,3.9,GET COLLECTION orders; FILTER CASE WHERE .total > 100; FILTER CASE WHERE .user_id = 'user_021';,DIVERSO,"attesi 2 , ottenuti 1"
+llama32,P9,parafrasi 2,Collega gli ordini di importo maggiore di 100 euro ai loro utenti,SI,1,3.0,"GET COLLECTION orders; JOIN OF COLLECTIONS orders@jcoql_test AS a, users@jcoql_test AS b CASE WHERE .a.total > 100;",DIVERSO,"attesi 2 , ottenuti 100"
+llama32,P9,parafrasi 3,Elenca gli ordini oltre 100 euro con i dati di chi li ha fatti,SI,1,2.8,GET COLLECTION orders; FILTER CASE WHERE .total > 100;,DIVERSO,"attesi 2 , ottenuti 20"
+llama32,P10,originale,Mostrami le recensioni dei prodotti con un voto superiore a 4,SI,1,2.9,"GET COLLECTION products;
+EXPAND UNPACK TRUE ARRAY .reviews TO .expanded_reviews;
+FILTER CASE WHERE .expanded_reviews.item.rating > 4;",ESATTO (solo conteggio),24
+llama32,P10,parafrasi 1,Quali recensioni hanno un voto oltre 4?,SI,1,2.9,"GET COLLECTION products; EXPAND UNPACK TRUE ARRAY .reviews TO .expanded_reviews;
+FILTER CASE WHERE .expanded_reviews.item.item.rating > 4.0;",DIVERSO,"attesi 24 , ottenuti 0"
+llama32,P10,parafrasi 2,Elenca le recensioni dei prodotti con voto maggiore di 4,SI,1,2.9,"GET COLLECTION products; EXPAND UNPACK TRUE ARRAY .reviews TO .expanded_reviews;
+FILTER CASE WHERE .expanded_reviews.item.rating >= 4;",DIVERSO,"attesi 24 , ottenuti 41"
+llama32,P10,parafrasi 3,Voglio vedere le recensioni con voto più alto di 4,SI,1,2.9,GET COLLECTION products; FILTER CASE WHERE SIZE(.reviews) > 0;,DIVERSO,"attesi 24 , ottenuti 0"
+llama32,P11,originale,Mostrami i prodotti senza nessuno sconto,SI,1,2.8,GET COLLECTION products; FILTER CASE WHERE .discount = 0;,ESATTO,"7 documenti, stesso insieme di _id"
+llama32,P11,parafrasi 1,Quali prodotti non hanno alcuno sconto?,SI,1,2.7,"GET COLLECTION products;
+FILTER CASE WHERE .discount = 0;",ESATTO,"7 documenti, stesso insieme di _id"
+llama32,P11,parafrasi 2,Elenca i prodotti con sconto pari a zero,SI,1,2.8,"GET COLLECTION products;
+FILTER CASE WHERE .discount = 0;",ESATTO,"7 documenti, stesso insieme di _id"
+llama32,P11,parafrasi 3,Fammi vedere i prodotti che non sono scontati,SI,1,2.8,"GET COLLECTION products;
+FILTER CASE WHERE .discount = 0;",ESATTO,"7 documenti, stesso insieme di _id"
+llama32,P12,originale,"Unisci i prodotti biologici e quelli scontati in un'unica collezione, senza duplicati",SI,1,2.9,GET COLLECTION products; FILTER CASE WHERE .organic = TRUE OR .discount > 20;,DIVERSO,"attesi 24 documenti, ottenuti 10"
+llama32,P12,parafrasi 1,"Metti insieme i prodotti bio e quelli scontati in una sola collezione, senza ripetizioni",SI,1,3.1,"GET COLLECTION products;
+FILTER CASE WHERE .organic = TRUE OR .discount > 0;
+SAVE AS products_scontati@jcoql_test;",ESATTO,"24 documenti, stesso insieme di _id"
+llama32,P12,parafrasi 2,"Crea un'unica collezione con i prodotti biologici e quelli scontati, evitando i duplicati",SI,1,2.9,GET COLLECTION products; FILTER CASE WHERE .organic = TRUE OR .discount > 20;,DIVERSO,"attesi 24 documenti, ottenuti 10"
+llama32,P12,parafrasi 3,"Fondi in una collezione sola i prodotti biologici e i prodotti in sconto, senza doppioni",SI,1,2.9,GET COLLECTION products; FILTER CASE WHERE .organic = TRUE OR .discount > 10;,DIVERSO,"attesi 24 documenti, ottenuti 15"
+llama,P1,originale,Mostrami i prodotti con uno sconto maggiore del 20%,SI,1,16.5,GET COLLECTION products; FILTER CASE WHERE .discount > 20;,ESATTO,"8 documenti, stesso insieme di _id"
+llama,P1,parafrasi 1,Quali prodotti hanno uno sconto oltre il 20%?,SI,1,4.5,GET COLLECTION products; FILTER CASE WHERE .discount > 20;,ESATTO,"8 documenti, stesso insieme di _id"
+llama,P1,parafrasi 2,Elenca i prodotti scontati di più del 20 per cento,SI,1,4.3,GET COLLECTION products; FILTER CASE WHERE .discount > 20;,ESATTO,"8 documenti, stesso insieme di _id"
+llama,P1,parafrasi 3,Voglio vedere i prodotti il cui sconto supera il 20%,SI,1,4.4,GET COLLECTION products; FILTER CASE WHERE .discount > 20;,ESATTO,"8 documenti, stesso insieme di _id"
+llama,P2,originale,Mostrami i prodotti con un rating compreso tra 3 e 4.5,SI,1,5.1,"GET COLLECTION products; FILTER CASE WHERE .rating IN_RANGE [3.0, 4.5];",ESATTO,"25 documenti, stesso insieme di _id"
+llama,P2,parafrasi 1,Quali prodotti hanno un rating tra 3 e 4.5?,SI,1,5.1,"GET COLLECTION products; FILTER CASE WHERE .rating IN_RANGE [3.0, 4.5];",ESATTO,"25 documenti, stesso insieme di _id"
+llama,P2,parafrasi 2,Elenca i prodotti con valutazione da 3 a 4.5,SI,1,5.0,"GET COLLECTION products; FILTER CASE WHERE .rating IN_RANGE [3, 4.5];",ESATTO,"25 documenti, stesso insieme di _id"
+llama,P2,parafrasi 3,Dammi i prodotti il cui rating va da 3 a 4.5 compresi,SI,1,5.1,"GET COLLECTION products; FILTER CASE WHERE .rating IN_RANGE [3.0, 4.5];",ESATTO,"25 documenti, stesso insieme di _id"
+llama,P3,originale,Mostrami i prodotti che non sono biologici,SI,1,4.4,GET COLLECTION products; FILTER CASE WHERE .organic = FALSE;,ESATTO,"27 documenti, stesso insieme di _id"
+llama,P3,parafrasi 1,Quali prodotti non sono biologici?,SI,1,4.3,"GET COLLECTION products;
+FILTER CASE WHERE NOT (.organic = TRUE);",ESATTO,"27 documenti, stesso insieme di _id"
+llama,P3,parafrasi 2,Elenca i prodotti non bio,SI,1,4.3,GET COLLECTION products; FILTER CASE WHERE .organic = FALSE;,ESATTO,"27 documenti, stesso insieme di _id"
+llama,P3,parafrasi 3,Fammi vedere solo i prodotti che non risultano biologici,SI,1,4.3,GET COLLECTION products; FILTER CASE WHERE .organic = FALSE;,ESATTO,"27 documenti, stesso insieme di _id"
+llama,P4,originale,Mostrami i prodotti biologici oppure quelli con uno sconto superiore al 30%,SI,1,4.9,GET COLLECTION products; FILTER CASE WHERE .organic = TRUE OR .discount > 30;,ESATTO,"3 documenti, stesso insieme di _id"
+llama,P4,parafrasi 1,Quali prodotti sono biologici o hanno uno sconto oltre il 30%?,SI,1,4.7,GET COLLECTION products; FILTER CASE WHERE .organic = TRUE OR .discount > 30;,ESATTO,"3 documenti, stesso insieme di _id"
+llama,P4,parafrasi 2,Elenca i prodotti bio e anche quelli scontati di più del 30%,SI,1,4.9,GET COLLECTION products; FILTER CASE WHERE .organic = TRUE OR .discount > 30;,ESATTO,"3 documenti, stesso insieme di _id"
+llama,P4,parafrasi 3,"Voglio i prodotti biologici, più quelli con sconto maggiore del 30%",SI,1,4.9,GET COLLECTION products; FILTER CASE WHERE .organic = TRUE OR .discount > 30;,ESATTO,"3 documenti, stesso insieme di _id"
+llama,P5,originale,Mostrami i prodotti biologici con un rating di almeno 4,SI,1,4.8,GET COLLECTION products; FILTER CASE WHERE .organic = TRUE AND .rating >= 4;,ESATTO,"2 documenti, stesso insieme di _id"
+llama,P5,parafrasi 1,Quali prodotti biologici hanno rating 4 o superiore?,SI,1,4.7,GET COLLECTION products; FILTER CASE WHERE .organic = TRUE AND .rating >= 4;,ESATTO,"2 documenti, stesso insieme di _id"
+llama,P5,parafrasi 2,Elenca i prodotti bio con valutazione minima 4,SI,1,4.7,GET COLLECTION products; FILTER CASE WHERE .organic = TRUE AND .rating >= 4;,ESATTO,"2 documenti, stesso insieme di _id"
+llama,P5,parafrasi 3,Dammi i prodotti biologici che hanno un rating non inferiore a 4,SI,1,4.8,GET COLLECTION products; FILTER CASE WHERE .organic = TRUE AND .rating >= 4;,ESATTO,"2 documenti, stesso insieme di _id"
+llama,P6,originale,Espandi le recensioni dei prodotti in righe separate,SI,1,5.1,GET COLLECTION products; EXPAND UNPACK TRUE ARRAY .reviews TO .review;,ESATTO (solo conteggio),56
+llama,P6,parafrasi 1,Metti ogni recensione dei prodotti su una riga a parte,SI,1,4.9,GET COLLECTION products; EXPAND UNPACK TRUE ARRAY .reviews TO .review;,ESATTO (solo conteggio),56
+llama,P6,parafrasi 2,Trasforma le recensioni dei prodotti in righe singole,SI,1,11.1,"GET COLLECTION products; EXPAND UNPACK TRUE ARRAY .reviews TO .review; FILTER GENERATE BUILD { .id: .id, .name: .name, .price: .price, .discount: .discount, .review: .review.item.comment, .rating: .review.item.rating, .user: .review.item.user };",ESATTO (solo conteggio),56
+llama,P6,parafrasi 3,Voglio una riga per ogni recensione dei prodotti,SI,1,4.9,GET COLLECTION products; EXPAND UNPACK TRUE ARRAY .reviews TO .review;,ESATTO (solo conteggio),56
+llama,P7,originale,Collega ogni ordine all'utente che lo ha effettuato,SI,1,6.1,"GET COLLECTION orders; JOIN OF COLLECTIONS orders@jcoql_test AS o, users@jcoql_test AS u CASE WHERE .o.user_id = .u._id;",ESATTO (solo conteggio),2
+llama,P7,parafrasi 1,Associa ogni ordine al suo utente,SI,1,5.8,"GET COLLECTION orders; JOIN OF COLLECTIONS orders@jcoql_test AS o, users@jcoql_test AS u CASE WHERE .o.user_id = .u._id;",ESATTO (solo conteggio),2
+llama,P7,parafrasi 2,"Per ogni ordine, aggiungi i dati dell'utente che l'ha fatto",SI,1,5.6,"GET DICTIONARY category_translations@jcoql_test AS users;
+GET COLLECTION orders; FILTER GENERATE ADD FIELDS { .utente: TRANSLATE(.user_id, users) };",DIVERSO,"attesi 2 , ottenuti 20"
+llama,P7,parafrasi 3,Unisci gli ordini con gli utenti che li hanno effettuati,SI,1,5.7,"GET COLLECTION orders; JOIN OF COLLECTIONS orders@jcoql_test AS a, users@jcoql_test AS b CASE WHERE .a.user_id = .b._id;",ESATTO (solo conteggio),2
+llama,P8,originale,Raggruppa i prodotti per categoria,SI,1,5.2,GET COLLECTION products; GROUP PARTITION TRUE BY .category INTO .risultato;,ESATTO (solo conteggio),5 n gruppi
+llama,P8,parafrasi 1,Dividi i prodotti in gruppi in base alla categoria,SI,1,5.2,GET COLLECTION products; GROUP PARTITION TRUE BY .category INTO .risultato;,ESATTO (solo conteggio),5 n gruppi
+llama,P8,parafrasi 2,Organizza i prodotti per categoria,SI,1,4.6,GET COLLECTION products; GROUP PARTITION TRUE BY .category INTO .risultato;,ESATTO (solo conteggio),5 n gruppi
+llama,P8,parafrasi 3,Fammi vedere i prodotti raggruppati per categoria,SI,1,5.1,GET COLLECTION products; GROUP PARTITION TRUE BY .category INTO .risultato;,ESATTO (solo conteggio),5 n gruppi
+llama,P9,originale,Mostrami gli ordini superiori a 100 euro insieme all'utente che li ha effettuati,SI,1,6.7,"GET COLLECTION orders; FILTER CASE WHERE .total > 100; JOIN OF COLLECTIONS orders@jcoql_test AS a, users@jcoql_test AS b CASE WHERE .a.user_id = .b._id;",ESATTO (solo conteggio),2
+llama,P9,parafrasi 1,Quali ordini superano i 100 euro? Mostrali con il relativo utente,SI,1,6.7,"GET COLLECTION orders; FILTER CASE WHERE .total > 100; JOIN OF COLLECTIONS orders@jcoql_test AS a, users@jcoql_test AS b CASE WHERE .a.user_id = .b._id;",ESATTO (solo conteggio),2
+llama,P9,parafrasi 2,Collega gli ordini di importo maggiore di 100 euro ai loro utenti,SI,1,8.0,"GET COLLECTION orders; EXPAND UNPACK TRUE ARRAY .items TO .elemento; JOIN OF COLLECTIONS orders@jcoql_test AS a, users@jcoql_test AS b CASE WHERE .a.user_id = .b._id;",ESATTO (solo conteggio),2
+llama,P9,parafrasi 3,Elenca gli ordini oltre 100 euro con i dati di chi li ha fatti,SI,1,8.0,GET COLLECTION orders; FILTER CASE WHERE .total > 100; EXPAND UNPACK TRUE ARRAY .items TO .item; FILTER CASE WHERE .item.item.quantity > 0; FILTER GENERATE ADD FIELDS { .user: .user_id };,DIVERSO,"attesi 2 , ottenuti 67"
+llama,P10,originale,Mostrami le recensioni dei prodotti con un voto superiore a 4,SI,1,5.5,GET COLLECTION products; EXPAND UNPACK TRUE ARRAY .reviews TO .r; FILTER CASE WHERE .r.item.rating > 4;,ESATTO (solo conteggio),24
+llama,P10,parafrasi 1,Quali recensioni hanno un voto oltre 4?,SI,1,5.6,GET COLLECTION products; EXPAND UNPACK TRUE ARRAY .reviews TO .review; FILTER CASE WHERE .review.item.rating > 4;,ESATTO (solo conteggio),24
+llama,P10,parafrasi 2,Elenca le recensioni dei prodotti con voto maggiore di 4,SI,1,6.0,GET COLLECTION products; EXPAND UNPACK TRUE ARRAY .reviews TO .recensione; FILTER CASE WHERE .recensione.item.rating > 4;,ESATTO (solo conteggio),24
+llama,P10,parafrasi 3,Voglio vedere le recensioni con voto più alto di 4,SI,1,5.8,GET COLLECTION products; EXPAND UNPACK TRUE ARRAY .reviews TO .r; FILTER CASE WHERE .r.item.rating > 4;,ESATTO (solo conteggio),24
+llama,P11,originale,Mostrami i prodotti senza nessuno sconto,SI,1,4.4,GET COLLECTION products; FILTER CASE WHERE .discount = 0;,ESATTO,"7 documenti, stesso insieme di _id"
+llama,P11,parafrasi 1,Quali prodotti non hanno alcuno sconto?,SI,1,4.3,GET COLLECTION products; FILTER CASE WHERE .discount = 0;,ESATTO,"7 documenti, stesso insieme di _id"
+llama,P11,parafrasi 2,Elenca i prodotti con sconto pari a zero,SI,1,4.5,GET COLLECTION products; FILTER CASE WHERE .discount = 0;,ESATTO,"7 documenti, stesso insieme di _id"
+llama,P11,parafrasi 3,Fammi vedere i prodotti che non sono scontati,SI,1,4.4,GET COLLECTION products; FILTER CASE WHERE .discount = 0;,ESATTO,"7 documenti, stesso insieme di _id"
+llama,P12,originale,"Unisci i prodotti biologici e quelli scontati in un'unica collezione, senza duplicati",SI,1,8.2,"GET COLLECTION products; EXPAND UNPACK TRUE ARRAY .reviews TO .c; FILTER CASE WHERE .organic = TRUE; MERGE COLLECTIONS products@jcoql_test, products@jcoql_test; SAVE AS prodotti_biologici_scontati@jcoql_test;",ERRORE ESECUZIONE,"jco.ql.engine.exception.ExecuteProcessException: Bulk write operation error on server localhost:27017. Write errors: [BulkWriteError{index=30, code=11000, message='E11000 duplicate key error collectio"
+llama,P12,parafrasi 1,"Metti insieme i prodotti bio e quelli scontati in una sola collezione, senza ripetizioni",NO,3,12.0,GET COLLECTION products; MERGE COLLECTIONS bio@jcoql_test; FILTER CASE WHERE .organic = TRUE OR .discount > 0;,NON VALIDA,"[{'message': ""1.\tSyntax Error 1 at [1, 58]: Found SC (';') - required (...)+ loop did not match anything at input ';'""}]"
+llama,P12,parafrasi 2,"Crea un'unica collezione con i prodotti biologici e quelli scontati, evitando i duplicati",SI,1,7.2,"GET COLLECTION products; MERGE COLLECTIONS products@jcoql_test, products@jcoql_test; FILTER CASE WHERE .organic = TRUE OR .discount > 0; SAVE AS prodotti_unificati@jcoql_test;",ERRORE ESECUZIONE,"jco.ql.engine.exception.ExecuteProcessException: Bulk write operation error on server localhost:27017. Write errors: [BulkWriteError{index=24, code=11000, message='E11000 duplicate key error collectio"
+llama,P12,parafrasi 3,"Fondi in una collezione sola i prodotti biologici e i prodotti in sconto, senza doppioni",SI,1,7.3,"GET COLLECTION products; MERGE COLLECTIONS products@jcoql_test, products@jcoql_test; FILTER CASE WHERE .organic = TRUE OR .discount > 10; SAVE AS prodotti_biologici_e_scontati@jcoql_test;",ERRORE ESECUZIONE,"jco.ql.engine.exception.ExecuteProcessException: Bulk write operation error on server localhost:27017. Write errors: [BulkWriteError{index=15, code=11000, message='E11000 duplicate key error collectio"

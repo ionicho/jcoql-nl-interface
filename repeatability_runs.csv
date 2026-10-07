@@ -1,0 +1,206 @@
+﻿modello,query_id,query_nl,run,valida,tentativi,tempo_gen_s,query_jcoql,esito,dettaglio
+llama32,A range,Mostrami i prodotti con un rating compreso tra 3 e 4.5,1,SI,1,7.5,"GET COLLECTION products;
+FILTER CASE WHERE .rating IN_RANGE [3.0, 4.5];",ESATTO,"25 documenti, stesso insieme di _id"
+llama32,B OR,Mostrami i prodotti biologici oppure quelli con un rating di almeno 4.5,1,SI,1,2.9,"GET COLLECTION products;
+FILTER CASE WHERE .organic = TRUE OR .rating >= 4.5;",ESATTO,"7 documenti, stesso insieme di _id"
+llama32,C EXPAND,Mostrami le recensioni dei prodotti con un voto uguale a 5,1,SI,1,2.9,"GET COLLECTION products;
+EXPAND UNPACK TRUE ARRAY .reviews TO .expanded_reviews;
+FILTER CASE WHERE SIZE(.reviews) = 1 AND .expanded_reviews.item.item.valutazione = 5;",DIVERSO,"attesi 24 , ottenuti 0"
+llama32,D JOIN,Collega ogni ordine ai prodotti acquistati,1,SI,2,3.7,"GET COLLECTION orders; EXPAND UNPACK TRUE ARRAY .items TO .item;
+JOIN OF COLLECTIONS orders@jcoql_test AS a, products@jcoql_test AS b CASE WHERE .a.item.item.product_id = .b._id;",DIVERSO,"attesi 47 , ottenuti 0"
+llama32,E GROUP,Raggruppa i prodotti biologici per categoria,1,SI,1,3.1,"GET COLLECTION products;
+GROUP PARTITION TRUE BY .category INTO .items GENERATE ADD FIELDS { .categoria_riassunto: .category };",DIVERSO,"attesi 1 n gruppi, ottenuti 5"
+llama32,A range,Mostrami i prodotti con un rating compreso tra 3 e 4.5,2,SI,1,2.9,"GET COLLECTION products;
+FILTER CASE WHERE .rating IN_RANGE [3.0, 4.5];",ESATTO,"25 documenti, stesso insieme di _id"
+llama32,B OR,Mostrami i prodotti biologici oppure quelli con un rating di almeno 4.5,2,SI,1,2.9,"GET COLLECTION products;
+FILTER CASE WHERE .organic = TRUE OR .rating >= 4.5;",ESATTO,"7 documenti, stesso insieme di _id"
+llama32,C EXPAND,Mostrami le recensioni dei prodotti con un voto uguale a 5,2,SI,1,2.9,"GET COLLECTION products;
+EXPAND UNPACK TRUE ARRAY .reviews TO .expanded_reviews;
+FILTER CASE WHERE SIZE(.reviews) = 1 AND .expanded_reviews.item.item.valutazione = 5;",DIVERSO,"attesi 24 , ottenuti 0"
+llama32,D JOIN,Collega ogni ordine ai prodotti acquistati,2,SI,1,3.1,"GET COLLECTION orders;
+JOIN OF COLLECTIONS orders@jcoql_test AS a, products@jcoql_test AS b CASE WHERE .a._id = .b._id;",DIVERSO,"attesi 47 , ottenuti 0"
+llama32,E GROUP,Raggruppa i prodotti biologici per categoria,2,SI,1,3.1,"GET COLLECTION products;
+GROUP PARTITION TRUE BY .category INTO .items GENERATE ADD FIELDS { .categoria_riassunto: .category };",DIVERSO,"attesi 1 n gruppi, ottenuti 5"
+llama32,A range,Mostrami i prodotti con un rating compreso tra 3 e 4.5,3,SI,1,2.8,"GET COLLECTION products;
+FILTER CASE WHERE .rating IN_RANGE [3.0, 4.5];",ESATTO,"25 documenti, stesso insieme di _id"
+llama32,B OR,Mostrami i prodotti biologici oppure quelli con un rating di almeno 4.5,3,SI,1,2.9,"GET COLLECTION products;
+FILTER CASE WHERE .organic = TRUE OR .rating >= 4.5;",ESATTO,"7 documenti, stesso insieme di _id"
+llama32,C EXPAND,Mostrami le recensioni dei prodotti con un voto uguale a 5,3,SI,1,2.9,"GET COLLECTION products;
+EXPAND UNPACK TRUE ARRAY .reviews TO .expanded_reviews;
+FILTER CASE WHERE SIZE(.reviews) = 1 AND .expanded_reviews.item.item.valutazione = 5;",DIVERSO,"attesi 24 , ottenuti 0"
+llama32,D JOIN,Collega ogni ordine ai prodotti acquistati,3,SI,1,3.1,"GET COLLECTION orders;
+JOIN OF COLLECTIONS orders@jcoql_test AS a, products@jcoql_test AS b CASE WHERE .a._id = .b._id;",DIVERSO,"attesi 47 , ottenuti 0"
+llama32,E GROUP,Raggruppa i prodotti biologici per categoria,3,SI,1,3.0,"GET COLLECTION products;
+GROUP PARTITION TRUE BY .category INTO .items GENERATE ADD FIELDS { .categoria_riassunto: .category };",DIVERSO,"attesi 1 n gruppi, ottenuti 5"
+llama32,A range,Mostrami i prodotti con un rating compreso tra 3 e 4.5,4,SI,1,2.9,"GET COLLECTION products;
+FILTER CASE WHERE .rating IN_RANGE [3.0, 4.5];",ESATTO,"25 documenti, stesso insieme di _id"
+llama32,B OR,Mostrami i prodotti biologici oppure quelli con un rating di almeno 4.5,4,SI,1,2.9,"GET COLLECTION products;
+FILTER CASE WHERE .organic = TRUE OR .rating >= 4.5;",ESATTO,"7 documenti, stesso insieme di _id"
+llama32,C EXPAND,Mostrami le recensioni dei prodotti con un voto uguale a 5,4,SI,1,2.9,"GET COLLECTION products;
+EXPAND UNPACK TRUE ARRAY .reviews TO .expanded_reviews;
+FILTER CASE WHERE SIZE(.reviews) = 1 AND .expanded_reviews.item.item.valutazione = 5;",DIVERSO,"attesi 24 , ottenuti 0"
+llama32,D JOIN,Collega ogni ordine ai prodotti acquistati,4,SI,1,3.1,"GET COLLECTION orders;
+JOIN OF COLLECTIONS orders@jcoql_test AS a, products@jcoql_test AS b CASE WHERE .a._id = .b._id;",DIVERSO,"attesi 47 , ottenuti 0"
+llama32,E GROUP,Raggruppa i prodotti biologici per categoria,4,SI,1,2.9,"GET COLLECTION products;
+GROUP PARTITION TRUE BY .category INTO .items GENERATE ADD FIELDS { .categoria_riassunto: .category };",DIVERSO,"attesi 1 n gruppi, ottenuti 5"
+llama32,A range,Mostrami i prodotti con un rating compreso tra 3 e 4.5,5,SI,1,2.8,"GET COLLECTION products;
+FILTER CASE WHERE .rating IN_RANGE [3.0, 4.5];",ESATTO,"25 documenti, stesso insieme di _id"
+llama32,B OR,Mostrami i prodotti biologici oppure quelli con un rating di almeno 4.5,5,SI,1,2.9,"GET COLLECTION products;
+FILTER CASE WHERE .organic = TRUE OR .rating >= 4.5;",ESATTO,"7 documenti, stesso insieme di _id"
+llama32,C EXPAND,Mostrami le recensioni dei prodotti con un voto uguale a 5,5,SI,1,2.9,"GET COLLECTION products;
+EXPAND UNPACK TRUE ARRAY .reviews TO .expanded_reviews;
+FILTER CASE WHERE SIZE(.reviews) = 1 AND .expanded_reviews.item.item.valutazione = 5;",DIVERSO,"attesi 24 , ottenuti 0"
+llama32,D JOIN,Collega ogni ordine ai prodotti acquistati,5,SI,1,3.1,"GET COLLECTION orders;
+JOIN OF COLLECTIONS orders@jcoql_test AS a, products@jcoql_test AS b CASE WHERE .a._id = .b._id;",DIVERSO,"attesi 47 , ottenuti 0"
+llama32,E GROUP,Raggruppa i prodotti biologici per categoria,5,SI,1,3.0,"GET COLLECTION products;
+GROUP PARTITION TRUE BY .category INTO .items GENERATE ADD FIELDS { .categoria_riassunto: .category };",DIVERSO,"attesi 1 n gruppi, ottenuti 5"
+gemma4,A range,Mostrami i prodotti con un rating compreso tra 3 e 4.5,1,SI,1,15.0,"GET COLLECTION products; FILTER CASE WHERE .rating IN_RANGE [3, 4.5];",ESATTO,"25 documenti, stesso insieme di _id"
+gemma4,B OR,Mostrami i prodotti biologici oppure quelli con un rating di almeno 4.5,1,SI,1,5.7,GET COLLECTION products; FILTER CASE WHERE .organic = TRUE OR .rating >= 4.5;,ESATTO,"7 documenti, stesso insieme di _id"
+gemma4,C EXPAND,Mostrami le recensioni dei prodotti con un voto uguale a 5,1,SI,1,7.2,"GET COLLECTION products;
+EXPAND UNPACK TRUE ARRAY .reviews TO .c;
+FILTER CASE WHERE .c.item.rating = 5;",ESATTO (solo conteggio),24
+gemma4,D JOIN,Collega ogni ordine ai prodotti acquistati,1,SI,1,7.7,"GET COLLECTION orders;
+EXPAND UNPACK TRUE ARRAY .items TO .elemento;
+SAVE AS chaintemp1@jcoql_test;
+GET COLLECTION chaintemp1;
+JOIN OF COLLECTIONS chaintemp1@jcoql_test AS a, products@jcoql_test AS b CASE WHERE .a.elemento.item.product_id = .b._id;",ESATTO (solo conteggio),47
+gemma4,E GROUP,Raggruppa i prodotti biologici per categoria,1,SI,1,5.7,GET COLLECTION products; FILTER CASE WHERE .organic = TRUE; GROUP PARTITION TRUE BY .category INTO .risultato;,ESATTO (solo conteggio),1 n gruppi
+gemma4,A range,Mostrami i prodotti con un rating compreso tra 3 e 4.5,2,SI,1,4.9,"GET COLLECTION products; FILTER CASE WHERE .rating IN_RANGE [3, 4.5];",ESATTO,"25 documenti, stesso insieme di _id"
+gemma4,B OR,Mostrami i prodotti biologici oppure quelli con un rating di almeno 4.5,2,SI,1,5.6,GET COLLECTION products; FILTER CASE WHERE .organic = TRUE OR .rating >= 4.5;,ESATTO,"7 documenti, stesso insieme di _id"
+gemma4,C EXPAND,Mostrami le recensioni dei prodotti con un voto uguale a 5,2,SI,1,6.8,"GET COLLECTION products;
+EXPAND UNPACK TRUE ARRAY .reviews TO .c;
+FILTER CASE WHERE .c.item.rating = 5;",ESATTO (solo conteggio),24
+gemma4,D JOIN,Collega ogni ordine ai prodotti acquistati,2,SI,1,10.7,"GET COLLECTION orders;
+EXPAND UNPACK TRUE ARRAY .items TO .elemento;
+SAVE AS orders_expanded@jcoql_test;
+GET COLLECTION orders_expanded@jcoql_test;
+JOIN OF COLLECTIONS orders_expanded@jcoql_test AS a, products@jcoql_test AS b CASE WHERE .a.elemento.item.product_id = .b._id;",ESATTO (solo conteggio),47
+gemma4,E GROUP,Raggruppa i prodotti biologici per categoria,2,SI,1,5.8,GET COLLECTION products; FILTER CASE WHERE .organic = TRUE; GROUP PARTITION TRUE BY .category INTO .risultato;,ESATTO (solo conteggio),1 n gruppi
+gemma4,A range,Mostrami i prodotti con un rating compreso tra 3 e 4.5,3,SI,1,5.0,"GET COLLECTION products; FILTER CASE WHERE .rating IN_RANGE [3, 4.5];",ESATTO,"25 documenti, stesso insieme di _id"
+gemma4,B OR,Mostrami i prodotti biologici oppure quelli con un rating di almeno 4.5,3,SI,1,5.5,GET COLLECTION products; FILTER CASE WHERE .organic = TRUE OR .rating >= 4.5;,ESATTO,"7 documenti, stesso insieme di _id"
+gemma4,C EXPAND,Mostrami le recensioni dei prodotti con un voto uguale a 5,3,SI,1,6.6,"GET COLLECTION products;
+EXPAND UNPACK TRUE ARRAY .reviews TO .c;
+FILTER CASE WHERE .c.item.rating = 5;",ESATTO (solo conteggio),24
+gemma4,D JOIN,Collega ogni ordine ai prodotti acquistati,3,SI,1,10.8,"GET COLLECTION orders;
+EXPAND UNPACK TRUE ARRAY .items TO .elemento;
+SAVE AS orders_expanded@jcoql_test;
+GET COLLECTION orders_expanded@jcoql_test;
+JOIN OF COLLECTIONS orders_expanded@jcoql_test AS a, products@jcoql_test AS b CASE WHERE .a.elemento.item.product_id = .b._id;",ESATTO (solo conteggio),47
+gemma4,E GROUP,Raggruppa i prodotti biologici per categoria,3,SI,1,5.8,GET COLLECTION products; FILTER CASE WHERE .organic = TRUE; GROUP PARTITION TRUE BY .category INTO .risultato;,ESATTO (solo conteggio),1 n gruppi
+gemma4,A range,Mostrami i prodotti con un rating compreso tra 3 e 4.5,4,SI,1,4.8,"GET COLLECTION products; FILTER CASE WHERE .rating IN_RANGE [3, 4.5];",ESATTO,"25 documenti, stesso insieme di _id"
+gemma4,B OR,Mostrami i prodotti biologici oppure quelli con un rating di almeno 4.5,4,SI,1,5.5,GET COLLECTION products; FILTER CASE WHERE .organic = TRUE OR .rating >= 4.5;,ESATTO,"7 documenti, stesso insieme di _id"
+gemma4,C EXPAND,Mostrami le recensioni dei prodotti con un voto uguale a 5,4,SI,1,6.6,"GET COLLECTION products;
+EXPAND UNPACK TRUE ARRAY .reviews TO .c;
+FILTER CASE WHERE .c.item.rating = 5;",ESATTO (solo conteggio),24
+gemma4,D JOIN,Collega ogni ordine ai prodotti acquistati,4,SI,1,10.8,"GET COLLECTION orders;
+EXPAND UNPACK TRUE ARRAY .items TO .elemento;
+SAVE AS orders_expanded@jcoql_test;
+GET COLLECTION orders_expanded@jcoql_test;
+JOIN OF COLLECTIONS orders_expanded@jcoql_test AS a, products@jcoql_test AS b CASE WHERE .a.elemento.item.product_id = .b._id;",ESATTO (solo conteggio),47
+gemma4,E GROUP,Raggruppa i prodotti biologici per categoria,4,SI,1,5.8,GET COLLECTION products; FILTER CASE WHERE .organic = TRUE; GROUP PARTITION TRUE BY .category INTO .risultato;,ESATTO (solo conteggio),1 n gruppi
+gemma4,A range,Mostrami i prodotti con un rating compreso tra 3 e 4.5,5,SI,1,4.9,"GET COLLECTION products; FILTER CASE WHERE .rating IN_RANGE [3, 4.5];",ESATTO,"25 documenti, stesso insieme di _id"
+gemma4,B OR,Mostrami i prodotti biologici oppure quelli con un rating di almeno 4.5,5,SI,1,5.4,GET COLLECTION products; FILTER CASE WHERE .organic = TRUE OR .rating >= 4.5;,ESATTO,"7 documenti, stesso insieme di _id"
+gemma4,C EXPAND,Mostrami le recensioni dei prodotti con un voto uguale a 5,5,SI,1,6.6,"GET COLLECTION products;
+EXPAND UNPACK TRUE ARRAY .reviews TO .c;
+FILTER CASE WHERE .c.item.rating = 5;",ESATTO (solo conteggio),24
+gemma4,D JOIN,Collega ogni ordine ai prodotti acquistati,5,SI,1,10.7,"GET COLLECTION orders;
+EXPAND UNPACK TRUE ARRAY .items TO .elemento;
+SAVE AS orders_expanded@jcoql_test;
+GET COLLECTION orders_expanded@jcoql_test;
+JOIN OF COLLECTIONS orders_expanded@jcoql_test AS a, products@jcoql_test AS b CASE WHERE .a.elemento.item.product_id = .b._id;",ESATTO (solo conteggio),47
+gemma4,E GROUP,Raggruppa i prodotti biologici per categoria,5,SI,1,5.7,GET COLLECTION products; FILTER CASE WHERE .organic = TRUE; GROUP PARTITION TRUE BY .category INTO .risultato;,ESATTO (solo conteggio),1 n gruppi
+llama,A range,Mostrami i prodotti con un rating compreso tra 3 e 4.5,1,SI,1,15.8,"GET COLLECTION products; FILTER CASE WHERE .rating IN_RANGE [3.0, 4.5];",ESATTO,"25 documenti, stesso insieme di _id"
+llama,B OR,Mostrami i prodotti biologici oppure quelli con un rating di almeno 4.5,1,SI,1,4.9,GET COLLECTION products; FILTER CASE WHERE .organic = TRUE OR .rating >= 4.5;,ESATTO,"7 documenti, stesso insieme di _id"
+llama,C EXPAND,Mostrami le recensioni dei prodotti con un voto uguale a 5,1,SI,1,5.5,GET COLLECTION products; EXPAND UNPACK TRUE ARRAY .reviews TO .review; FILTER CASE WHERE .review.item.rating = 5;,ESATTO (solo conteggio),24
+llama,D JOIN,Collega ogni ordine ai prodotti acquistati,1,SI,3,18.3,"GET COLLECTION orders; EXPAND UNPACK TRUE ARRAY .items TO .elemento; SAVE AS chaintemp1@jcoql_test; GET COLLECTION chaintemp1@jcoql_test; JOIN OF COLLECTIONS chaintemp1@jcoql_test AS a, products@jcoql_test AS b CASE WHERE .a.elemento.item.product_id = .b._id;",ESATTO (solo conteggio),47
+llama,E GROUP,Raggruppa i prodotti biologici per categoria,1,SI,1,5.9,GET COLLECTION products; FILTER CASE WHERE .organic = TRUE; GROUP PARTITION TRUE BY .category INTO .risultato;,ESATTO (solo conteggio),1 n gruppi
+llama,A range,Mostrami i prodotti con un rating compreso tra 3 e 4.5,2,SI,1,5.0,"GET COLLECTION products; FILTER CASE WHERE .rating IN_RANGE [3.0, 4.5];",ESATTO,"25 documenti, stesso insieme di _id"
+llama,B OR,Mostrami i prodotti biologici oppure quelli con un rating di almeno 4.5,2,SI,1,4.9,GET COLLECTION products; FILTER CASE WHERE .organic = TRUE OR .rating >= 4.5;,ESATTO,"7 documenti, stesso insieme di _id"
+llama,C EXPAND,Mostrami le recensioni dei prodotti con un voto uguale a 5,2,SI,1,5.4,GET COLLECTION products; EXPAND UNPACK TRUE ARRAY .reviews TO .review; FILTER CASE WHERE .review.item.rating = 5;,ESATTO (solo conteggio),24
+llama,D JOIN,Collega ogni ordine ai prodotti acquistati,2,SI,3,17.8,"GET COLLECTION orders; EXPAND UNPACK TRUE ARRAY .items TO .elemento; SAVE AS chaintemp1@jcoql_test; GET COLLECTION chaintemp1; JOIN OF COLLECTIONS chaintemp1@jcoql_test AS a, products@jcoql_test AS b CASE WHERE .a.elemento.item.product_id = .b._id;",ESATTO (solo conteggio),47
+llama,E GROUP,Raggruppa i prodotti biologici per categoria,2,SI,1,5.9,GET COLLECTION products; FILTER CASE WHERE .organic = TRUE; GROUP PARTITION TRUE BY .category INTO .risultato;,ESATTO (solo conteggio),1 n gruppi
+llama,A range,Mostrami i prodotti con un rating compreso tra 3 e 4.5,3,SI,1,5.2,"GET COLLECTION products; FILTER CASE WHERE .rating IN_RANGE [3.0, 4.5];",ESATTO,"25 documenti, stesso insieme di _id"
+llama,B OR,Mostrami i prodotti biologici oppure quelli con un rating di almeno 4.5,3,SI,1,4.8,GET COLLECTION products; FILTER CASE WHERE .organic = TRUE OR .rating >= 4.5;,ESATTO,"7 documenti, stesso insieme di _id"
+llama,C EXPAND,Mostrami le recensioni dei prodotti con un voto uguale a 5,3,SI,1,5.6,GET COLLECTION products; EXPAND UNPACK TRUE ARRAY .reviews TO .review; FILTER CASE WHERE .review.item.rating = 5;,ESATTO (solo conteggio),24
+llama,D JOIN,Collega ogni ordine ai prodotti acquistati,3,SI,3,17.6,"GET COLLECTION orders; EXPAND UNPACK TRUE ARRAY .items TO .elemento; SAVE AS chaintemp1@jcoql_test; GET COLLECTION chaintemp1; JOIN OF COLLECTIONS chaintemp1@jcoql_test AS a, products@jcoql_test AS b CASE WHERE .a.elemento.item.product_id = .b._id;",ESATTO (solo conteggio),47
+llama,E GROUP,Raggruppa i prodotti biologici per categoria,3,SI,1,5.8,GET COLLECTION products; FILTER CASE WHERE .organic = TRUE; GROUP PARTITION TRUE BY .category INTO .risultato;,ESATTO (solo conteggio),1 n gruppi
+llama,A range,Mostrami i prodotti con un rating compreso tra 3 e 4.5,4,SI,1,4.8,"GET COLLECTION products; FILTER CASE WHERE .rating IN_RANGE [3.0, 4.5];",ESATTO,"25 documenti, stesso insieme di _id"
+llama,B OR,Mostrami i prodotti biologici oppure quelli con un rating di almeno 4.5,4,SI,1,4.9,GET COLLECTION products; FILTER CASE WHERE .organic = TRUE OR .rating >= 4.5;,ESATTO,"7 documenti, stesso insieme di _id"
+llama,C EXPAND,Mostrami le recensioni dei prodotti con un voto uguale a 5,4,SI,1,5.4,GET COLLECTION products; EXPAND UNPACK TRUE ARRAY .reviews TO .review; FILTER CASE WHERE .review.item.rating = 5;,ESATTO (solo conteggio),24
+llama,D JOIN,Collega ogni ordine ai prodotti acquistati,4,SI,3,17.6,"GET COLLECTION orders; EXPAND UNPACK TRUE ARRAY .items TO .elemento; SAVE AS chaintemp1@jcoql_test; GET COLLECTION chaintemp1; JOIN OF COLLECTIONS chaintemp1@jcoql_test AS a, products@jcoql_test AS b CASE WHERE .a.elemento.item.product_id = .b._id;",ESATTO (solo conteggio),47
+llama,E GROUP,Raggruppa i prodotti biologici per categoria,4,SI,1,5.9,GET COLLECTION products; FILTER CASE WHERE .organic = TRUE; GROUP PARTITION TRUE BY .category INTO .risultato;,ESATTO (solo conteggio),1 n gruppi
+llama,A range,Mostrami i prodotti con un rating compreso tra 3 e 4.5,5,SI,1,4.9,"GET COLLECTION products; FILTER CASE WHERE .rating IN_RANGE [3.0, 4.5];",ESATTO,"25 documenti, stesso insieme di _id"
+llama,B OR,Mostrami i prodotti biologici oppure quelli con un rating di almeno 4.5,5,SI,1,4.7,GET COLLECTION products; FILTER CASE WHERE .organic = TRUE OR .rating >= 4.5;,ESATTO,"7 documenti, stesso insieme di _id"
+llama,C EXPAND,Mostrami le recensioni dei prodotti con un voto uguale a 5,5,SI,1,5.4,GET COLLECTION products; EXPAND UNPACK TRUE ARRAY .reviews TO .review; FILTER CASE WHERE .review.item.rating = 5;,ESATTO (solo conteggio),24
+llama,D JOIN,Collega ogni ordine ai prodotti acquistati,5,SI,3,17.7,"GET COLLECTION orders; EXPAND UNPACK TRUE ARRAY .items TO .elemento; SAVE AS chaintemp1@jcoql_test; GET COLLECTION chaintemp1; JOIN OF COLLECTIONS chaintemp1@jcoql_test AS a, products@jcoql_test AS b CASE WHERE .a.elemento.item.product_id = .b._id;",ESATTO (solo conteggio),47
+llama,E GROUP,Raggruppa i prodotti biologici per categoria,5,SI,1,5.7,GET COLLECTION products; FILTER CASE WHERE .organic = TRUE; GROUP PARTITION TRUE BY .category INTO .risultato;,ESATTO (solo conteggio),1 n gruppi
+gemini,A range,Mostrami i prodotti con un rating compreso tra 3 e 4.5,1,SI,1,4.1,"GET COLLECTION products; FILTER CASE WHERE .rating IN_RANGE [3.0, 4.5];",ESATTO,"25 documenti, stesso insieme di _id"
+gemini,B OR,Mostrami i prodotti biologici oppure quelli con un rating di almeno 4.5,1,SI,1,3.7,"GET COLLECTION products;
+FILTER CASE WHERE .organic = TRUE OR .rating >= 4.5;",ESATTO,"7 documenti, stesso insieme di _id"
+gemini,C EXPAND,Mostrami le recensioni dei prodotti con un voto uguale a 5,1,SI,1,3.1,"GET COLLECTION products;
+EXPAND UNPACK TRUE ARRAY .reviews TO .review;
+FILTER CASE WHERE .review.item.rating = 5;",ESATTO (solo conteggio),24
+gemini,D JOIN,Collega ogni ordine ai prodotti acquistati,1,SI,2,4.8,"GET COLLECTION orders;
+EXPAND UNPACK TRUE ARRAY .items TO .elemento;
+SAVE AS chaintemp1@jcoql_test;
+GET COLLECTION chaintemp1;
+JOIN OF COLLECTIONS chaintemp1@jcoql_test AS a, products@jcoql_test AS b
+CASE WHERE .a.elemento.item.product_id = .b._id;",ESATTO (solo conteggio),47
+gemini,E GROUP,Raggruppa i prodotti biologici per categoria,1,SI,1,3.6,"GET COLLECTION biologici;
+GROUP PARTITION TRUE BY .category INTO .prodotti_per_categoria;",ESATTO (solo conteggio),1 n gruppi
+gemini,A range,Mostrami i prodotti con un rating compreso tra 3 e 4.5,2,SI,1,3.7,"GET COLLECTION products; FILTER CASE WHERE .rating IN_RANGE [3.0, 4.5];",ESATTO,"25 documenti, stesso insieme di _id"
+gemini,B OR,Mostrami i prodotti biologici oppure quelli con un rating di almeno 4.5,2,SI,1,3.4,"GET COLLECTION products;
+FILTER CASE WHERE .organic = TRUE OR .rating >= 4.5;",ESATTO,"7 documenti, stesso insieme di _id"
+gemini,C EXPAND,Mostrami le recensioni dei prodotti con un voto uguale a 5,2,SI,1,3.1,"GET COLLECTION products;
+EXPAND UNPACK TRUE ARRAY .reviews TO .review;
+FILTER CASE WHERE .review.item.rating = 5;",ESATTO (solo conteggio),24
+gemini,D JOIN,Collega ogni ordine ai prodotti acquistati,2,SI,2,4.7,"GET COLLECTION orders;
+EXPAND UNPACK TRUE ARRAY .items TO .elemento;
+SAVE AS chaintemp1@jcoql_test;
+GET COLLECTION chaintemp1;
+JOIN OF COLLECTIONS chaintemp1@jcoql_test AS a, products@jcoql_test AS b
+CASE WHERE .a.elemento.item.product_id = .b._id;",ESATTO (solo conteggio),47
+gemini,E GROUP,Raggruppa i prodotti biologici per categoria,2,SI,1,3.6,"GET COLLECTION biologici;
+GROUP PARTITION TRUE BY .category INTO .prodotti_per_categoria;",ESATTO (solo conteggio),1 n gruppi
+gemini,A range,Mostrami i prodotti con un rating compreso tra 3 e 4.5,3,SI,1,3.4,"GET COLLECTION products; FILTER CASE WHERE .rating IN_RANGE [3.0, 4.5];",ESATTO,"25 documenti, stesso insieme di _id"
+gemini,B OR,Mostrami i prodotti biologici oppure quelli con un rating di almeno 4.5,3,SI,1,3.3,"GET COLLECTION products;
+FILTER CASE WHERE .organic = TRUE OR .rating >= 4.5;",ESATTO,"7 documenti, stesso insieme di _id"
+gemini,C EXPAND,Mostrami le recensioni dei prodotti con un voto uguale a 5,3,SI,1,3.7,"GET COLLECTION products;
+EXPAND UNPACK TRUE ARRAY .reviews TO .review;
+FILTER CASE WHERE .review.item.rating = 5;",ESATTO (solo conteggio),24
+gemini,D JOIN,Collega ogni ordine ai prodotti acquistati,3,SI,2,6.2,"GET COLLECTION orders;
+EXPAND UNPACK TRUE ARRAY .items TO .elemento;
+SAVE AS chaintemp1@jcoql_test;
+GET COLLECTION chaintemp1;
+JOIN OF COLLECTIONS chaintemp1@jcoql_test AS a, products@jcoql_test AS b
+CASE WHERE .a.elemento.item.product_id = .b._id;",ESATTO (solo conteggio),47
+gemini,E GROUP,Raggruppa i prodotti biologici per categoria,3,SI,1,4.6,"GET COLLECTION biologici;
+GROUP PARTITION TRUE BY .category INTO .prodotti_per_categoria;",ESATTO (solo conteggio),1 n gruppi
+gemini,A range,Mostrami i prodotti con un rating compreso tra 3 e 4.5,4,SI,1,3.7,"GET COLLECTION products; FILTER CASE WHERE .rating IN_RANGE [3.0, 4.5];",ESATTO,"25 documenti, stesso insieme di _id"
+gemini,B OR,Mostrami i prodotti biologici oppure quelli con un rating di almeno 4.5,4,SI,1,4.5,"GET COLLECTION products;
+FILTER CASE WHERE .organic = TRUE OR .rating >= 4.5;",ESATTO,"7 documenti, stesso insieme di _id"
+gemini,C EXPAND,Mostrami le recensioni dei prodotti con un voto uguale a 5,4,SI,1,4.7,"GET COLLECTION products;
+EXPAND UNPACK TRUE ARRAY .reviews TO .review;
+FILTER CASE WHERE .review.item.rating = 5;",ESATTO (solo conteggio),24
+gemini,D JOIN,Collega ogni ordine ai prodotti acquistati,4,SI,2,6.1,"GET COLLECTION orders;
+EXPAND UNPACK TRUE ARRAY .items TO .elemento;
+SAVE AS chaintemp1@jcoql_test;
+GET COLLECTION chaintemp1;
+JOIN OF COLLECTIONS chaintemp1@jcoql_test AS a, products@jcoql_test AS b
+CASE WHERE .a.elemento.item.product_id = .b._id;",ESATTO (solo conteggio),47
+gemini,E GROUP,Raggruppa i prodotti biologici per categoria,4,SI,1,3.1,"GET COLLECTION biologici;
+GROUP PARTITION TRUE BY .category INTO .prodotti_per_categoria;",ESATTO (solo conteggio),1 n gruppi
+gemini,A range,Mostrami i prodotti con un rating compreso tra 3 e 4.5,5,SI,1,5.4,"GET COLLECTION products; FILTER CASE WHERE .rating IN_RANGE [3.0, 4.5];",ESATTO,"25 documenti, stesso insieme di _id"
+gemini,B OR,Mostrami i prodotti biologici oppure quelli con un rating di almeno 4.5,5,SI,1,4.5,"GET COLLECTION products;
+FILTER CASE WHERE .organic = TRUE OR .rating >= 4.5;",ESATTO,"7 documenti, stesso insieme di _id"
+gemini,C EXPAND,Mostrami le recensioni dei prodotti con un voto uguale a 5,5,SI,1,4.7,"GET COLLECTION products;
+EXPAND UNPACK TRUE ARRAY .reviews TO .review;
+FILTER CASE WHERE .review.item.rating = 5;",ESATTO (solo conteggio),24
+gemini,D JOIN,Collega ogni ordine ai prodotti acquistati,5,SI,2,7.7,"GET COLLECTION orders;
+EXPAND UNPACK TRUE ARRAY .items TO .elemento;
+SAVE AS chaintemp1@jcoql_test;
+GET COLLECTION chaintemp1;
+JOIN OF COLLECTIONS chaintemp1@jcoql_test AS a, products@jcoql_test AS b
+CASE WHERE .a.elemento.item.product_id = .b._id;",ESATTO (solo conteggio),47
+gemini,E GROUP,Raggruppa i prodotti biologici per categoria,5,SI,1,4.5,"GET COLLECTION biologici;
+GROUP PARTITION TRUE BY .category INTO .prodotti_per_categoria;",ESATTO (solo conteggio),1 n gruppi

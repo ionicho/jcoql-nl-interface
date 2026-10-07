@@ -32,7 +32,7 @@ Query: GET COLLECTION products; FILTER CASE WHERE .price IN_RANGE [50, 150] KEEP
 
 Titolo: Ordini senza tracking
 Descrizione: Ordini senza numero tracking
-Query: GET COLLECTION orders; FILTER CASE WHERE WITHOUT .tracking_number KEEP OTHERS;
+Query: GET COLLECTION orders; FILTER CASE WHERE FIELD .tracking_number IS NULL KEEP OTHERS;
 
 Titolo: Prodotti economici o scontati
 Descrizione: Prodotti con prezzo minore di 30 o sconto maggiore di 20

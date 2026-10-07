@@ -191,7 +191,7 @@ ESEMPIO 24: Ordini con numero di tracciamento assegnato
 Descrizione: Ordini che hanno un numero di tracciamento registrato.
 Query:
 GET COLLECTION orders;
-FILTER CASE WHERE FIELD .tracking_number ISNOTNULL;
+FILTER CASE WHERE FIELD .tracking_number IS NOT NULL;
 
 ESEMPIO 25: GROUP con ordinamento all'interno del gruppo
 ----------------------------------------------

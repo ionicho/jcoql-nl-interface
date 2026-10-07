@@ -2,7 +2,7 @@
 Query Corrector - Corregge errori comuni di sintassi JCoQL
 
 Questo modulo fix automaticamente errori comuni che il LLM genera,
-come "IS NOT NULL" invece di "ISNOTNULL".
+come "ISNOTNULL" (senza spazi) invece di "IS NOT NULL", o la parola chiave FIELD mancante.
 
 STATO ATTUALE:
 nonostante il nome e il docstring parlino di "errori comuni" al plurale,
@@ -27,62 +27,44 @@ corrector_logger = logging.getLogger('query_corrector')
 
 def correct_isnotnull_syntax(query: str) -> tuple[str, bool]:
     """
-    Corregge la sintassi di ISNOTNULL.
-    
-    Il LLM a volte genera "IS NOT NULL" (con spazi) quando il parser
-    richiede "ISNOTNULL" (senza spazi).
-    
-    Esempi:
-    ❌ BEFORE: WHERE .field IS NOT NULL KEEP
-    ✅ AFTER:  WHERE FIELD .field ISNOTNULL KEEP
-    
-    Args:
-        query: Query JCoQL potenzialmente errata
-    
+    Normalizza la sintassi dei test di nullità secondo il lexer ufficiale.
+
+    FIX 07/10/2026: il lexer JCoQL+ definisce i token come
+        ISNULL    : 'IS' WS 'NULL'
+        ISNOTNULL : 'IS' WS 'NOT' WS 'NULL'
+    cioè SCRITTI CON GLI SPAZI ("IS NULL", "IS NOT NULL"). Verificato dal
+    vivo con /api/execute: "FIELD .campo IS NOT NULL" e "IS NULL" vengono
+    eseguiti correttamente, mentre "ISNOTNULL" / "ISNULL" (senza spazi)
+    sono rifiutati con "Syntax Error ... Found ID ('ISNOTNULL')".
+    La versione precedente di questa funzione faceva l'esatto contrario
+    (convertiva "IS NOT NULL" in "ISNOTNULL") e rompeva query giuste.
+
+    Correzioni applicate:
+    1. "ISNOTNULL" / "ISNULL" senza spazi  -> "IS NOT NULL" / "IS NULL"
+    2. ".campo IS [NOT] NULL" senza FIELD   -> "FIELD .campo IS [NOT] NULL"
+       (la parola chiave FIELD è obbligatoria prima del riferimento al campo)
+
     Returns:
-        (query_corretta, is_modified) - query corretta e flag se è stata modificata
+        (query_corretta, is_modified)
     """
-    # Flag per tracciare se la query è stata modificata
-    modified = False
-    original_query = query
-    
-    # Pattern 1: ".field IS NOT NULL" → "FIELD .field ISNOTNULL"
-    # Caso in cui l'LLM ha OMESSO del tutto la keyword "FIELD" richiesta
-    # dalla grammatica JCoQL+ (genera "WHERE .campo IS NOT NULL" invece
-    # di "WHERE FIELD .campo ISNOTNULL") — qui la aggiungiamo noi.
-    pattern1 = r'WHERE\s+(\.\w+)\s+IS\s+NOT\s+NULL'
-    if re.search(pattern1, query):
-        corrector_logger.info(f"Correzione 1: Converto '.field IS NOT NULL' → 'FIELD .field ISNOTNULL'")
-        query = re.sub(
-            pattern1,
-            lambda m: f"WHERE FIELD {m.group(1)} ISNOTNULL",
-            query
-        )
-        modified = True
-    
-    # Pattern 2: "IS NOT NULL" nel contesto FIELD → "ISNOTNULL"
-    # Caso diverso dal precedente: qui la keyword "FIELD" c'è già (l'LLM
-    # l'ha generata correttamente), sbaglia solo la spaziatura di
-    # ISNOTNULL. Applicato DOPO il pattern 1: a quel punto, se il
-    # pattern 1 ha già agito, la query non contiene più il testo
-    # "IS NOT NULL" (l'ha già trasformato in ISNOTNULL) — i due
-    # pattern intercettano due varianti di errore diverse e non si
-    # sovrappongono mai sullo stesso frammento di testo.
-    pattern2 = r'FIELD\s+(\.\w+)\s+IS\s+NOT\s+NULL'
-    if re.search(pattern2, query):
-        corrector_logger.info(f"Correzione 2: Converto 'FIELD .field IS NOT NULL' → 'FIELD .field ISNOTNULL'")
-        query = re.sub(
-            pattern2,
-            lambda m: f"FIELD {m.group(1)} ISNOTNULL",
-            query
-        )
-        modified = True
-    
-    # Log se la query è stata modificata
+    original = query
+
+    # 1) forme senza spazi -> forme con spazi (prima ISNOTNULL, poi ISNULL)
+    query = re.sub(r'\bISNOTNULL\b', 'IS NOT NULL', query)
+    query = re.sub(r'\bISNULL\b', 'IS NULL', query)
+
+    # 2) FIELD mancante: ".campo IS [NOT] NULL" non preceduto da FIELD
+    def _add_field(m):
+        return f"{m.group(1)}FIELD {m.group(2)} {m.group(3)}"
+    query = re.sub(
+        r'(?<!FIELD )(\bWHERE\s+|\bAND\s+|\bOR\s+|\bNOT\s+|\(\s*)(\.[\w.]+)\s+(IS\s+(?:NOT\s+)?NULL)\b',
+        _add_field, query)
+
+    modified = query != original
     if modified:
-        corrector_logger.debug(f"Query PRIMA:  {original_query}")
+        corrector_logger.info("Correzione IS NULL / IS NOT NULL applicata")
+        corrector_logger.debug(f"Query PRIMA:  {original}")
         corrector_logger.debug(f"Query DOPO:   {query}")
-    
     return query, modified
 
 

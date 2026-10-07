@@ -1,0 +1,21 @@
+﻿modello,query_id,run,query_distinte,stessa_query_%,valide,corrette,esiti_distinti,tempo_medio_s
+gemini,A range,5,1,100,5/5,5/5,1,4.1
+gemini,B OR,5,1,100,5/5,5/5,1,3.9
+gemini,C EXPAND,5,1,100,5/5,5/5,1,3.9
+gemini,D JOIN,5,1,100,5/5,5/5,1,5.9
+gemini,E GROUP,5,1,100,5/5,5/5,1,3.9
+llama32,A range,5,1,100,5/5,5/5,1,3.8
+llama32,B OR,5,1,100,5/5,5/5,1,2.9
+llama32,C EXPAND,5,1,100,5/5,0/5,1,2.9
+llama32,D JOIN,5,2,80,5/5,0/5,1,3.2
+llama32,E GROUP,5,1,100,5/5,0/5,1,3.0
+gemma4,A range,5,1,100,5/5,5/5,1,6.9
+gemma4,B OR,5,1,100,5/5,5/5,1,5.5
+gemma4,C EXPAND,5,1,100,5/5,5/5,1,6.8
+gemma4,D JOIN,5,2,80,5/5,5/5,1,10.1
+gemma4,E GROUP,5,1,100,5/5,5/5,1,5.8
+llama,A range,5,1,100,5/5,5/5,1,7.1
+llama,B OR,5,1,100,5/5,5/5,1,4.8
+llama,C EXPAND,5,1,100,5/5,5/5,1,5.5
+llama,D JOIN,5,2,80,5/5,5/5,1,17.8
+llama,E GROUP,5,1,100,5/5,5/5,1,5.8

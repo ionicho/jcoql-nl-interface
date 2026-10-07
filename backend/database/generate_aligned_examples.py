@@ -214,7 +214,7 @@ examples.extend([
     {
         "title": "Prodotti senza descrizione",
         "description": "Prodotti che mancano di descrizione",
-        "query": "GET COLLECTION products; FILTER CASE WHERE WITHOUT .description KEEP OTHERS;"
+        "query": "GET COLLECTION products; FILTER CASE WHERE FIELD .description IS NULL KEEP OTHERS;"
     },
     {
         "title": "Food biologico",
@@ -294,7 +294,7 @@ examples.extend([
     {
         "title": "Utenti senza email",
         "description": "Utenti che non hanno email registrata",
-        "query": "GET COLLECTION users; FILTER CASE WHERE WITHOUT .email KEEP OTHERS;"
+        "query": "GET COLLECTION users; FILTER CASE WHERE FIELD .email IS NULL KEEP OTHERS;"
     },
     {
         "title": "Utenti Roma o Milano",
@@ -319,7 +319,7 @@ examples.extend([
     {
         "title": "Utenti senza telefono",
         "description": "Utenti senza numero telefono",
-        "query": "GET COLLECTION users; FILTER CASE WHERE WITHOUT .phone KEEP OTHERS;"
+        "query": "GET COLLECTION users; FILTER CASE WHERE FIELD .phone IS NULL KEEP OTHERS;"
     },
     {
         "title": "Utenti Firenze premium",
@@ -384,7 +384,7 @@ examples.extend([
     {
         "title": "Ordini senza tracking",
         "description": "Ordini senza numero tracking",
-        "query": "GET COLLECTION orders; FILTER CASE WHERE WITHOUT .tracking_number KEEP OTHERS;"
+        "query": "GET COLLECTION orders; FILTER CASE WHERE FIELD .tracking_number IS NULL KEEP OTHERS;"
     },
     {
         "title": "Ordini fascia media",

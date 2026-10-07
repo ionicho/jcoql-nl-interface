@@ -1,0 +1,770 @@
+﻿timestamp,modello,database,query_nl,query_jcoql,valida,tentativi,tempo_generazione_s,parser
+2026-10-03 17:45:54,gemini,jcoql_test,Mostrami tutti gli utenti,GET COLLECTION users;,SI,1,1.636,ANTLR3 Official Parser
+2026-10-03 17:46:58,llama,jcoql_test,Mostrami tutti gli utenti,GET COLLECTION users;,SI,1,59.389,ANTLR3 Official Parser
+2026-10-03 17:50:50,gemma,jcoql_test,Mostrami tutti gli utenti,"This text describes a Fuzzy Set Model creation process and includes various JCoQL+ queries. Here's a summary:
+
+**Purpose:**
+
+- The text explains how to create a Fuzzy Set Model using JCoQL+ queries.
+- It includes examples of different queries that can be used to manipulate fuzzy sets.
+
+**Key Points:**
+
+- **Fuzzy Set Model:** A model that groups elements based on their similarity to a set of reference elements.
+- **JCoQL+:** A query language used to interact with Fuzzy Set Models.
+- **Create Fuzzy Set Model Rule:** Creates a new fuzzy set model.
+- **Create Generic Fuzzy Set Operator Rule:** Creates a new fuzzy set operator.
+- **Create Java Function Rule:** Creates a new Java function.
+- **Token Definition:** Defines tokens used in JCoQL+ queries.
+- **Examples:** Shows various examples of JCoQL+ queries used to manipulate fuzzy sets.
+
+**Overall:**
+
+This text provides a comprehensive guide on how to create and use Fuzzy Set Models with JCoQL+ queries. It includes detailed explanations of various rules and concepts, as well as examples for different scenarios.
+
+**Additional Notes:**
+
+- The text includes some warnings and notes for proper syntax and usage.
+- It emphasizes the importance of understanding the schema before writing queries.
+- It encourages the reader to generate the query based on the actual schema and not copy examples verbatim.",NO,3,184.505,ANTLR3 Official Parser
+2026-10-03 17:51:35,llama32,jcoql_test,Mostrami tutti gli utenti,"GET COLLECTION hotels;
+FILTER CASE WHERE .name = 'Hotel Duomo';",SI,1,13.0,ANTLR3 Official Parser
+2026-10-03 17:52:18,gemma4,jcoql_test,Mostrami tutti gli utenti,GET COLLECTION users;,SI,1,19.107,ANTLR3 Official Parser
+2026-10-03 18:00:41,gemini,jcoql_test,Mostrami i prodotti con uno sconto maggiore del 20%,GET COLLECTION products; FILTER CASE WHERE .discount > 20;,SI,1,1.409,ANTLR3 Official Parser
+2026-10-03 18:00:52,gemini,jcoql_test,Mostrami i prodotti biologici con un rating di almeno 4,GET COLLECTION products; FILTER CASE WHERE .organic = TRUE AND .rating >= 4;,SI,1,1.215,ANTLR3 Official Parser
+2026-10-03 18:01:00,gemini,jcoql_test,Mostrami i prodotti biologici oppure quelli con uno sconto superiore al 30%,GET COLLECTION products; FILTER CASE WHERE .organic = TRUE OR .discount > 30;,SI,1,1.242,ANTLR3 Official Parser
+2026-10-03 18:01:11,gemini,jcoql_test,Espandi le recensioni dei prodotti in righe separate,"GET COLLECTION products;
+EXPAND UNPACK TRUE ARRAY .reviews TO .review;",SI,1,1.074,ANTLR3 Official Parser
+2026-10-03 18:01:21,gemini,jcoql_test,Collega ogni ordine all'utente che lo ha effettuato,"JOIN OF COLLECTIONS orders@jcoql_test AS a, users@jcoql_test AS b CASE WHERE .a.user_id = .b._id;",SI,1,1.252,ANTLR3 Official Parser
+2026-10-03 18:01:29,gemini,jcoql_test,Raggruppa i prodotti per categoria,"GET COLLECTION products;
+GROUP PARTITION TRUE BY .category INTO .risultato;",SI,1,1.325,ANTLR3 Official Parser
+2026-10-03 18:01:36,gemini,jcoql_test,"Unisci i prodotti biologici e quelli scontati in un'unica collezione, senza duplicati","GET COLLECTION biologici;
+SAVE AS temp_bio@jcoql_test;
+GET COLLECTION discounted;
+SAVE AS temp_discounted@jcoql_test;
+MERGE COLLECTIONS temp_bio@jcoql_test, temp_discounted@jcoql_test REMOVE DUPLICATES;",SI,1,1.275,ANTLR3 Official Parser
+2026-10-03 18:03:08,llama,jcoql_test,Mostrami i prodotti con uno sconto maggiore del 20%,GET COLLECTION products; FILTER CASE WHERE .discount > 20;,SI,1,78.155,ANTLR3 Official Parser
+2026-10-03 18:04:32,llama,jcoql_test,Mostrami i prodotti biologici con un rating di almeno 4,"GET COLLECTION products;
+FILTER CASE WHERE .organic = TRUE AND .rating > 4;",SI,1,71.75,ANTLR3 Official Parser
+2026-10-03 18:05:16,llama,jcoql_test,Mostrami i prodotti biologici oppure quelli con uno sconto superiore al 30%,"GET COLLECTION products;
+FILTER CASE WHERE .organic = TRUE AND .rating > 4;",SI,1,37.328,ANTLR3 Official Parser
+2026-10-03 18:05:53,llama,jcoql_test,Espandi le recensioni dei prodotti in righe separate,GET COLLECTION products; EXPAND UNPACK TRUE ARRAY .reviews TO .review;,SI,1,27.429,ANTLR3 Official Parser
+2026-10-03 18:07:21,llama,jcoql_test,Collega ogni ordine all'utente che lo ha effettuato,"GET COLLECTION orders;
+JOIN OF COLLECTIONS orders@jcoql_test AS o, users@jcoql_test AS u
+CASE WHERE .o.user_id = .u._id;",SI,1,62.772,ANTLR3 Official Parser
+2026-10-03 18:08:18,llama,jcoql_test,Raggruppa i prodotti per categoria,"GET COLLECTION products;
+GROUP PARTITION TRUE BY .category INTO .items;",SI,1,37.495,ANTLR3 Official Parser
+2026-10-03 18:11:17,llama,jcoql_test,"Unisci i prodotti biologici e quelli scontati in un'unica collezione, senza duplicati","MERGE COLLECTIONS biologici@jcoql_test, discounted@jcoql_test; REMOVE DUPLICATES;",NO,3,169.32,ANTLR3 Official Parser
+2026-10-03 18:14:14,gemma,jcoql_test,Mostrami i prodotti con uno sconto maggiore del 20%,"This text describes a Fuzzy Set Model creation process and includes various rules and definitions. Here's a summary:
+
+**Purpose:**
+
+- The text describes a process of creating fuzzy set models and generating Java code for them.
+- It includes various rules and definitions for different elements of the fuzzy set model creation process.
+
+**Key Points:**
+
+- **Fuzzy Set Model Rules:**
+    - CreateFuzzySetModelRule
+    - FuzzyOperatorDefinitionRule
+    - CreateGenericFuzzySetOperatorRule
+    - CreateGenericFuzzyEvaluatorRule
+    - CreateJavaFunctionRule
+
+- **Fuzzy Set Operator Definitions:**
+    - Operator
+    - Evaluate
+    - Polyline
+    - LB
+    - RB
+
+- **Data Definitions:**
+    - Token Definition
+    - Fragment Definitions
+
+- **Example Queries:**
+    - Several example queries are provided to illustrate the use of the fuzzy set model creation process.
+
+**Additional Notes:**
+
+- The text includes some warnings and notes for proper usage of the process.
+- It emphasizes the importance of understanding the schema and syntax rules.
+- It encourages the user to carefully review the schema before choosing field names.
+
+**Overall:**
+
+This text provides a comprehensive guide on how to create fuzzy set models and generate Java code for them. It includes various rules and definitions, examples, and notes to help users understand and implement the process effectively.",NO,3,138.548,ANTLR3 Official Parser
+2026-10-03 18:16:36,gemma,jcoql_test,Mostrami i prodotti biologici con un rating di almeno 4,"This text describes a Fuzzy Set Model creation process and includes various JCoQL queries.
+
+**Key takeaways:**
+
+* The text defines a Fuzzy Set Model creation process using JCoQL queries.
+* It includes various query examples, including filtering, grouping, and partitioning.
+* It explains the syntax and format of JCoQL queries.
+* It highlights the importance of field naming and annidation in the schema.
+
+**Overall, this text provides a clear and concise guide on how to create and use Fuzzy Set Models with JCoQL queries.**
+
+**Here are some additional notes:**
+
+* The text includes a section on token definitions, which defines various tokens used in the JCoQL syntax.
+* It also includes a section on",NO,3,110.708,ANTLR3 Official Parser
+2026-10-03 18:18:55,gemma,jcoql_test,Mostrami i prodotti biologici oppure quelli con uno sconto superiore al 30%,"This text describes a Fuzzy Set Model creation process. It includes various rules and fragments for creating a fuzzy set model.
+
+**Key points:**
+
+* **Fuzzy Set Model Rules:** Define rules for creating fuzzy sets, operators, and evaluators.
+* **Token Definition:** Defines tokens used in the language.
+* **Examples:** Shows examples of using the rules to create a fuzzy set model.
+* **Syntax Error:** Explains a syntax error and how to fix it.
+* **Additional Notes:** Provides information about annidated fields and how to use them in the query.
+
+**Overall, this text describes a complex process of creating a fuzzy set model using a specific syntax and set of rules.**",NO,3,129.326,ANTLR3 Official Parser
+2026-10-03 18:21:15,gemma,jcoql_test,Espandi le recensioni dei prodotti in righe separate.,GET COLLECTION clause in the query.,NO,3,129.316,ANTLR3 Official Parser
+2026-10-03 18:23:18,gemma,jcoql_test,Collega ogni ordine all'utente che lo ha effettuato,"This text describes a Fuzzy Set Model creation process and includes various JCoQL queries. Here's a summary:
+
+**Purpose:**
+
+- The text explains how to create a Fuzzy Set Model using the provided schema and generate JCoQL queries.
+- It covers various scenarios, including expanding an array, joining collections, grouping documents, and filtering based on conditions.
+
+**Key Points:**
+
+- **Fuzzy Set Model:** A model that defines fuzzy sets and operators.
+- **JCoQL:** A query language used to interact with MongoDB collections.
+- **Schema:** A document structure defining the data model.
+- **Queries:** Examples of JCoQL queries using the Fuzzy Set Model schema.
+
+**Structure:**
+
+- The text describes various sections, including:
+    - **Token Definition:** Defines tokens used in the syntax.
+    - **Titolo:** Expands on different topics with separate titles.
+    - **Descrizione:** Provides descriptions for each title section.
+    - **Query:** Presents various JCoQL queries for different scenarios.
+    - **Attenzione:** Provides warnings and notes for proper syntax and data interpretation.
+
+**Additional Notes:**
+
+- The text includes a sample query with an error message and a warning about field annidation.
+- It emphasizes the importance of understanding the schema and syntax when writing JCoQL queries.
+- It encourages the reader to carefully review the schema and syntax rules before generating queries.
+
+**Overall, this text provides a comprehensive guide on creating and using a Fuzzy Set Model and generating JCoQL queries.**",NO,3,114.738,ANTLR3 Official Parser
+2026-10-03 18:26:20,gemma,jcoql_test,Raggruppa i prodotti per categoria,"This text describes a Fuzzy Set Model creation process and includes various JCoQL queries.
+
+**Key takeaways:**
+
+* **Fuzzy Set Model creation:** The text describes how to create a fuzzy set model using the CREATE FUZZY SET MODEL rule.
+* **JCoQL queries:** Several JCoQL queries are shown, demonstrating different uses of fuzzy set operators and functions.
+* **Data schema:** The text includes a data schema definition, which defines the structure of the data used in the queries.
+* **Syntax errors:** Some syntax errors are highlighted and explained.
+* **Additional notes:** Some additional notes are provided on field annidation and the use of examples.
+
+**Overall, this text provides a clear and concise guide on how to create and use fuzzy set models and write JCoQL queries.**",NO,3,148.206,ANTLR3 Official Parser
+2026-10-03 18:28:49,gemma,jcoql_test,"Unisci i prodotti biologici e quelli scontati in un'unica collezione, senza duplicati","This text describes a Fuzzy Set Model Rule creation process. It includes various rules and fragments for creating a Fuzzy Set Model.
+
+**Key points:**
+
+* **Rule creation:** The text describes various rules for creating a Fuzzy Set Model, including createFuzzySetModelRule, createGenericFuzzySetOperatorRule, createJavaFunctionRule, and createGenericFuzzyEvaluatorRule.
+* **Token definition:** The text defines various tokens used in the Fuzzy Set Model rules, such as LETTER, DIGIT, WS, AND, and OR.
+* **Example queries:** The text includes several example queries using the Fuzzy Set Model rules, such as ""Prodotti biologici"" and ""Prodotti economici o scontati"".
+* **Syntax errors:** The text highlights syntax errors that may occur when creating a Fuzzy Set Model rule.
+* **Additional notes:** The text includes additional notes on field naming conventions, data types, and best practices for writing Fuzzy Set Model rules.
+
+**Overall, this text provides a comprehensive guide on how to create Fuzzy Set Model rules.**",NO,3,145.392,ANTLR3 Official Parser
+2026-10-03 18:29:49,llama32,jcoql_test,Mostrami i prodotti con uno sconto maggiore del 20%,"GET COLLECTION hotels;
+FILTER CASE WHERE .name = 'Hotel Duomo' AND .location.city = 'Milano';",SI,1,12.604,ANTLR3 Official Parser
+2026-10-03 18:30:09,llama32,jcoql_test,Mostrami i prodotti biologici con un rating di almeno 4,"GET COLLECTION products;
+FILTER CASE WHERE .organic = TRUE AND .rating > 4;",SI,1,3.327,ANTLR3 Official Parser
+2026-10-03 18:30:19,llama32,jcoql_test,Mostrami i prodotti biologici oppure quelli con uno sconto superiore al 30%,"GET COLLECTION products;
+FILTER CASE WHERE .organic = TRUE AND .rating > 4;",SI,1,3.02,ANTLR3 Official Parser
+2026-10-03 18:30:49,llama32,jcoql_test,Espandi le recensioni dei prodotti in righe separate,"GET COLLECTION products;
+FILTER CASE WHERE .category = 'food' AND .discount > 10;
+FILTER CASE WHERE .category = 'electronics' AND .discount > 10;
+FILTER CASE WHERE .category = 'food' AND .discount > 20;
+FILTER CASE WHERE .category = 'electronics' AND .discount > 20;
+FILTER CASE WHERE .category = 'food' AND .discount > 30;
+FILTER CASE WHERE .category = 'electronics' AND .discount > 30;
+FILTER CASE WHERE .category = 'food' AND .discount > 40;
+FILTER CASE WHERE .category = 'electronics' AND .discount > 40;
+FILTER CASE WHERE .category = 'food' AND .discount > 50;
+FILTER CASE WHERE .category = 'electronics' AND .discount > 50;
+FILTER CASE WHERE .category = 'food' AND .discount > 60;
+FILTER CASE WHERE .category = 'electronics' AND .discount > 60;
+FILTER CASE WHERE .category = 'food' AND .discount > 70;
+FILTER CASE WHERE .category = 'electronics' AND .discount > 70;
+FILTER CASE WHERE .category = 'food' AND .discount > 80;
+FILTER CASE WHERE .category = 'electronics' AND .discount > 80;
+FILTER CASE WHERE .category = 'food' AND .discount > 90;
+FILTER CASE WHERE .category = 'electronics' AND .discount > 90;
+FILTER CASE WHERE .category = 'food' AND .discount > 100;
+FILTER CASE WHERE .category = 'electronics' AND .discount > 100;
+FILTER CASE WHERE .category = 'food' AND .discount > 110;
+FILTER CASE WHERE .category = 'electronics' AND .discount > 110;
+FILTER CASE WHERE .category = 'food' AND .discount > 120;
+FILTER CASE WHERE .category = 'electronics' AND .discount > 120;
+FILTER CASE WHERE .category = 'food' AND .discount > 130;
+FILTER CASE WHERE .category = 'electronics' AND .discount > 130;
+FILTER CASE WHERE .category = 'food' AND .discount > 140;
+FILTER CASE WHERE .category = 'electronics' AND .discount > 140;
+FILTER CASE WHERE .category = 'food' AND .discount > 150;
+FILTER CASE WHERE .category = 'electronics' AND .discount > 150;
+FILTER CASE WHERE .category = 'food' AND .discount > 160;
+FILTER CASE WHERE .category = 'electronics' AND .discount > 160;
+FILTER CASE WHERE .category = 'food' AND .discount > 170;
+FILTER CASE WHERE .category = 'electronics' AND .discount > 170;
+FILTER CASE WHERE .category = 'food' AND .discount > 180;
+FILTER CASE WHERE .category = 'electronics' AND .discount > 180;
+FILTER CASE WHERE .category = 'food' AND .discount > 190;
+FILTER CASE WHERE .category = 'electronics' AND .discount > 190;
+FILTER CASE WHERE .category = 'food' AND .discount > 200;
+FILTER CASE WHERE .category = 'electronics' AND .discount > 200;
+FILTER CASE WHERE .category = 'food' AND .discount > 210;
+FILTER CASE WHERE .category = 'electronics' AND .discount > 210;
+FILTER CASE WHERE .category = 'food' AND .discount > 220;
+FILTER CASE WHERE .category = 'electronics' AND .discount > 220;
+FILTER CASE WHERE .category = 'food' AND .discount > 230;
+FILTER CASE WHERE .category = 'electronics' AND .discount > 230;
+FILTER CASE WHERE .category = 'food' AND .discount > 240;
+FILTER CASE WHERE .category = 'electronics' AND .discount > 240;
+FILTER CASE WHERE .category = 'food' AND .discount > 250;
+FILTER CASE WHERE .category = 'electronics' AND .discount > 250;
+FILTER CASE WHERE .category = 'food' AND .discount > 260;
+FILTER CASE WHERE .category = 'electronics' AND .discount > 260;",SI,1,21.507,ANTLR3 Official Parser
+2026-10-03 18:30:57,llama32,jcoql_test,Collega ogni ordine all'utente che lo ha effettuato,"GET COLLECTION hotels;
+FILTER CASE WHERE .name = 'Hotel Duomo';",SI,1,3.805,ANTLR3 Official Parser
+2026-10-03 18:31:10,llama32,jcoql_test,Raggruppa i prodotti per categoria,"GET COLLECTION hotels;
+FILTER CASE WHERE .name = 'Hotel Duomo';",SI,1,2.762,ANTLR3 Official Parser
+2026-10-03 18:31:22,llama32,jcoql_test,"Unisci i prodotti biologici e quelli scontati in un'unica collezione, senza duplicati","GET COLLECTION products;
+FILTER CASE WHERE .organic = TRUE AND .discount > 20;",SI,1,3.537,ANTLR3 Official Parser
+2026-10-03 18:32:13,gemma4,jcoql_test,Mostrami i prodotti con uno sconto maggiore del 20%,GET COLLECTION products; FILTER CASE WHERE .discount > 20;,SI,1,20.756,ANTLR3 Official Parser
+2026-10-03 18:32:35,gemma4,jcoql_test,Mostrami i prodotti biologici con un rating di almeno 4,GET COLLECTION products; FILTER CASE WHERE .organic = TRUE AND .rating >= 4;,SI,1,16.228,ANTLR3 Official Parser
+2026-10-03 18:32:57,gemma4,jcoql_test,Mostrami i prodotti biologici oppure quelli con uno sconto superiore al 30%,"GET COLLECTION products;
+FILTER CASE WHERE .organic = TRUE OR .discount > 30;",SI,1,14.479,ANTLR3 Official Parser
+2026-10-03 18:33:20,gemma4,jcoql_test,Espandi le recensioni dei prodotti in righe separate,"GET COLLECTION products;
+EXPAND UNPACK TRUE ARRAY .reviews TO .review;",SI,1,15.15,ANTLR3 Official Parser
+2026-10-03 18:33:44,gemma4,jcoql_test,Collega ogni ordine all'utente che lo ha effettuato,"JOIN OF COLLECTIONS orders@jcoql_test AS o, users@jcoql_test AS u CASE WHERE .o.user_id = .u._id;",SI,1,16.364,ANTLR3 Official Parser
+2026-10-03 18:34:09,gemma4,jcoql_test,Collega ogni ordine all'utente che lo ha effettuato,"JOIN OF COLLECTIONS orders@jcoql_test AS o, users@jcoql_test AS u CASE WHERE .o.user_id = .u._id;",SI,1,17.811,ANTLR3 Official Parser
+2026-10-03 18:34:58,gemini,jcoql_test,Raggruppa i prodotti per categoria,"GET COLLECTION products;
+GROUP PARTITION TRUE BY .category INTO .risultato;",SI,1,1.791,ANTLR3 Official Parser
+2026-10-03 18:35:05,gemini,jcoql_test,"Unisci i prodotti biologici e quelli scontati in un'unica collezione, senza duplicati","GET COLLECTION biologici;
+SAVE AS temp_bio@jcoql_test;
+GET COLLECTION scontati;
+SAVE AS temp_scontati@jcoql_test;
+MERGE COLLECTIONS temp_bio@jcoql_test, temp_scontati@jcoql_test REMOVE DUPLICATES;",SI,1,1.408,ANTLR3 Official Parser
+2026-10-03 18:39:08,gemini,jcoql_test,Raggruppa i prodotti per categoria,"GET COLLECTION products;
+GROUP PARTITION TRUE BY .category INTO .risultato;",SI,1,2.119,ANTLR3 Official Parser
+2026-10-03 18:39:20,gemini,jcoql_test,"Unisci i prodotti biologici e quelli scontati in un'unica collezione, senza duplicati","GET COLLECTION biologici;
+SAVE AS temp_bio@jcoql_test;
+GET COLLECTION scontati;
+SAVE AS temp_scontati@jcoql_test;
+MERGE COLLECTIONS temp_bio@jcoql_test, temp_scontati@jcoql_test REMOVE DUPLICATES;",SI,1,1.626,ANTLR3 Official Parser
+2026-10-03 18:40:01,gemini,jcoql_test,"Unisci i prodotti biologici e quelli scontati in un'unica collezione, senza duplicati","GET COLLECTION biologici;
+SAVE AS temp_bio@jcoql_test;
+GET COLLECTION scontati;
+SAVE AS temp_scontati@jcoql_test;
+MERGE COLLECTIONS temp_bio@jcoql_test, temp_scontati@jcoql_test REMOVE DUPLICATES;",SI,1,1.375,ANTLR3 Official Parser
+2026-10-03 18:41:03,gemma4,jcoql_test,Raggruppa i prodotti per categoria,"GET COLLECTION products;
+GROUP PARTITION TRUE BY .category INTO .per_categoria;",SI,1,20.641,ANTLR3 Official Parser
+2026-10-03 18:41:44,gemma4,jcoql_test,"Unisci i prodotti biologici e quelli scontati in un'unica collezione, senza duplicati","GET COLLECTION biologici;
+FILTER CASE WHERE .organic = TRUE;
+SAVE AS sottoinsieme1@jcoql_test;
+GET COLLECTION scontati;
+FILTER CASE WHERE .discount > 0;
+SAVE AS sottoinsieme2@jcoql_test;
+MERGE COLLECTIONS sottoinsieme1@jcoql_test, sottoinsieme2@jcoql_test;",SI,1,18.42,ANTLR3 Official Parser
+2026-10-04 10:27:46,llama,jcoql_test,Mostrami i prodotti che non sono biologici,GET COLLECTION products; FILTER CASE WHERE .organic = FALSE;,SI,1,65.804,ANTLR3 Official Parser
+2026-10-04 10:28:30,llama,jcoql_test,Mostrami i prodotti che non sono biologici,GET COLLECTION products; FILTER CASE WHERE .organic = FALSE;,SI,1,36.561,ANTLR3 Official Parser
+2026-10-04 10:29:17,llama,jcoql_test,"Mostrami i prodotti biologici con un rating di almeno 4, oppure quelli con uno sconto superiore al 50%","GET COLLECTION products;
+FILTER CASE WHERE .organic = TRUE AND .rating > 4;",SI,1,32.478,ANTLR3 Official Parser
+2026-10-04 10:31:25,llama,jcoql_test,Mostrami gli ordini superiori a 100 euro insieme all'utente che li ha effettuati,"GET COLLECTION orders;
+FILTER CASE WHERE .total > 100 AND .user_id = 'user_021';",SI,1,109.389,ANTLR3 Official Parser
+2026-10-04 10:32:14,llama,jcoql_test,Mostrami le recensioni dei prodotti con un voto superiore a 4,GET COLLECTION products; FILTER CASE WHERE .rating > 4.0;,SI,1,33.905,ANTLR3 Official Parser
+2026-10-04 10:32:57,llama,jcoql_test,Conta quanti prodotti ci sono per categoria,"GET COLLECTION products;
+GROUP PARTITION TRUE BY .category INTO .gruppi_per_categoria;",SI,1,32.008,ANTLR3 Official Parser
+2026-10-04 10:36:09,gemma,jcoql_test,Mostrami i prodotti che non sono biologici,"This text describes a Fuzzy Set Model creation process and includes various JCoQL queries. Here's a summary:
+
+**Purpose:**
+
+- The text describes the process of creating a Fuzzy Set Model using JCoQL queries.
+- It includes examples of different queries and explains various JCoQL syntax elements.
+
+**Key Points:**
+
+- **JCoQL Syntax:**
+    - The text defines various JCoQL syntax elements like operators, clauses, and keywords.
+    - It explains the different types of clauses like FILTER, GROUP, and WHERE.
+    - It introduces the",NO,3,154.614,ANTLR3 Official Parser
+2026-10-04 10:38:33,gemma,jcoql_test,Mostrami i prodotti che non sono biologici,"This text describes a Fuzzy Set Model creation process and includes various JCoQL+ queries. Here's a summary:
+
+**Purpose:**
+
+- The text describes the process of creating a Fuzzy Set Model using JCoQL+ queries.
+- It includes examples of different queries that can be used to manipulate the model.
+
+**Key Points:**
+
+- **Fuzzy Set Model:** A model that allows for the representation of fuzzy sets.
+- **JCoQL+:** A query language used to interact with Fuzzy Set Models.
+- **Create Fuzzy Set Model Rule:** Creates a new fuzzy set model.
+- **Create Generic Fuzzy Set Operator Rule:** Creates a new fuzzy set operator.
+- **Create Java Function Rule:** Creates a new Java function.
+- **Token Definition:** Defines tokens used in the JCoQL+ syntax.
+- **Example Queries:** Shows examples of different JCoQL+ queries that can be used to manipulate the fuzzy set model.
+
+**Overall:**
+
+This text provides a comprehensive overview of the process of creating and using Fuzzy Set Models with JCoQL+ queries. It includes detailed explanations of various rules and concepts, as well as examples of queries that demonstrate the use of these rules.
+
+**Additional Notes:**
+
+- The text includes some warnings and notes about syntax errors and field naming conventions.
+- It also provides information about the available tokens and operators.
+- The text does not include the actual schema or data model.
+
+**Overall, this text provides a well-structured and informative guide on how to create and use Fuzzy Set Models with JCoQL+ queries.**",NO,3,139.012,ANTLR3 Official Parser
+2026-10-04 10:40:32,gemma,jcoql_test,"Mostrami i prodotti biologici con un rating di almeno 4, oppure quelli con uno sconto superiore al 50%","This text describes a Fuzzy Set Model creation process. It includes various rules and fragments for creating a fuzzy set model.
+
+**Key points:**
+
+* **Fuzzy Set Model Rules:** Define rules for creating fuzzy sets, operators, and evaluators.
+* **Token Definitions:** Defines tokens used in the language.
+* **Examples:** Shows examples of using the rules to create a fuzzy set model.
+* **Syntax Error:** Highlights a syntax error in the provided text.
+* **Additional Notes:** Provides information about field annidation and the format of data values.
+
+**Overall, this text describes a complex process of creating a fuzzy set model using a specific syntax and set of rules.**",NO,3,105.598,ANTLR3 Official Parser
+2026-10-04 10:42:45,gemma,jcoql_test,Mostrami gli ordini superiori a 100 euro insieme all'utente che li ha effettuati,"This text describes a Fuzzy Set Model creation process and includes various rules and fragments for defining the model. Here's a summary of the text:
+
+**Purpose:**
+
+- To define a Fuzzy Set Model for a given set of data.
+
+**Key Steps:**
+
+1. **Creating a new model:** The text describes various rules for creating a new fuzzy set model, including creating a new model, defining parameters, and specifying constraints.
+2. **Defining fuzzy operators:** Rules for defining fuzzy operators are provided, including operators like AND, OR, NOT, and evaluation.
+3. **Creating generic fuzzy evaluators:** Rules for creating generic fuzzy evaluators are described, allowing for evaluation of fuzzy sets based on various parameters.
+4. **Creating Java functions:** Rules for creating Java functions are covered, including defining parameters, specifying pre- and post-conditions, and writing the function body.
+
+**Additional Information:**
+
+- The text includes a number of fragments defining tokens and keywords used in the model definition language.
+- It also provides examples of how to use the rules to define a fuzzy set model and generate queries.
+- The text includes warnings and notes about potential errors and best practices.
+
+**Overall, this text provides a comprehensive guide on how to define and use fuzzy set models.**",NO,3,116.329,ANTLR3 Official Parser
+2026-10-04 10:45:17,gemma,jcoql_test,Mostrami le recensioni dei prodotti con un voto superiore a 4,"This text describes a Fuzzy Set Model creation process. It includes various rules and definitions used to build a fuzzy set model.
+
+**Key points:**
+
+* **Fuzzy Set Model Rules:** Define operators, parameters, and constraints for fuzzy set models.
+* **Fuzzy Operator Definition Rule:** Defines operators like OR, AND, NOT, etc.
+* **Create Fuzzy Set Operator Rule:** Creates operators with parameters and constraints.
+* **Expression Rules:** Define rules for fuzzy set expressions.
+* **Function Rules:** Define rules for fuzzy set functions.
+* **Array Rules:** Define rules for fuzzy set arrays.
+* **Create Generic Fuzzy Evaluator Rule:** Creates evaluator rules for fuzzy sets.
+* **Create Java Function Rule:** Creates rules for Java functions.
+
+**Additional notes:**
+
+* The text includes a section on token definitions for various keywords used in the rules.
+* It also includes examples of queries using the fuzzy set model rules.
+* The text includes a warning about field annidation and the need to use the complete field path in the query.
+
+Overall, this text provides a comprehensive overview of the fuzzy set model creation process. It includes various rules and definitions to guide the user in building fuzzy set models.",NO,3,131.809,ANTLR3 Official Parser
+2026-10-04 10:47:52,gemma,jcoql_test,Conta quanti prodotti ci sono per categoria,"This text describes a Fuzzy Set Model creation process and includes various JCoQL queries.
+
+**Key takeaways:**
+
+* **Fuzzy Set Model:** The text describes the process of creating a fuzzy set model, including defining rules and operators.
+* **JCoQL Queries:** Several JCoQL queries are provided for different scenarios, demonstrating various functionalities of the fuzzy set model.
+* **Syntax Error:** An error message is shown highlighting the syntax error in one of the queries.
+* **Data Format:** The text explains the format of data in the schema, including examples and guidelines for field naming.
+* **Annidated Fields:** The text explains the concept of annidated fields and how to reference them in queries.
+
+**Overall, this text provides a clear and concise overview of the fuzzy set model creation process and JCoQL query syntax.**",NO,3,114.968,ANTLR3 Official Parser
+2026-10-04 10:48:41,llama32,jcoql_test,Mostrami i prodotti che non sono biologici,"GET COLLECTION products;
+FILTER CASE WHERE .organic = TRUE;",SI,1,13.055,ANTLR3 Official Parser
+2026-10-04 10:48:47,llama32,jcoql_test,Mostrami i prodotti che non sono biologici,"GET COLLECTION products;
+FILTER CASE WHERE .organic = TRUE;",SI,1,2.793,ANTLR3 Official Parser
+2026-10-04 10:49:01,llama32,jcoql_test,"Mostrami i prodotti biologici con un rating di almeno 4, oppure quelli con uno sconto superiore al 50%","GET COLLECTION products;
+FILTER CASE WHERE .organic = TRUE AND .rating > 4;",SI,1,5.672,ANTLR3 Official Parser
+2026-10-04 10:49:11,llama32,jcoql_test,Mostrami gli ordini superiori a 100 euro insieme all'utente che li ha effettuati,"GET COLLECTION hotels;
+FILTER CASE WHERE .name = 'Hotel Duomo' AND .location.city = 'Milano';",SI,1,2.653,ANTLR3 Official Parser
+2026-10-04 10:49:21,llama32,jcoql_test,Mostrami le recensioni dei prodotti con un voto superiore a 4,"GET COLLECTION products;
+FILTER CASE WHERE .organic = TRUE AND .rating > 4;",SI,1,2.498,ANTLR3 Official Parser
+2026-10-04 10:49:28,llama32,jcoql_test,Conta quanti prodotti ci sono per categoria,"GET COLLECTION hotels;
+FILTER CASE WHERE .name = 'Hotel Duomo';",SI,1,2.281,ANTLR3 Official Parser
+2026-10-04 10:50:18,gemma4,jcoql_test,Mostrami i prodotti che non sono biologici,GET COLLECTION products; FILTER CASE WHERE .organic = FALSE;,SI,1,22.415,ANTLR3 Official Parser
+2026-10-04 10:50:29,gemma4,jcoql_test,Mostrami i prodotti che non sono biologici,GET COLLECTION products; FILTER CASE WHERE .organic = FALSE;,SI,1,6.993,ANTLR3 Official Parser
+2026-10-04 10:50:50,gemma4,jcoql_test,"Mostrami i prodotti biologici con un rating di almeno 4, oppure quelli con uno sconto superiore al 50%","GET COLLECTION products;
+FILTER CASE WHERE (.organic = TRUE AND .rating >= 4) OR (.discount > 50);",SI,1,17.206,ANTLR3 Official Parser
+2026-10-04 10:51:26,gemma4,jcoql_test,Mostrami gli ordini superiori a 100 euro insieme all'utente che li ha effettuati,,SI,2,27.49,ANTLR3 Official Parser
+2026-10-04 10:51:53,gemma4,jcoql_test,Mostrami gli ordini superiori a 100 euro insieme all'utente che li ha effettuati,,SI,2,18.866,ANTLR3 Official Parser
+2026-10-04 10:52:26,gemma4,jcoql_test,Mostrami le recensioni dei prodotti con un voto superiore a 4,GET COLLECTION products; FILTER CASE WHERE .rating > 4;,SI,1,17.046,ANTLR3 Official Parser
+2026-10-04 10:52:50,gemma4,jcoql_test,Conta quanti prodotti ci sono per categoria,GET COLLECTION products; GROUP PARTITION TRUE BY .category INTO .per_categoria;,SI,1,14.629,ANTLR3 Official Parser
+2026-10-04 10:53:28,gemma4,jcoql_test,Mostrami gli ordini superiori a 100 euro insieme all'utente che li ha effettuati,,SI,2,27.316,ANTLR3 Official Parser
+2026-10-04 10:53:43,gemini,jcoql_test,Mostrami i prodotti che non sono biologici,GET COLLECTION products; FILTER CASE WHERE .organic = FALSE;,SI,1,1.496,ANTLR3 Official Parser
+2026-10-04 10:53:52,gemini,jcoql_test,"Mostrami i prodotti biologici con un rating di almeno 4, oppure quelli con uno sconto superiore al 50%","GET COLLECTION products;
+FILTER CASE WHERE .organic = TRUE AND .rating >= 4 OR .discount > 50;",SI,1,1.279,ANTLR3 Official Parser
+2026-10-04 10:53:58,gemini,jcoql_test,Mostrami gli ordini superiori a 100 euro insieme all'utente che li ha effettuati,"JOIN OF COLLECTIONS orders@jcoql_test AS a, users@jcoql_test AS b CASE WHERE .a.user_id = .b._id;
+FILTER CASE WHERE .a.total > 100;",SI,1,1.302,ANTLR3 Official Parser
+2026-10-04 10:54:06,gemini,jcoql_test,Mostrami le recensioni dei prodotti con un voto superiore a 4,"GET COLLECTION products;
+EXPAND UNPACK TRUE ARRAY .reviews TO .elemento;
+FILTER CASE WHERE .elemento.item.rating > 4;",SI,1,1.26,ANTLR3 Official Parser
+2026-10-04 10:54:13,gemini,jcoql_test,Conta quanti prodotti ci sono per categoria,"GET COLLECTION products;
+GROUP PARTITION TRUE BY .category INTO .prodotti_per_categoria;",SI,1,1.168,ANTLR3 Official Parser
+2026-10-04 11:00:31,gemma4,jcoql_test,Mostrami gli ordini superiori a 100 euro insieme all'utente che li ha effettuati,"JOIN OF COLLECTIONS orders@jcoql_test AS o, users@jcoql_test AS u CASE WHERE .o.user_id =",NO,3,43.905,ANTLR3 Official Parser
+2026-10-04 11:00:55,gemma4,jcoql_test,Mostrami gli ordini superiori a 100 euro insieme all'utente che li ha effettuati,"JOIN OF COLLECTIONS orders@jcoql_test AS o, users@jcoql_test AS u CASE WHERE .o.user_id = .u._id;",SI,1,10.334,ANTLR3 Official Parser
+2026-10-04 11:01:33,gemma4,jcoql_test,Mostrami gli ordini superiori a 100 euro insieme all'utente che li ha effettuati,"JOIN OF COLLECTIONS orders@jcoql_test AS o, users@jcoql_test AS u CASE WHERE .o.user_id =",NO,3,27.466,ANTLR3 Official Parser
+2026-10-04 11:05:43,gemini,jcoql_test,Mostrami gli ordini superiori a 100 euro insieme all'utente che li ha effettuati,"JOIN OF COLLECTIONS orders@jcoql_test AS a, users@jcoql_test AS b CASE WHERE .a.user_id = .b._id;
+FILTER CASE WHERE .a.total > 100;",SI,1,1.668,ANTLR3 Official Parser
+2026-10-04 11:06:30,gemma4,jcoql_test,Mostrami gli ordini superiori a 100 euro insieme all'utente che li ha effettuati,"JOIN OF COLLECTIONS orders@jcoql_test AS o, users@jcoql_test AS u CASE WHERE .o.user_id = .u._id AND .o.total > 100;",SI,3,36.089,ANTLR3 Official Parser
+2026-10-04 11:07:05,gemma4,jcoql_test,Mostrami gli ordini superiori a 100 euro insieme all'utente che li ha effettuati,"JOIN OF COLLECTIONS orders@jcoql_test AS o, users@jcoql_test AS u CASE WHERE .o.user_id = .u._id AND .o.total > 100;",SI,3,28.795,ANTLR3 Official Parser
+2026-10-05 09:20:46,gemini,jcoql_test,Mostrami i prodotti con un rating compreso tra 3 e 4.5,"GET COLLECTION products; FILTER CASE WHERE .rating IN_RANGE [3.0, 4.5];",SI,1,2.069,ANTLR3 Official Parser
+2026-10-05 09:20:59,gemini,jcoql_test,Mostrami i prodotti con uno sconto compreso tra il 10% e il 30%,"GET COLLECTION products; FILTER CASE WHERE .discount IN_RANGE [10, 30];",SI,1,3.198,ANTLR3 Official Parser
+2026-10-05 09:21:04,gemini,jcoql_test,Mostrami i prodotti senza nessuno sconto,GET COLLECTION products; FILTER CASE WHERE .discount = 0;,SI,1,3.138,ANTLR3 Official Parser
+2026-10-05 09:21:13,gemini,jcoql_test,Mostrami i prodotti con un rating inferiore a 3,GET COLLECTION products; FILTER CASE WHERE .rating < 3;,SI,1,4.683,ANTLR3 Official Parser
+2026-10-05 09:21:21,gemini,jcoql_test,Mostrami i prodotti biologici con uno sconto maggiore del 20%,GET COLLECTION products; FILTER CASE WHERE .organic = TRUE AND .discount > 20;,SI,1,2.398,ANTLR3 Official Parser
+2026-10-05 09:21:28,gemini,jcoql_test,Mostrami i prodotti non biologici con un rating di almeno 4,GET COLLECTION products; FILTER CASE WHERE .organic = FALSE AND .rating >= 4;,SI,1,3.05,ANTLR3 Official Parser
+2026-10-05 09:21:36,gemini,jcoql_test, Mostrami i prodotti che non sono biologici e non hanno nessuno sconto,GET COLLECTION products; FILTER CASE WHERE .organic = FALSE AND .discount = 0;,SI,1,3.872,ANTLR3 Official Parser
+2026-10-05 09:21:59,gemini,jcoql_test,"Mostrami i prodotti biologici oppure quelli con un rating di almeno 4.5
+","GET COLLECTION products;
+FILTER CASE WHERE .organic = TRUE OR .rating >= 4.5;",SI,1,7.552,ANTLR3 Official Parser
+2026-10-05 09:22:18,gemini,jcoql_test,"Mostrami i prodotti con uno sconto superiore al 40%, oppure con un rating inferiore a 2",GET COLLECTION products; FILTER CASE WHERE .discount > 40 OR .rating < 2;,SI,1,6.728,ANTLR3 Official Parser
+2026-10-05 09:22:46,gemini,jcoql_test,"Mostrami i prodotti biologici con uno sconto superiore al 10%, oppure quelli con un rating di almeno 4.5","GET COLLECTION products;
+FILTER CASE WHERE .organic = TRUE AND .discount > 10 OR .rating >= 4.5;",SI,1,9.096,ANTLR3 Official Parser
+2026-10-05 09:23:01,gemini,jcoql_test,"Mostrami i prodotti non biologici oppure quelli con uno sconto superiore al 50%
+","GET COLLECTION products;
+FILTER CASE WHERE .organic = FALSE OR .discount > 50;",SI,1,5.683,ANTLR3 Official Parser
+2026-10-05 09:23:39,gemini,jcoql_test,Mostrami le recensioni dei prodotti con un voto uguale a 5,"GET COLLECTION products;
+EXPAND UNPACK TRUE ARRAY .reviews TO .review;
+FILTER CASE WHERE .review.item.rating = 5;",SI,1,2.778,ANTLR3 Official Parser
+2026-10-05 09:23:48,gemini,jcoql_test,Mostrami le recensioni dei prodotti con un voto inferiore a 3,"GET COLLECTION products;
+EXPAND UNPACK TRUE ARRAY .reviews TO .elemento;
+FILTER CASE WHERE .elemento.item.rating < 3;",SI,1,4.273,ANTLR3 Official Parser
+2026-10-05 09:24:09,gemini,jcoql_test,Mostrami le recensioni dei soli prodotti biologici,"GET COLLECTION products;
+FILTER CASE WHERE .organic = TRUE;
+EXPAND UNPACK TRUE ARRAY .reviews TO .elemento;
+FILTER GENERATE BUILD { .reviews: .elemento.item };",SI,1,2.83,ANTLR3 Official Parser
+2026-10-05 09:24:25,gemini,jcoql_test,Espandi gli articoli degli ordini in righe separate,"GET COLLECTION orders;
+EXPAND UNPACK TRUE ARRAY .items TO .item;",SI,1,1.981,ANTLR3 Official Parser
+2026-10-05 09:24:37,gemini,jcoql_test,"Collega ogni recensione all'utente che l'ha scritta
+","JOIN OF COLLECTIONS products@jcoql_test AS a, users@jcoql_test AS b CASE WHERE .a.reviews.user = .b._id;",SI,1,2.198,ANTLR3 Official Parser
+2026-10-05 09:24:47,gemini,jcoql_test,"Mostrami gli ordini inferiori a 50 euro insieme all'utente che li ha effettuati
+","JOIN OF COLLECTIONS orders@jcoql_test AS a, users@jcoql_test AS b CASE WHERE .a.user_id = .b._id;
+FILTER CASE WHERE .a.total < 50;",SI,1,1.993,ANTLR3 Official Parser
+2026-10-05 09:24:59,gemini,jcoql_test,Collega ogni ordine ai prodotti acquistati,"JOIN OF COLLECTIONS orders@jcoql_test AS a, products@jcoql_test AS b CASE WHERE .a.items.product_id = .b._id;",SI,1,3.753,ANTLR3 Official Parser
+2026-10-05 09:25:11,gemini,jcoql_test,Collega ogni utente ai suoi ordini,"JOIN OF COLLECTIONS users@jcoql_test AS a, orders@jcoql_test AS b CASE WHERE .a._id = .b.user_id;",SI,1,2.926,ANTLR3 Official Parser
+2026-10-05 09:25:23,gemini,jcoql_test,"Raggruppa gli ordini per utente
+","GET COLLECTION orders;
+GROUP PARTITION TRUE BY .user_id INTO .ordini_per_utente;",SI,1,2.961,ANTLR3 Official Parser
+2026-10-05 09:25:34,gemini,jcoql_test,Raggruppa i prodotti biologici per categoria,"GET COLLECTION products;
+FILTER CASE WHERE .organic = TRUE;
+GROUP PARTITION TRUE BY .category INTO .prodotti_bio_per_categoria;",SI,1,2.967,ANTLR3 Official Parser
+2026-10-05 09:25:43,gemini,jcoql_test,Raggruppa i prodotti in biologici e non biologici,"GET COLLECTION products;
+GROUP PARTITION .organic = TRUE BY .organic INTO .biologici
+PARTITION .organic = FALSE BY .organic INTO .non_biologici;",SI,1,1.949,ANTLR3 Official Parser
+2026-10-05 09:25:58,gemini,jcoql_test,"Unisci i prodotti con un rating di almeno 4 e quelli con uno sconto superiore al 30% in un'unica collezione, senza duplicati","GET COLLECTION products;
+FILTER CASE WHERE .rating >= 4.0;
+SAVE AS sottoinsieme1@jcoql_test;
+GET COLLECTION products;
+FILTER CASE WHERE .discount > 30;
+SAVE AS sottoinsieme2@jcoql_test;
+MERGE COLLECTIONS sottoinsieme1@jcoql_test, sottoinsieme2@jcoql_test REMOVE DUPLICATES;",SI,1,3.304,ANTLR3 Official Parser
+2026-10-05 09:26:07,gemini,jcoql_test,"Unisci i prodotti biologici e quelli senza sconto in un'unica collezione, mantenendo i duplicati
+","GET COLLECTION biologici;
+SAVE AS temp_bio@jcoql_test;
+GET COLLECTION products;
+FILTER CASE WHERE .discount = 0;
+SAVE AS temp_no_discount@jcoql_test;
+MERGE COLLECTIONS temp_bio@jcoql_test, temp_no_discount@jcoql_test;",SI,1,2.183,ANTLR3 Official Parser
+2026-10-05 09:26:25,gemini,jcoql_test,Unisci gli ordini superiori a 100 euro e quelli inferiori a 20 euro in un'unica collezione,"GET COLLECTION orders;
+FILTER CASE WHERE .total > 100;
+SAVE AS sottoinsieme1@jcoql_test;
+GET COLLECTION orders;
+FILTER CASE WHERE .total < 20;
+SAVE AS sottoinsieme2@jcoql_test;
+MERGE COLLECTIONS sottoinsieme1@jcoql_test, sottoinsieme2@jcoql_test REMOVE DUPLICATES;",SI,1,6.995,ANTLR3 Official Parser
+2026-10-05 09:26:38,gemini,jcoql_test,"Aggiungi a ogni ordine un campo con il totale maggiorato dell'IVA al 22%
+","GET COLLECTION orders;
+FILTER GENERATE ADD FIELDS { .total_iva: .total};",SI,1,2.957,ANTLR3 Official Parser
+2026-10-05 09:26:54,gemini,jcoql_test,Aggiungi a ogni prodotto un campo con la differenza tra 5 e il rating,"GET COLLECTION products;
+FILTER GENERATE ADD FIELDS { .differenza_rating: .rating};",SI,1,2.27,ANTLR3 Official Parser
+2026-10-05 09:27:13,gemini,jcoql_test,Mostrami solo la categoria e il rating di ogni prodotto,"GET COLLECTION products;
+FILTER GENERATE BUILD { .category: .category, .rating: .rating };",SI,1,3.938,ANTLR3 Official Parser
+2026-10-05 09:28:51,llama,jcoql_test," Mostrami i prodotti con un rating compreso tra 3 e 4.5
+","GET COLLECTION products; FILTER CASE WHERE .rating IN_RANGE [3.0, 4.5];",SI,1,76.155,ANTLR3 Official Parser
+2026-10-05 09:29:31,llama,jcoql_test," Mostrami i prodotti con un rating compreso tra 3 e 4.5
+",GET COLLECTION products; FILTER CASE WHERE .rating >= 4.0 AND .category = 'food';,SI,1,32.794,ANTLR3 Official Parser
+2026-10-05 09:30:40,llama,jcoql_test," Mostrami i prodotti con uno sconto compreso tra il 10% e il 30%
+","GET COLLECTION products;
+FILTER CASE WHERE .discount > 20;",SI,1,49.236,ANTLR3 Official Parser
+2026-10-05 09:31:09,llama,jcoql_test,"Mostrami i prodotti senza nessuno sconto
+",GET COLLECTION products;,SI,1,21.068,ANTLR3 Official Parser
+2026-10-05 09:32:22,llama,jcoql_test,Mostrami i prodotti con un rating inferiore a 3,GET COLLECTION products; FILTER CASE WHERE .rating < 3.0;,SI,1,26.54,ANTLR3 Official Parser
+2026-10-05 09:33:13,llama,jcoql_test,"Mostrami i prodotti biologici con uno sconto maggiore del 20%
+",GET COLLECTION products; FILTER CASE WHERE .organic = TRUE AND .discount > 20;,SI,1,37.094,ANTLR3 Official Parser
+2026-10-05 09:34:43,llama,jcoql_test,Mostrami i prodotti non biologici con un rating di almeno 4,GET COLLECTION products; FILTER CASE WHERE .organic = FALSE AND .rating > 4.0;,SI,1,75.966,ANTLR3 Official Parser
+2026-10-05 09:35:38,llama,jcoql_test,Mostrami i prodotti che non sono biologici e non hanno nessuno sconto,GET COLLECTION products;,SI,1,42.758,ANTLR3 Official Parser
+2026-10-05 09:36:25,llama,jcoql_test,Mostrami i prodotti biologici oppure quelli con un rating di almeno 4.5,"GET COLLECTION products;
+FILTER CASE WHERE .organic = TRUE AND .rating > 4.5;",SI,1,29.228,ANTLR3 Official Parser
+2026-10-05 09:37:13,llama,jcoql_test,"Mostrami i prodotti con uno sconto superiore al 40%, oppure con un rating inferiore a 2",GET COLLECTION products; FILTER CASE WHERE .discount > 40 OR .rating < 2;,SI,1,32.425,ANTLR3 Official Parser
+2026-10-05 09:39:08,llama,jcoql_test,"Mostrami i prodotti biologici con uno sconto superiore al 10%, oppure quelli con un rating di almeno 4.5","GET COLLECTION products;
+FILTER CASE WHERE .organic = TRUE AND .discount > 10;",SI,1,75.874,ANTLR3 Official Parser
+2026-10-05 09:40:12,llama,jcoql_test,Mostrami i prodotti non biologici oppure quelli con uno sconto superiore al 50%,"GET COLLECTION products;
+FILTER CASE WHERE .organic = TRUE AND .discount > 10;",SI,1,57.446,ANTLR3 Official Parser
+2026-10-05 09:40:57,llama,jcoql_test,"Mostrami le recensioni dei prodotti con un voto uguale a 5
+","GET COLLECTION products;
+FILTER CASE WHERE .rating = 5;",SI,1,32.101,ANTLR3 Official Parser
+2026-10-05 09:41:35,llama,jcoql_test,Mostrami le recensioni dei prodotti con un voto inferiore a 3,GET COLLECTION products; FILTER CASE WHERE .rating < 3;,SI,1,31.432,ANTLR3 Official Parser
+2026-10-05 09:42:30,llama,jcoql_test,"Mostrami le recensioni dei soli prodotti biologici
+","GET COLLECTION products;
+FILTER CASE WHERE .organic = TRUE;",SI,1,44.871,ANTLR3 Official Parser
+2026-10-05 09:43:09,llama,jcoql_test,Espandi gli articoli degli ordini in righe separate,"GET COLLECTION orders;
+EXPAND UNPACK TRUE ARRAY .items TO .item;
+FILTER CASE WHERE .item.item.product_id = 'prod_001';",SI,1,30.206,ANTLR3 Official Parser
+2026-10-05 09:48:55,llama,jcoql_test,Collega ogni recensione all'utente che l'ha scritta,"GET COLLECTION reviews;
+FILTER CASE WHERE .user_id = .user_id;",SI,1,57.438,ANTLR3 Official Parser
+2026-10-05 09:55:25,llama,jcoql_test,"Mostrami gli ordini inferiori a 50 euro insieme all'utente che li ha effettuati
+","GET COLLECTION orders;
+FILTER CASE WHERE .total < 50;",SI,1,60.239,ANTLR3 Official Parser
+2026-10-05 10:01:03,llama,jcoql_test,Collega ogni ordine ai prodotti acquistati,"GET COLLECTION orders;
+EXPAND UNPACK TRUE ARRAY .items TO .item;",SI,2,319.024,ANTLR3 Official Parser
+2026-10-05 10:15:13,llama,jcoql_test,Collega ogni utente ai suoi ordini,"JOIN OF COLLECTIONS users@jcoql_test AS a, orders@jcoql_test AS b
+CASE WHERE .a._id = .b.user_id;",SI,1,81.786,ANTLR3 Official Parser
+2026-10-05 10:15:51,llama,jcoql_test,Raggruppa gli ordini per utente,"GET COLLECTION orders;
+GROUP PARTITION TRUE BY .user_id INTO .ordersByUser;",SI,1,26.209,ANTLR3 Official Parser
+2026-10-05 10:16:38,llama,jcoql_test,"Raggruppa i prodotti biologici per categoria
+","GET COLLECTION products;
+GROUP PARTITION TRUE BY .category INTO .items;",SI,1,35.036,ANTLR3 Official Parser
+2026-10-05 10:22:15,llama,jcoql_test,Raggruppa i prodotti in biologici e non biologici,"GET COLLECTION products;
+GROUP PARTITION .organic = TRUE BY .category INTO .biologici
+PARTITION .organic = FALSE BY .category INTO .non_biologici;",SI,3,317.864,ANTLR3 Official Parser
+2026-10-05 10:23:43,llama,jcoql_test,"Unisci i prodotti con un rating di almeno 4 e quelli con uno sconto superiore al 30% in un'unica collezione, senza duplicati","GET COLLECTION products;
+FILTER CASE WHERE .rating > 4.0;",SI,1,59.578,ANTLR3 Official Parser
+2026-10-05 10:26:11,llama,jcoql_test,"Unisci i prodotti biologici e quelli senza sconto in un'unica collezione, mantenendo i duplicati","MERGE COLLECTIONS biologici@jcoql_test, discounted@jcoql_test;",SI,2,125.831,ANTLR3 Official Parser
+2026-10-05 10:28:10,llama,jcoql_test,"Unisci i prodotti biologici e quelli senza sconto in un'unica collezione, mantenendo i duplicati
+","MERGE COLLECTIONS products@jcoql_test, products@jcoql_test;",SI,1,42.382,ANTLR3 Official Parser
+2026-10-05 10:34:59,llama,jcoql_test,Unisci gli ordini superiori a 100 euro e quelli inferiori a 20 euro in un'unica collezione,"GET COLLECTION orders;
+FILTER CASE WHERE .total > 100;",SI,1,113.381,ANTLR3 Official Parser
+2026-10-05 10:41:48,llama,jcoql_test,Aggiungi a ogni ordine un campo con il totale maggiorato dell'IVA al 22%,GET COLLECTION collezione;,SI,2,389.089,ANTLR3 Official Parser
+2026-10-05 10:56:07,llama,jcoql_test,Aggiungi a ogni prodotto un campo con la differenza tra 5 e il rating,GET COLLECTION <collection>;,NO,3,828.737,ANTLR3 Official Parser
+2026-10-05 10:57:47,llama,jcoql_test,Mostrami solo la categoria e il rating di ogni prodotto,"GET COLLECTION products;
+FILTER GENERATE BUILD { .categoria: .category, .rating: .rating };",SI,1,58.969,ANTLR3 Official Parser
+2026-10-05 11:01:14,gemma,jcoql_test,Mostrami i prodotti con un rating compreso tra 3 e 4.5,"GET COLLECTION, FILTER CASE, WHERE, and KEEP OTHERS.",NO,3,139.16,ANTLR3 Official Parser
+2026-10-05 11:03:52,gemma,jcoql_test,Mostrami i prodotti con un rating compreso tra 3 e 4.5,"GET COLLECTION, FILTER CASE, WHERE, and KEEP OTHERS.",NO,3,129.832,ANTLR3 Official Parser
+2026-10-05 11:06:27,gemma,jcoql_test,"Mostrami i prodotti biologici oppure quelli con un rating di almeno 4.5
+","This text describes a Fuzzy Set Model creation process. It includes various rules and fragments for creating a fuzzy set model.
+
+**Key takeaways:**
+
+* **Fuzzy Set Model creation:** The text describes various rules for creating a fuzzy set model, including createFuzzySetModelRule, createGenericFuzzySetOperatorRule, and createGenericFuzzyEvaluatorRule.
+* **Token definition:** The text defines various tokens used in the fuzzy set model creation process, such as LETTER, DIGIT, and WS.
+* **Example queries:** The text includes several example queries using the fuzzy set model creation rules.
+* **Syntax errors:** The text highlights syntax errors that may occur when creating a fuzzy set model.
+* **Additional notes:** The text includes additional notes on field annidation and the use of tokens.
+
+**Overall, this text provides a comprehensive guide on how to create fuzzy set models using the provided rules and syntax.**",NO,3,139.735,ANTLR3 Official Parser
+2026-10-05 11:09:48,gemma,jcoql_test,Mostrami le recensioni dei prodotti con un voto inferiore a 3,"This text describes a Fuzzy Set Model creation process. It includes various rules and definitions used to define the model.
+
+**Key takeaways:**
+
+* **Fuzzy Set Model creation:** The text describes various rules for creating a Fuzzy Set Model, including creating a new model, defining parameters, and specifying constraints.
+* **Fuzzy Set Operator creation:** Rules for creating fuzzy operators are also included, covering operator definition and evaluation.
+* **Fuzzy Set Evaluator creation:** Rules for creating fuzzy evaluators are provided, defining parameters and evaluating expressions.
+* **Token definition:** The text defines various tokens used in the model definition, such as operators, keywords, and identifiers.
+* **Example queries:** Several example queries are provided to illustrate the use of the Fuzzy Set Model.
+
+**Overall, this text provides a comprehensive guide on how to create and use a Fuzzy Set Model.**
+
+**Additional notes:**
+
+* The text includes some syntax errors and warnings, which should be corrected.
+* The text includes some sections that are not relevant to the main topic of Fuzzy Set Model creation, such as the section on ""Token definition.""
+* The text includes some repetitive information, such as the definition of the ""FILTER CASE"" rule.
+* The text could be better organized into smaller sections, each focusing on a specific topic.",NO,3,141.952,ANTLR3 Official Parser
+2026-10-05 11:12:52,gemma,jcoql_test,Collega ogni recensione all'utente che l'ha scritta,"This text describes a Fuzzy Set Model creation process and includes various JCoQL queries. Here's a summary:
+
+**Purpose:**
+
+- The text explains how to create a Fuzzy Set Model using JCoQL queries.
+- It covers various aspects of Fuzzy Set Model creation, including defining functions, parameters, and operators.
+- It also includes examples of JCoQL queries for various operations like merging collections, grouping documents, and expanding arrays.
+
+**Key Points:**
+
+- **Fuzzy Set Model Rules:** The text defines various rules for creating a Fuzzy Set Model, including createFuzzySetModelRule, createGenericFuzzySetOperatorRule, and createGenericFuzzyEvaluatorRule.
+- **JCoQL Queries:** The text includes several examples of JCoQL queries, demonstrating different operations like merging collections, grouping documents, and expanding arrays.
+- **Syntax and Semantics:** The text explains the syntax and semantics of JCoQL queries, including the required clauses and operators.
+- **Data Format:** The text describes the format of data in the Fuzzy Set Model, including data types and field definitions.
+- **Annidated Fields:** The text explains the convention for annidated fields in the schema, and how to reference them in queries.
+
+**Overall:**
+
+This text provides a comprehensive guide on how to create and use Fuzzy Set Models with JCoQL queries. It covers various topics and includes numerous examples, making it a valuable resource for anyone working with Fuzzy Set Models.
+
+**Additional Notes:**
+
+- The text includes some warnings and notes for users, such as the need to specify the complete field path for annidated fields and the syntax requirements for JCoQL queries.
+- The text does not include the actual schema or data model, therefore it cannot be used to generate the JCoQL query without additional information.
+- The text includes a section on syntax errors and how to correct them, which is helpful for users who may encounter errors while writing their queries.",NO,3,141.504,ANTLR3 Official Parser
+2026-10-05 11:14:45,gemma,jcoql_test,"Unisci i prodotti con un rating di almeno 4 e quelli con uno sconto superiore al 30% in un'unica collezione, senza duplicati","This text describes a Fuzzy Set Model creation process and includes various rules and definitions. Here's a summary:
+
+**Purpose:**
+
+- The text defines a Fuzzy Set Model creation process using JCoQL (Java Common Query Language).
+- It includes various rules and definitions for creating and manipulating fuzzy sets and operators.
+
+**Key Points:**
+
+- **Fuzzy Set Model:** Creates a fuzzy set model with parameters like ID, degrees, and expressions.
+- **Fuzzy Operator Definition:** Defines operators like AND, OR, NOT, etc. and their evaluations.
+- **Generic Fuzzy Set Operator:** Creates a generic fuzzy set operator with parameters and evaluations.
+- **Function Parameters:** Defines function parameters for fuzzy set operators.
+- **Function Rules:** Defines rules for evaluating fuzzy set functions.
+- **Expression Rules:** Defines rules for manipulating fuzzy set expressions.
+- **Array Functions:** Defines functions for manipulating fuzzy set arrays.
+- **Java Function:** Creates a Java function with parameters, body, and class definition.
+
+**Additional Notes:**
+
+- The text includes various token definitions for syntax highlighting.
+- It also includes examples of queries using the fuzzy set model creation process.
+- The text emphasizes the importance of correct syntax and field naming.
+
+**Overall:**
+
+This text provides a comprehensive guide on how to create and use fuzzy set models in JCoQL. It includes various rules and definitions to ensure accurate and efficient model creation.",NO,3,103.47,ANTLR3 Official Parser
+2026-10-05 11:15:34,llama32,jcoql_test,"Mostrami i prodotti con un rating compreso tra 3 e 4.5
+","GET COLLECTION products;
+FILTER CASE WHERE .organic = TRUE AND .rating > 4.0;",SI,1,12.441,ANTLR3 Official Parser
+2026-10-05 11:16:31,llama32,jcoql_test,Mostrami i prodotti con uno sconto compreso tra il 10% e il 30%,"GET COLLECTION products;
+FILTER CASE WHERE .price < 30 OR .discount > 20;",SI,1,4.077,ANTLR3 Official Parser
+2026-10-05 11:16:37,llama32,jcoql_test,Mostrami i prodotti senza nessuno sconto,"GET COLLECTION products;
+FILTER CASE WHERE .discount > 10;",SI,1,2.984,ANTLR3 Official Parser
+2026-10-05 11:16:43,llama32,jcoql_test,Mostrami i prodotti con un rating inferiore a 3,"GET COLLECTION products;
+FILTER CASE WHERE .organic = TRUE AND .rating > 4;",SI,1,2.235,ANTLR3 Official Parser
+2026-10-05 11:16:52,llama32,jcoql_test,Mostrami i prodotti biologici con uno sconto maggiore del 20%,"GET COLLECTION products;
+FILTER CASE WHERE .organic = TRUE AND .discount > 10;",SI,1,3.212,ANTLR3 Official Parser
+2026-10-05 11:16:58,llama32,jcoql_test,Mostrami i prodotti non biologici con un rating di almeno 4,"GET COLLECTION products;
+FILTER CASE WHERE .organic = TRUE AND .rating > 4;",SI,1,3.043,ANTLR3 Official Parser
+2026-10-05 11:17:13,llama32,jcoql_test,Mostrami i prodotti che non sono biologici e non hanno nessuno sconto,"GET COLLECTION products;
+FILTER CASE WHERE .organic = TRUE;",SI,1,2.915,ANTLR3 Official Parser
+2026-10-05 11:17:20,llama32,jcoql_test,Mostrami i prodotti biologici oppure quelli con un rating di almeno 4.5,"GET COLLECTION products;
+FILTER CASE WHERE .organic = TRUE AND .rating > 4;",SI,1,3.14,ANTLR3 Official Parser
+2026-10-05 11:17:24,llama32,jcoql_test,"Mostrami i prodotti con uno sconto superiore al 40%, oppure con un rating inferiore a 2
+","GET COLLECTION products;
+FILTER CASE WHERE .organic = TRUE AND .rating > 4;",SI,1,2.518,ANTLR3 Official Parser
+2026-10-05 11:17:34,llama32,jcoql_test," Mostrami i prodotti biologici con uno sconto superiore al 10%, oppure quelli con un rating di almeno 4.5
+","GET COLLECTION products;
+FILTER CASE WHERE .organic = TRUE AND .rating > 4;",SI,1,5.361,ANTLR3 Official Parser
+2026-10-05 11:17:41,llama32,jcoql_test,Mostrami i prodotti non biologici oppure quelli con uno sconto superiore al 50%,"GET COLLECTION products;
+FILTER CASE WHERE .organic = TRUE AND .rating > 4;",SI,1,3.035,ANTLR3 Official Parser
+2026-10-05 11:17:49,llama32,jcoql_test,Mostrami le recensioni dei prodotti con un voto uguale a 5,"GET COLLECTION products;
+FILTER CASE WHERE .price < 30 OR .discount > 20;",SI,1,3.223,ANTLR3 Official Parser
+2026-10-05 11:17:55,llama32,jcoql_test,"Mostrami le recensioni dei prodotti con un voto inferiore a 3
+","GET COLLECTION hotels;
+FILTER CASE WHERE .name = 'Hotel Duomo' AND .location.city = 'Milano';",SI,1,2.585,ANTLR3 Official Parser
+2026-10-05 11:18:01,llama32,jcoql_test,Mostrami le recensioni dei soli prodotti biologici,"GET COLLECTION products;
+FILTER CASE WHERE .organic = TRUE;",SI,1,2.951,ANTLR3 Official Parser
+2026-10-05 11:18:08,llama32,jcoql_test,Espandi gli articoli degli ordini in righe separate,"GET COLLECTION hotels;
+FILTER CASE WHERE .name = 'Hotel Duomo';",SI,1,3.473,ANTLR3 Official Parser
+2026-10-05 11:18:14,llama32,jcoql_test,"Collega ogni recensione all'utente che l'ha scritta
+","MERGE COLLECTIONS hotels@jcoql_test, restaurants@jcoql_test;",SI,1,2.717,ANTLR3 Official Parser
+2026-10-05 11:18:21,llama32,jcoql_test,Mostrami gli ordini inferiori a 50 euro insieme all'utente che li ha effettuati,"GET COLLECTION hotels;
+FILTER CASE WHERE .name = 'Hotel Duomo' AND .location.city = 'Milano';",SI,1,2.535,ANTLR3 Official Parser
+2026-10-05 11:18:28,llama32,jcoql_test,"Collega ogni ordine ai prodotti acquistati
+","GET COLLECTION hotels;
+FILTER CASE WHERE .name = 'Hotel Duomo' AND .location.city = 'Milano';",SI,1,2.404,ANTLR3 Official Parser
+2026-10-05 11:18:34,llama32,jcoql_test,"Collega ogni utente ai suoi ordini
+","GET COLLECTION hotels;
+FILTER CASE WHERE .name = 'Hotel Duomo';",SI,1,3.338,ANTLR3 Official Parser
+2026-10-05 11:18:40,llama32,jcoql_test,"Raggruppa gli ordini per utente
+","GET COLLECTION hotels;
+FILTER CASE WHERE .name = 'Hotel Duomo';",SI,1,3.432,ANTLR3 Official Parser
+2026-10-05 11:18:46,llama32,jcoql_test,"Raggruppa i prodotti biologici per categoria
+","USE DB jcoql_test ON DEFAULT SERVER;
+GET COLLECTION products;
+FILTER CASE WHERE .organic = TRUE;",SI,1,3.521,ANTLR3 Official Parser
+2026-10-05 11:18:52,llama32,jcoql_test,Raggruppa i prodotti in biologici e non biologici,"GET COLLECTION hotels;
+FILTER CASE WHERE .location.city = 'Milano';",SI,1,3.129,ANTLR3 Official Parser
+2026-10-05 11:18:57,llama32,jcoql_test,"Unisci i prodotti con un rating di almeno 4 e quelli con uno sconto superiore al 30% in un'unica collezione, senza duplicati","GET COLLECTION products;
+FILTER CASE WHERE .organic = TRUE AND .rating > 4;",SI,1,2.238,ANTLR3 Official Parser
+2026-10-05 11:19:04,llama32,jcoql_test,"Unisci i prodotti biologici e quelli senza sconto in un'unica collezione, mantenendo i duplicati","GET COLLECTION products;
+FILTER CASE WHERE .organic = TRUE AND .discount > 20;",SI,1,3.488,ANTLR3 Official Parser
+2026-10-05 11:19:10,llama32,jcoql_test,Unisci gli ordini superiori a 100 euro e quelli inferiori a 20 euro in un'unica collezione,"GET COLLECTION hotels;
+FILTER CASE WHERE .location.city = 'Milano';",SI,1,2.564,ANTLR3 Official Parser
+2026-10-05 11:19:16,llama32,jcoql_test,Aggiungi a ogni ordine un campo con il totale maggiorato dell'IVA al 22%,"GET COLLECTION products;
+FILTER CASE WHERE .price < 30 OR .discount > 20;",SI,1,2.848,ANTLR3 Official Parser
+2026-10-05 11:19:21,llama32,jcoql_test,Aggiungi a ogni prodotto un campo con la differenza tra 5 e il rating,"GET COLLECTION hotels;
+FILTER CASE WHERE .name = 'Hotel Duomo' AND .location.city = 'Milano';",SI,1,2.41,ANTLR3 Official Parser
+2026-10-05 11:19:27,llama32,jcoql_test,Mostrami solo la categoria e il rating di ogni prodotto,"GET COLLECTION hotels;
+FILTER CASE WHERE .name = 'Hotel Duomo' AND .location.city = 'Milano';",SI,1,2.567,ANTLR3 Official Parser
+2026-10-05 11:20:26,gemma4,jcoql_test,Mostrami i prodotti con un rating compreso tra 3 e 4.5,"GET COLLECTION products; FILTER CASE WHERE .rating INRANGE [3.0, 4.5];",NO,3,31.907,ANTLR3 Official Parser
+2026-10-05 11:20:46,gemma4,jcoql_test,Mostrami i prodotti con un rating compreso tra 3 e 4.5,"GET COLLECTION products; FILTER CASE WHERE .rating IN_RANGE [3.0, 4.5];",SI,2,9.373,ANTLR3 Official Parser
+2026-10-05 11:21:13,gemma4,jcoql_test,Mostrami i prodotti con uno sconto compreso tra il 10% e il 30%,"GET COLLECTION products; FILTER CASE WHERE .discount IN_RANGE [10, 30];",SI,2,17.207,ANTLR3 Official Parser
+2026-10-05 11:21:35,gemma4,jcoql_test,"Mostrami i prodotti senza nessuno sconto
+",GET COLLECTION products; FILTER CASE WHERE .discount = 0;,SI,1,15.161,ANTLR3 Official Parser
+2026-10-05 11:21:52,gemma4,jcoql_test,"Mostrami i prodotti con un rating inferiore a 3
+
+",GET COLLECTION products; FILTER CASE WHERE .rating < 3;,SI,1,12.665,ANTLR3 Official Parser
+2026-10-05 11:22:10,gemma4,jcoql_test,Mostrami i prodotti biologici con uno sconto maggiore del 20%,GET COLLECTION products; FILTER CASE WHERE .organic = TRUE AND .discount > 20;,SI,1,15.568,ANTLR3 Official Parser
+2026-10-05 11:22:28,gemma4,jcoql_test,"Mostrami i prodotti non biologici con un rating di almeno 4
+","GET COLLECTION products;
+FILTER CASE WHERE .organic = FALSE AND .rating >= 4;",SI,1,14.158,ANTLR3 Official Parser
+2026-10-05 11:22:47,gemma4,jcoql_test,Mostrami i prodotti che non sono biologici e non hanno nessuno sconto,"GET COLLECTION products;
+FILTER CASE WHERE .organic = FALSE AND FIELD .discount IS NULL;",SI,1,16.861,ANTLR3 Official Parser
+2026-10-05 11:23:05,gemma4,jcoql_test,Mostrami i prodotti biologici oppure quelli con un rating di almeno 4.5,"GET COLLECTION products;
+FILTER CASE WHERE .organic = TRUE OR .rating >= 4.5;",SI,1,14.74,ANTLR3 Official Parser
+2026-10-05 11:23:25,gemma4,jcoql_test,"Mostrami i prodotti con uno sconto superiore al 40%, oppure con un rating inferiore a 2",GET COLLECTION products; FILTER CASE WHERE .discount > 40 OR .rating < 2;,SI,1,14.015,ANTLR3 Official Parser
+2026-10-05 11:23:45,gemma4,jcoql_test,"Mostrami i prodotti biologici con uno sconto superiore al 10%, oppure quelli con un rating di almeno 4.5","GET COLLECTION products;
+FILTER CASE WHERE (.organic = TRUE AND .discount > 10) OR .rating >= 4.5;",SI,1,17.007,ANTLR3 Official Parser
+2026-10-05 11:24:04,gemma4,jcoql_test,Mostrami i prodotti non biologici oppure quelli con uno sconto superiore al 50%,"GET COLLECTION products;
+FILTER CASE WHERE .organic = FALSE OR .discount > 50;",SI,1,15.024,ANTLR3 Official Parser
+2026-10-05 11:24:26,gemma4,jcoql_test,Mostrami le recensioni dei prodotti con un voto uguale a 5,"GET COLLECTION products;
+EXPAND UNPACK TRUE ARRAY .reviews TO .review;
+FILTER CASE WHERE .review.item.rating = 5;",SI,1,14.979,ANTLR3 Official Parser
+2026-10-05 11:24:48,gemma4,jcoql_test,Mostrami le recensioni dei prodotti con un voto inferiore a 3,GET COLLECTION products;,SI,1,18.562,ANTLR3 Official Parser
+2026-10-05 11:25:06,gemma4,jcoql_test,Mostrami le recensioni dei soli prodotti biologici,"GET COLLECTION products;
+FILTER CASE WHERE .organic = TRUE;
+EXPAND UNPACK TRUE ARRAY .reviews TO .review;",SI,1,15.634,ANTLR3 Official Parser
+2026-10-05 11:25:25,gemma4,jcoql_test,Espandi gli articoli degli ordini in righe separate,"GET COLLECTION orders;
+EXPAND UNPACK TRUE ARRAY .items TO .item;",SI,1,14.175,ANTLR3 Official Parser
+2026-10-05 11:26:05,gemma4,jcoql_test,"Collega ogni recensione all'utente che l'ha scritta
+",,NO,3,38.043,ANTLR3 Official Parser
+2026-10-05 11:26:35,gemma4,jcoql_test,Mostrami gli ordini inferiori a 50 euro insieme all'utente che li ha effettuati,"JOIN OF COLLECTIONS orders@jcoql_test AS o, users@jcoql_test AS u CASE WHERE .o.user_id = .u._id;
+FILTER CASE WHERE .o.total < 50;",SI,1,16.782,ANTLR3 Official Parser
+2026-10-05 11:27:30,gemma4,jcoql_test,Collega ogni ordine ai prodotti acquistati,"GET COLLECTION orders;
+EXPAND UNPACK TRUE ARRAY .items TO .item;
+SAVE AS chaintemp1@jcoql_test;
+GET COLLECTION chaintemp1;
+JOIN OF COLLECTIONS chaintemp1@jcoql_test AS c, products@jcoql_test AS p CASE WHERE .c.item.item.product_id = .p._id;",SI,1,16.823,ANTLR3 Official Parser
+2026-10-05 11:28:06,gemma4,jcoql_test,Collega ogni utente ai suoi ordini,,NO,3,33.743,ANTLR3 Official Parser
+2026-10-05 11:28:24,gemma4,jcoql_test,Raggruppa gli ordini per utente,"GET COLLECTION orders;
+GROUP PARTITION TRUE BY .user_id INTO .ordersByUser;",SI,1,13.431,ANTLR3 Official Parser
+2026-10-05 11:28:48,gemma4,jcoql_test,"Raggruppa i prodotti biologici per categoria
+","GET COLLECTION biologici;
+FILTER CASE WHERE .organic = TRUE;
+GROUP PARTITION TRUE BY .category INTO .risultato;",SI,1,15.711,ANTLR3 Official Parser
+2026-10-05 11:29:20,gemma4,jcoql_test,Raggruppa i prodotti in biologici e non biologici,"GET COLLECTION products;
+GROUP PARTITION .organic = TRUE BY .organic INTO .biologici
+PARTITION .organic = FALSE BY .organic INTO .nonBiologici;",SI,1,15.887,ANTLR3 Official Parser
+2026-10-05 11:29:42,gemma4,jcoql_test,"Unisci i prodotti con un rating di almeno 4 e quelli con uno sconto superiore al 30% in un'unica collezione, senza duplicati","GET COLLECTION products;
+FILTER CASE WHERE .rating >= 4;
+SAVE AS sottoinsieme1@jcoql_test;
+GET COLLECTION products;
+FILTER CASE WHERE .discount > 30;
+SAVE AS sottoinsieme2@jcoql_test;
+MERGE COLLECTIONS sottoinsieme1@jcoql_test, sottoinsieme2@jcoql_test REMOVE DUPLICATES;",SI,1,18.93,ANTLR3 Official Parser
+2026-10-05 11:30:03,gemma4,jcoql_test,"Unisci i prodotti biologici e quelli senza sconto in un'unica collezione, mantenendo i duplicati","GET COLLECTION products; FILTER CASE WHERE .organic = TRUE; SAVE AS biologici@jcoql_test;
+GET COLLECTION products; FILTER CASE WHERE .discount = 0; SAVE AS senza_sconto@jcoql_test;
+MERGE COLLECTIONS biologici@jcoql_test, senza_sconto@jcoql_test REMOVE DUPLICATES;",SI,1,17.573,ANTLR3 Official Parser
+2026-10-05 11:30:27,gemma4,jcoql_test,Unisci gli ordini superiori a 100 euro e quelli inferiori a 20 euro in un'unica collezione,GET COLLECTION orders; FILTER CASE WHERE .total > 100 OR .total < 20;,SI,1,16.752,ANTLR3 Official Parser
+2026-10-05 11:30:47,gemma4,jcoql_test,Aggiungi a ogni ordine un campo con il totale maggiorato dell'IVA al 22%,GET COLLECTION orders; FILTER GENERATE ADD FIELDS { .total_iva_22: .total };,SI,1,16.966,ANTLR3 Official Parser
+2026-10-05 11:31:28,gemma4,jcoql_test,Aggiungi a ogni prodotto un campo con la differenza tra 5 e il rating,GET COLLECTION products; FILTER GENERATE ADD FIELDS { .rating_difference: .rating };,SI,2,28.619,ANTLR3 Official Parser
+2026-10-05 11:31:46,gemma4,jcoql_test,Mostrami solo la categoria e il rating di ogni prodotto,"GET COLLECTION products;
+FILTER GENERATE BUILD { .category: .category, .rating: .rating };",SI,1,15.076,ANTLR3 Official Parser

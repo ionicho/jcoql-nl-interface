@@ -40,19 +40,19 @@ Query:
 GET COLLECTION products;
 FILTER CASE WHERE .discount IN_RANGE ( 10 , 30 );
 
-ESEMPIO 6: Verifica Assenza Campo (WITHOUT)
+ESEMPIO 6: Valore Mancante su un Campo (IS NULL)
 ----------------------------------------------
 Descrizione: Ordini senza numero di tracciamento assegnato.
 Query:
 GET COLLECTION orders;
-FILTER CASE WHERE WITHOUT .tracking_number;
+FILTER CASE WHERE FIELD .tracking_number IS NULL;
 
-ESEMPIO 7: Verifica Presenza Campo (WITH)
+ESEMPIO 7: Valore Presente su un Campo (IS NOT NULL)
 ----------------------------------------------
 Descrizione: Prodotti che hanno una marca registrata.
 Query:
 GET COLLECTION products;
-FILTER CASE WHERE WITH .brand;
+FILTER CASE WHERE FIELD .brand IS NOT NULL;
 
 ESEMPIO 8: Null Check Esplicito (FIELD ... IS NULL)
 ----------------------------------------------
@@ -111,12 +111,12 @@ Query:
 GET COLLECTION orders;
 FILTER CASE WHERE .total IN_RANGE [ 0 , 50 ] OR .total IN_RANGE [ 500 , 1000 ];
 
-ESEMPIO 16: WITHOUT Multiplo con AND
+ESEMPIO 16: Null Check Multiplo con AND
 ----------------------------------------------
 Descrizione: Prodotti senza marca e senza sconto registrati.
 Query:
 GET COLLECTION products;
-FILTER CASE WHERE WITHOUT .brand AND WITHOUT .discount;
+FILTER CASE WHERE FIELD .brand IS NULL AND FIELD .discount IS NULL;
 
 ESEMPIO 17: DROP OTHERS
 ----------------------------------------------
