@@ -1,0 +1,24 @@
+# CORSA v3: dati v2 senza i vecchi join (alias casuali) + join nuovi con alias posizionali e schemi grandi.
+# Configurazione di addestramento IDENTICA a v2, tranne max_length (schemi piu' lunghi). Si lancia da questa cartella.
+base: meta-llama/Llama-3.1-8B-Instruct
+task: sft
+
+data:
+  train: ../out_v3/train_final_v3.jsonl
+  format: alpaca
+  val_split: 0.05
+  max_length: 1280
+
+training:
+  epochs: 2
+  lr: 2e-4
+  batch_size: 2
+  gradient_checkpointing: true
+  stream_layers: true
+  lora:
+    r: 16
+    alpha: 32
+    target_modules: auto
+  quantization: 4bit
+
+output: ./output_v3

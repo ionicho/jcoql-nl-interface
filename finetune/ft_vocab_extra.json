@@ -1,0 +1,5148 @@
+{
+ "_nota": "Generato da ft_vocab_expand.py (Gemini) e validato.",
+ "domains": {
+  "agricoltura": [
+   {
+    "en": "field",
+    "plural_en": "fields",
+    "it": "campi",
+    "fields": [
+     [
+      "name",
+      "nome appezzamento",
+      "text",
+      [
+       "Nord",
+       "Sud",
+       "Est",
+       "Ovest"
+      ]
+     ],
+     [
+      "size",
+      "estensione ettari",
+      "num",
+      [
+       1,
+       500,
+       "float"
+      ]
+     ],
+     [
+      "crop_type",
+      "tipo coltura",
+      "enum",
+      [
+       "Grano",
+       "Mais",
+       "Orzo",
+       "Soia"
+      ]
+     ],
+     [
+      "irrigated",
+      "irrigato",
+      "bool",
+      null
+     ],
+     [
+      "ph_level",
+      "livello ph",
+      "num",
+      [
+       5,
+       9,
+       "float"
+      ]
+     ],
+     [
+      "harvest_dates",
+      "date raccolta",
+      "arr_scalar",
+      [
+       "2023-05",
+       "2023-09",
+       "2024-05"
+      ]
+     ],
+     [
+      "sensor_data",
+      "Dati sensore",
+      "obj",
+      [
+       [
+        "depth",
+        "Profondita",
+        "num",
+        [
+         0,
+         200,
+         "float"
+        ]
+       ],
+       [
+        "battery",
+        "Batteria",
+        "num",
+        [
+         0,
+         100,
+         "int"
+        ]
+       ]
+      ]
+     ]
+    ]
+   },
+   {
+    "en": "harvester",
+    "plural_en": "harvesters",
+    "it": "mietitrici",
+    "fields": [
+     [
+      "model",
+      "modello",
+      "text",
+      [
+       "Alpha",
+       "Beta",
+       "Gamma",
+       "Delta"
+      ]
+     ],
+     [
+      "year",
+      "anno produzione",
+      "num",
+      [
+       1990,
+       2024,
+       "int"
+      ]
+     ],
+     [
+      "fuel_level",
+      "carburante",
+      "num",
+      [
+       0,
+       100,
+       "int"
+      ]
+     ],
+     [
+      "maintenance_needed",
+      "manutenzione",
+      "bool",
+      null
+     ],
+     [
+      "operator",
+      "operatore",
+      "null",
+      [
+       "Mario",
+       "Luigi",
+       "Giovanni"
+      ]
+     ],
+     [
+      "fuel_type",
+      "Tipo carburante",
+      "enum",
+      [
+       "Diesel",
+       "Elettrico",
+       "Ibrido",
+       "Gas"
+      ]
+     ],
+     [
+      "engine_specs",
+      "Specifiche motore",
+      "obj",
+      [
+       [
+        "power",
+        "Potenza",
+        "num",
+        [
+         50,
+         1000,
+         "int"
+        ]
+       ],
+       [
+        "cylinders",
+        "Cilindri",
+        "num",
+        [
+         2,
+         12,
+         "int"
+        ]
+       ]
+      ]
+     ]
+    ]
+   }
+  ],
+  "energia": [
+   {
+    "en": "power_plant",
+    "plural_en": "power_plants",
+    "it": "centrali",
+    "fields": [
+     [
+      "name",
+      "nome centrale",
+      "text",
+      [
+       "Sole",
+       "Vento",
+       "Idro",
+       "Nucleo"
+      ]
+     ],
+     [
+      "capacity",
+      "capacita mw",
+      "num",
+      [
+       10,
+       5000,
+       "int"
+      ]
+     ],
+     [
+      "status",
+      "stato operativo",
+      "enum",
+      [
+       "Attiva",
+       "Manutenzione",
+       "Off"
+      ]
+     ],
+     [
+      "green_energy",
+      "rinnovabile",
+      "bool",
+      null
+     ],
+     [
+      "location",
+      "posizione",
+      "obj",
+      [
+       [
+        "lat",
+        "latitudine",
+        "num",
+        [
+         0,
+         90,
+         "float"
+        ]
+       ],
+       [
+        "long",
+        "longitudine",
+        "num",
+        [
+         0,
+         180,
+         "float"
+        ]
+       ]
+      ]
+     ]
+    ]
+   },
+   {
+    "en": "grid_sensor",
+    "plural_en": "grid_sensors",
+    "it": "sensori rete",
+    "fields": [
+     [
+      "device_id",
+      "id dispositivo",
+      "text",
+      [
+       "SN001",
+       "SN002",
+       "SN003"
+      ]
+     ],
+     [
+      "voltage",
+      "tensione v",
+      "num",
+      [
+       200,
+       400,
+       "float"
+      ]
+     ],
+     [
+      "temperature",
+      "temperatura",
+      "num",
+      [
+       -10,
+       80,
+       "float"
+      ]
+     ],
+     [
+      "online",
+      "connesso",
+      "bool",
+      null
+     ],
+     [
+      "alert_types",
+      "tipi allerta",
+      "arr_scalar",
+      [
+       "Sovraccarico",
+       "BassaTensione",
+       "Guasto"
+      ]
+     ],
+     [
+      "readings",
+      "letture log",
+      "arr_obj",
+      [
+       [
+        "val",
+        "valore",
+        "num",
+        [
+         0,
+         1000,
+         "int"
+        ]
+       ],
+       [
+        "ts",
+        "timestamp",
+        "text",
+        [
+         "08:00",
+         "12:00",
+         "16:00"
+        ]
+       ]
+      ]
+     ],
+     [
+      "connection_mode",
+      "Modalita connessione",
+      "enum",
+      [
+       "Wi-Fi",
+       "4G",
+       "Ethernet",
+       "LoRaWAN"
+      ]
+     ]
+    ]
+   }
+  ],
+  "telefonia": [
+   {
+    "en": "cell_tower",
+    "plural_en": "cell_towers",
+    "it": "antenne",
+    "fields": [
+     [
+      "code",
+      "codice torre",
+      "text",
+      [
+       "T01",
+       "T02",
+       "T03",
+       "T04"
+      ]
+     ],
+     [
+      "height",
+      "altezza metri",
+      "num",
+      [
+       10,
+       100,
+       "int"
+      ]
+     ],
+     [
+      "tech_type",
+      "tecnologia",
+      "enum",
+      [
+       "4G",
+       "5G",
+       "Satellite"
+      ]
+     ],
+     [
+      "active",
+      "attiva",
+      "bool",
+      null
+     ],
+     [
+      "coverage_radius",
+      "raggio km",
+      "num",
+      [
+       1,
+       50,
+       "float"
+      ]
+     ],
+     [
+      "gps_coords",
+      "Coordinate GPS",
+      "obj",
+      [
+       [
+        "lat",
+        "Latitudine",
+        "num",
+        [
+         -90,
+         90,
+         "float"
+        ]
+       ],
+       [
+        "long",
+        "Longitudine",
+        "num",
+        [
+         -180,
+         180,
+         "float"
+        ]
+       ]
+      ]
+     ]
+    ]
+   },
+   {
+    "en": "subscription",
+    "plural_en": "subscriptions",
+    "it": "abbonamenti",
+    "fields": [
+     [
+      "plan_name",
+      "nome piano",
+      "text",
+      [
+       "Base",
+       "Premium",
+       "Gold",
+       "Family"
+      ]
+     ],
+     [
+      "price",
+      "prezzo mensile",
+      "num",
+      [
+       5,
+       100,
+       "int"
+      ]
+     ],
+     [
+      "data_limit",
+      "limite gb",
+      "num",
+      [
+       10,
+       1000,
+       "int"
+      ]
+     ],
+     [
+      "unlimited_calls",
+      "chiamate illimitate",
+      "bool",
+      null
+     ],
+     [
+      "features",
+      "opzioni extra",
+      "arr_scalar",
+      [
+       "Roaming",
+       "5G",
+       "Streaming"
+      ]
+     ],
+     [
+      "billing_cycle",
+      "Ciclo fatturazione",
+      "enum",
+      [
+       "Mensile",
+       "Trimestrale",
+       "Annuale"
+      ]
+     ]
+    ]
+   }
+  ],
+  "trasporti": [
+   {
+    "en": "vehicle",
+    "plural_en": "vehicles",
+    "it": "veicoli",
+    "fields": [
+     [
+      "plate",
+      "targa",
+      "text",
+      [
+       "AA111BB",
+       "CC222DD",
+       "EE333FF"
+      ]
+     ],
+     [
+      "capacity_tons",
+      "capacita ton",
+      "num",
+      [
+       1,
+       40,
+       "float"
+      ]
+     ],
+     [
+      "engine_type",
+      "motore",
+      "enum",
+      [
+       "Diesel",
+       "Elettrico",
+       "Ibrido"
+      ]
+     ],
+     [
+      "in_transit",
+      "in viaggio",
+      "bool",
+      null
+     ],
+     [
+      "maintenance_km",
+      "km manutenzione",
+      "num",
+      [
+       0,
+       500000,
+       "int"
+      ]
+     ],
+     [
+      "route_stops",
+      "fermate rotta",
+      "arr_scalar",
+      [
+       "Roma",
+       "Milano",
+       "Napoli"
+      ]
+     ],
+     [
+      "dimensions",
+      "Dimensioni",
+      "obj",
+      [
+       [
+        "width",
+        "Larghezza",
+        "num",
+        [
+         1,
+         5,
+         "float"
+        ]
+       ],
+       [
+        "height",
+        "Altezza",
+        "num",
+        [
+         1,
+         5,
+         "float"
+        ]
+       ]
+      ]
+     ]
+    ]
+   },
+   {
+    "en": "logistics_hub",
+    "plural_en": "logistics_hubs",
+    "it": "centri logistici",
+    "fields": [
+     [
+      "city",
+      "città",
+      "text",
+      [
+       "Torino",
+       "Bologna",
+       "Firenze",
+       "Palermo"
+      ]
+     ],
+     [
+      "warehouse_count",
+      "numero magazzini",
+      "num",
+      [
+       1,
+       10,
+       "int"
+      ]
+     ],
+     [
+      "efficiency_score",
+      "punteggio efficienza",
+      "num",
+      [
+       0,
+       100,
+       "int"
+      ]
+     ],
+     [
+      "automated",
+      "automatizzato",
+      "bool",
+      null
+     ],
+     [
+      "contact_email",
+      "email",
+      "null",
+      [
+       "info@hub.it",
+       "log@hub.it",
+       "help@hub.it"
+      ]
+     ],
+     [
+      "zones",
+      "zone magazzino",
+      "arr_obj",
+      [
+       [
+        "code",
+        "codice",
+        "text",
+        [
+         "A1",
+         "B2",
+         "C3"
+        ]
+       ],
+       [
+        "temp",
+        "temperatura",
+        "num",
+        [
+         -20,
+         25,
+         "int"
+        ]
+       ]
+      ]
+     ],
+     [
+      "tier_level",
+      "Livello hub",
+      "enum",
+      [
+       "Base",
+       "Standard",
+       "Premium",
+       "Platinum"
+      ]
+     ],
+     [
+      "operational_status",
+      "Stato operativo",
+      "enum",
+      [
+       "Attivo",
+       "In manutenzione",
+       "Chiuso",
+       "In espansione"
+      ]
+     ]
+    ]
+   }
+  ],
+  "manufacturing": [
+   {
+    "en": "machine",
+    "plural_en": "machines",
+    "it": "macchinari",
+    "fields": [
+     [
+      "model_code",
+      "codice modello",
+      "text",
+      [
+       "CNC-01",
+       "CNC-02",
+       "PRESS-A",
+       "LASER-X"
+      ]
+     ],
+     [
+      "year_built",
+      "anno costruzione",
+      "num",
+      [
+       2010,
+       2024,
+       "int"
+      ]
+     ],
+     [
+      "operating_hours",
+      "ore operative",
+      "num",
+      [
+       0,
+       50000,
+       "int"
+      ]
+     ],
+     [
+      "status",
+      "stato",
+      "enum",
+      [
+       "attivo",
+       "manutenzione",
+       "spento",
+       "guasto"
+      ]
+     ],
+     [
+      "is_automated",
+      "automatizzato",
+      "bool",
+      null
+     ],
+     [
+      "maintenance_logs",
+      "log manutenzione",
+      "arr_obj",
+      [
+       [
+        "technician",
+        "tecnico",
+        "text",
+        [
+         "Mario Rossi",
+         "Luca Bianchi"
+        ]
+       ],
+       [
+        "cost",
+        "costo",
+        "num",
+        [
+         100,
+         5000,
+         "float"
+        ]
+       ]
+      ]
+     ]
+    ]
+   },
+   {
+    "en": "factory",
+    "plural_en": "factories",
+    "it": "stabilimenti",
+    "fields": [
+     [
+      "name",
+      "nome stabilimento",
+      "text",
+      [
+       "Nord",
+       "Sud",
+       "Centro",
+       "Ovest"
+      ]
+     ],
+     [
+      "floor_space",
+      "superficie",
+      "num",
+      [
+       1000,
+       50000,
+       "int"
+      ]
+     ],
+     [
+      "worker_count",
+      "numero dipendenti",
+      "num",
+      [
+       10,
+       500,
+       "int"
+      ]
+     ],
+     [
+      "has_canteen",
+      "mensa presente",
+      "bool",
+      null
+     ],
+     [
+      "certifications",
+      "certificazioni",
+      "arr_scalar",
+      [
+       "ISO9001",
+       "ISO14001",
+       "OSHAS"
+      ]
+     ],
+     [
+      "regional_zone",
+      "zona regionale",
+      "enum",
+      [
+       "nord",
+       "centro",
+       "sud",
+       "isole"
+      ]
+     ],
+     [
+      "location_coords",
+      "coordinate posizione",
+      "obj",
+      [
+       [
+        "lat",
+        "latitudine",
+        "num",
+        [
+         0,
+         90,
+         "float"
+        ]
+       ],
+       [
+        "long",
+        "longitudine",
+        "num",
+        [
+         0,
+         180,
+         "float"
+        ]
+       ]
+      ]
+     ]
+    ]
+   }
+  ],
+  "music_production": [
+   {
+    "en": "track",
+    "plural_en": "tracks",
+    "it": "tracce",
+    "fields": [
+     [
+      "title",
+      "titolo traccia",
+      "text",
+      [
+       "Intro",
+       "Chorus",
+       "Bridge",
+       "Outro"
+      ]
+     ],
+     [
+      "bpm",
+      "battiti per minuto",
+      "num",
+      [
+       60,
+       200,
+       "int"
+      ]
+     ],
+     [
+      "duration_sec",
+      "durata secondi",
+      "num",
+      [
+       30,
+       600,
+       "int"
+      ]
+     ],
+     [
+      "is_vocal",
+      "contiene voce",
+      "bool",
+      null
+     ],
+     [
+      "instruments",
+      "strumenti",
+      "arr_scalar",
+      [
+       "piano",
+       "synth",
+       "drums",
+       "bass"
+      ]
+     ],
+     [
+      "genre",
+      "genere musicale",
+      "enum",
+      [
+       "pop",
+       "rock",
+       "jazz",
+       "electronic",
+       "classical"
+      ]
+     ],
+     [
+      "audio_specs",
+      "specifiche audio",
+      "obj",
+      [
+       [
+        "bitrate",
+        "bitrate",
+        "num",
+        [
+         128,
+         320,
+         "int"
+        ]
+       ],
+       [
+        "format",
+        "formato",
+        "text",
+        [
+         "wav",
+         "mp3",
+         "flac"
+        ]
+       ]
+      ]
+     ]
+    ]
+   },
+   {
+    "en": "studio",
+    "plural_en": "studios",
+    "it": "studi",
+    "fields": [
+     [
+      "room_name",
+      "nome sala",
+      "text",
+      [
+       "Sala A",
+       "Sala B",
+       "Vocal Booth"
+      ]
+     ],
+     [
+      "daily_rate",
+      "tariffa giornaliera",
+      "num",
+      [
+       200,
+       2000,
+       "int"
+      ]
+     ],
+     [
+      "sq_meters",
+      "metri quadri",
+      "num",
+      [
+       20,
+       150,
+       "int"
+      ]
+     ],
+     [
+      "availability",
+      "disponibilità",
+      "bool",
+      null
+     ],
+     [
+      "equipment_list",
+      "attrezzatura",
+      "arr_obj",
+      [
+       [
+        "brand",
+        "marca",
+        "text",
+        [
+         "Neumann",
+         "Shure"
+        ]
+       ],
+       [
+        "type",
+        "tipo",
+        "text",
+        [
+         "Microfono",
+         "Mixer"
+        ]
+       ]
+      ]
+     ],
+     [
+      "acoustic_treatment",
+      "tipo trattamento acustico",
+      "enum",
+      [
+       "standard",
+       "premium",
+       "none"
+      ]
+     ]
+    ]
+   }
+  ],
+  "legal": [
+   {
+    "en": "case",
+    "plural_en": "cases",
+    "it": "casi legali",
+    "fields": [
+     [
+      "dossier_id",
+      "numero fascicolo",
+      "text",
+      [
+       "F-2023-01",
+       "F-2023-02"
+      ]
+     ],
+     [
+      "year",
+      "anno",
+      "num",
+      [
+       2000,
+       2024,
+       "int"
+      ]
+     ],
+     [
+      "urgency_level",
+      "priorità",
+      "num",
+      [
+       1,
+       3,
+       "int"
+      ]
+     ],
+     [
+      "is_closed",
+      "chiuso",
+      "bool",
+      null
+     ],
+     [
+      "involved_parties",
+      "parti coinvolte",
+      "arr_scalar",
+      [
+       "querelante",
+       "difensore",
+       "giudice"
+      ]
+     ],
+     [
+      "jurisdiction_level",
+      "livello giurisdizione",
+      "enum",
+      [
+       "locale",
+       "regionale",
+       "nazionale",
+       "europeo"
+      ]
+     ],
+     [
+      "legal_costs",
+      "costi legali",
+      "obj",
+      [
+       [
+        "fees",
+        "parcelle",
+        "num",
+        [
+         0,
+         100000,
+         "float"
+        ]
+       ],
+       [
+        "taxes",
+        "tasse",
+        "num",
+        [
+         0,
+         20000,
+         "float"
+        ]
+       ]
+      ]
+     ]
+    ]
+   },
+   {
+    "en": "lawyer",
+    "plural_en": "lawyers",
+    "it": "avvocati",
+    "fields": [
+     [
+      "full_name",
+      "nome completo",
+      "text",
+      [
+       "Mario Rossi",
+       "Giulia Verdi"
+      ]
+     ],
+     [
+      "years_experience",
+      "anni esperienza",
+      "num",
+      [
+       1,
+       50,
+       "int"
+      ]
+     ],
+     [
+      "hourly_fee",
+      "tariffa oraria",
+      "num",
+      [
+       50,
+       500,
+       "int"
+      ]
+     ],
+     [
+      "is_partner",
+      "è socio",
+      "bool",
+      null
+     ],
+     [
+      "specialization",
+      "specializzazione",
+      "obj",
+      [
+       [
+        "field",
+        "ambito",
+        "text",
+        [
+         "penale",
+         "civile"
+        ]
+       ],
+       [
+        "code",
+        "codice",
+        "num",
+        [
+         10,
+         99,
+         "int"
+        ]
+       ]
+      ]
+     ],
+     [
+      "office_branch",
+      "sede ufficio",
+      "enum",
+      [
+       "milano",
+       "roma",
+       "torino",
+       "napoli"
+      ]
+     ]
+    ]
+   }
+  ],
+  "research_lab": [
+   {
+    "en": "experiment",
+    "plural_en": "experiments",
+    "it": "esperimenti",
+    "fields": [
+     [
+      "exp_id",
+      "id esperimento",
+      "text",
+      [
+       "EXP-A",
+       "EXP-B",
+       "EXP-C"
+      ]
+     ],
+     [
+      "sample_count",
+      "numero campioni",
+      "num",
+      [
+       1,
+       100,
+       "int"
+      ]
+     ],
+     [
+      "duration_hours",
+      "durata ore",
+      "num",
+      [
+       1,
+       72,
+       "int"
+      ]
+     ],
+     [
+      "is_successful",
+      "completato con successo",
+      "bool",
+      null
+     ],
+     [
+      "tags",
+      "etichette",
+      "arr_scalar",
+      [
+       "chimica",
+       "fisica",
+       "biologia"
+      ]
+     ],
+     [
+      "safety_level",
+      "livello sicurezza",
+      "enum",
+      [
+       "basso",
+       "medio",
+       "alto"
+      ]
+     ]
+    ]
+   },
+   {
+    "en": "equipment",
+    "plural_en": "equipments",
+    "it": "strumentazioni",
+    "fields": [
+     [
+      "device_name",
+      "nome dispositivo",
+      "text",
+      [
+       "Centrifuga",
+       "Microscopio"
+      ]
+     ],
+     [
+      "last_calibration",
+      "anno calibrazione",
+      "num",
+      [
+       2020,
+       2024,
+       "int"
+      ]
+     ],
+     [
+      "voltage",
+      "tensione",
+      "num",
+      [
+       110,
+       240,
+       "int"
+      ]
+     ],
+     [
+      "in_use",
+      "in uso",
+      "bool",
+      null
+     ],
+     [
+      "history",
+      "storico riparazioni",
+      "arr_obj",
+      [
+       [
+        "year",
+        "anno",
+        "num",
+        [
+         2021,
+         2023,
+         "int"
+        ]
+       ],
+       [
+        "desc",
+        "descrizione",
+        "text",
+        [
+         "manutenzione",
+         "test"
+        ]
+       ]
+      ]
+     ],
+     [
+      "storage_location",
+      "ubicazione magazzino",
+      "enum",
+      [
+       "deposito A",
+       "deposito B",
+       "laboratorio"
+      ]
+     ]
+    ]
+   }
+  ],
+  "government": [
+   {
+    "en": "department",
+    "plural_en": "departments",
+    "it": "dipartimenti",
+    "fields": [
+     [
+      "office_name",
+      "nome ufficio",
+      "text",
+      [
+       "Anagrafe",
+       "Urbanistica",
+       "Tributi"
+      ]
+     ],
+     [
+      "room_number",
+      "numero stanza",
+      "num",
+      [
+       1,
+       200,
+       "int"
+      ]
+     ],
+     [
+      "employees_count",
+      "dipendenti",
+      "num",
+      [
+       2,
+       50,
+       "int"
+      ]
+     ],
+     [
+      "is_public_facing",
+      "aperto al pubblico",
+      "bool",
+      null
+     ],
+     [
+      "services",
+      "servizi",
+      "arr_scalar",
+      [
+       "certificati",
+       "modulistica",
+       "assistenza"
+      ]
+     ],
+     [
+      "priority_level",
+      "Livello priorita",
+      "enum",
+      [
+       "bassa",
+       "media",
+       "alta",
+       "urgente"
+      ]
+     ]
+    ]
+   },
+   {
+    "en": "citizen",
+    "plural_en": "citizens",
+    "it": "cittadini",
+    "fields": [
+     [
+      "tax_id",
+      "codice fiscale",
+      "text",
+      [
+       "ABC123456",
+       "DEF789012"
+      ]
+     ],
+     [
+      "age",
+      "età",
+      "num",
+      [
+       0,
+       110,
+       "int"
+      ]
+     ],
+     [
+      "income_bracket",
+      "fascia reddito",
+      "num",
+      [
+       1,
+       5,
+       "int"
+      ]
+     ],
+     [
+      "is_resident",
+      "residente",
+      "bool",
+      null
+     ],
+     [
+      "contacts",
+      "contatti",
+      "obj",
+      [
+       [
+        "email",
+        "email",
+        "null",
+        [
+         "x@mail.it",
+         "y@mail.it"
+        ]
+       ],
+       [
+        "phone",
+        "telefono",
+        "num",
+        [
+         300000000,
+         399999999,
+         "int"
+        ]
+       ]
+      ]
+     ],
+     [
+      "employment_status",
+      "Stato occupazione",
+      "enum",
+      [
+       "studente",
+       "impiegato",
+       "disoccupato",
+       "pensionato"
+      ]
+     ]
+    ]
+   }
+  ],
+  "cantieri_edili": [
+   {
+    "en": "project",
+    "plural_en": "projects",
+    "it": "progetti",
+    "fields": [
+     [
+      "title",
+      "titolo",
+      "text",
+      [
+       "Ristrutturazione",
+       "Ponte nuovo",
+       "Complesso residenziale",
+       "Centro commerciale",
+       "Polo logistico"
+      ]
+     ],
+     [
+      "budget",
+      "budget",
+      "num",
+      [
+       50000,
+       5000000,
+       "float"
+      ]
+     ],
+     [
+      "start_year",
+      "anno_inizio",
+      "num",
+      [
+       2020,
+       2024,
+       "int"
+      ]
+     ],
+     [
+      "is_public",
+      "pubblico",
+      "bool",
+      null
+     ],
+     [
+      "status",
+      "stato",
+      "enum",
+      [
+       "pianificato",
+       "avviato",
+       "completato",
+       "sospeso"
+      ]
+     ],
+     [
+      "materials",
+      "materiali",
+      "arr_scalar",
+      [
+       "cemento",
+       "acciaio",
+       "legno",
+       "vetro"
+      ]
+     ]
+    ]
+   },
+   {
+    "en": "worker",
+    "plural_en": "workers",
+    "it": "operai",
+    "fields": [
+     [
+      "full_name",
+      "nome_completo",
+      "text",
+      [
+       "Mario Rossi",
+       "Luigi Bianchi",
+       "Anna Verdi",
+       "Sara Neri"
+      ]
+     ],
+     [
+      "hourly_rate",
+      "tariffa_oraria",
+      "num",
+      [
+       12,
+       30,
+       "float"
+      ]
+     ],
+     [
+      "years_exp",
+      "anni_esperienza",
+      "num",
+      [
+       1,
+       40,
+       "int"
+      ]
+     ],
+     [
+      "certified",
+      "certificato",
+      "bool",
+      null
+     ],
+     [
+      "safety_gear",
+      "dotazione_sicurezza",
+      "arr_scalar",
+      [
+       "casco",
+       "guanti",
+       "scarpe",
+       "imbracatura"
+      ]
+     ],
+     [
+      "contact",
+      "contatto",
+      "obj",
+      [
+       [
+        "phone",
+        "telefono",
+        "text",
+        [
+         "333123456",
+         "333987654"
+        ]
+       ],
+       [
+        "emergency",
+        "emergenza",
+        "bool",
+        null
+       ]
+      ]
+     ],
+     [
+      "shift_type",
+      "Tipo turno",
+      "enum",
+      [
+       "mattina",
+       "pomeriggio",
+       "notte",
+       "flessibile"
+      ]
+     ]
+    ]
+   }
+  ],
+  "istituto_bancario": [
+   {
+    "en": "account",
+    "plural_en": "accounts",
+    "it": "conti correnti",
+    "fields": [
+     [
+      "balance",
+      "saldo",
+      "num",
+      [
+       0,
+       100000,
+       "float"
+      ]
+     ],
+     [
+      "interest_rate",
+      "tasso interesse",
+      "num",
+      [
+       0,
+       5,
+       "float"
+      ]
+     ],
+     [
+      "account_type",
+      "tipo conto",
+      "enum",
+      [
+       "privato",
+       "business",
+       "giovani"
+      ]
+     ],
+     [
+      "verified",
+      "verificato",
+      "bool",
+      null
+     ],
+     [
+      "history",
+      "movimenti recenti",
+      "arr_obj",
+      [
+       [
+        "amount",
+        "importo",
+        "num",
+        [
+         10,
+         500,
+         "float"
+        ]
+       ],
+       [
+        "type",
+        "causale",
+        "text",
+        [
+         "bonifico",
+         "bollettino",
+         "prelievo"
+        ]
+       ]
+      ]
+     ]
+    ]
+   },
+   {
+    "en": "loan",
+    "plural_en": "loans",
+    "it": "prestiti",
+    "fields": [
+     [
+      "principal",
+      "capitale",
+      "num",
+      [
+       1000,
+       50000,
+       "int"
+      ]
+     ],
+     [
+      "duration",
+      "mesi durata",
+      "num",
+      [
+       12,
+       120,
+       "int"
+      ]
+     ],
+     [
+      "risk_level",
+      "livello rischio",
+      "enum",
+      [
+       "basso",
+       "medio",
+       "alto"
+      ]
+     ],
+     [
+      "collateral",
+      "garanzie",
+      "arr_scalar",
+      [
+       "ipoteca",
+       "fideiussione",
+       "assicurazione"
+      ]
+     ],
+     [
+      "approved",
+      "approvato",
+      "bool",
+      null
+     ]
+    ]
+   }
+  ],
+  "parco_divertimenti": [
+   {
+    "en": "ride",
+    "plural_en": "rides",
+    "it": "attrazioni",
+    "fields": [
+     [
+      "max_capacity",
+      "portata persone",
+      "num",
+      [
+       10,
+       100,
+       "int"
+      ]
+     ],
+     [
+      "height_limit",
+      "altezza minima",
+      "num",
+      [
+       100,
+       150,
+       "int"
+      ]
+     ],
+     [
+      "category",
+      "tipologia",
+      "enum",
+      [
+       "adrenalina",
+       "bambini",
+       "acquatico"
+      ]
+     ],
+     [
+      "maintenance_needed",
+      "manutenzione",
+      "bool",
+      null
+     ],
+     [
+      "features",
+      "caratteristiche",
+      "arr_scalar",
+      [
+       "velocità",
+       "altezze",
+       "luci"
+      ]
+     ]
+    ]
+   },
+   {
+    "en": "ticket",
+    "plural_en": "tickets",
+    "it": "biglietti",
+    "fields": [
+     [
+      "price",
+      "costo",
+      "num",
+      [
+       10,
+       100,
+       "float"
+      ]
+     ],
+     [
+      "validity_days",
+      "giorni validità",
+      "num",
+      [
+       1,
+       7,
+       "int"
+      ]
+     ],
+     [
+      "zone",
+      "area accesso",
+      "enum",
+      [
+       "base",
+       "vip",
+       "gold"
+      ]
+     ],
+     [
+      "has_insurance",
+      "assicurato",
+      "bool",
+      null
+     ],
+     [
+      "owner_info",
+      "dati intestatario",
+      "obj",
+      [
+       [
+        "name",
+        "nome",
+        "text",
+        [
+         "Mario",
+         "Luigi",
+         "Anna"
+        ]
+       ],
+       [
+        "age",
+        "età",
+        "num",
+        [
+         5,
+         80,
+         "int"
+        ]
+       ]
+      ]
+     ]
+    ]
+   }
+  ],
+  "gestione_rifiuti": [
+   {
+    "en": "bin",
+    "plural_en": "bins",
+    "it": "cassonetti",
+    "fields": [
+     [
+      "capacity",
+      "volume litri",
+      "num",
+      [
+       100,
+       2000,
+       "int"
+      ]
+     ],
+     [
+      "fill_level",
+      "percentuale riempimento",
+      "num",
+      [
+       0,
+       100,
+       "int"
+      ]
+     ],
+     [
+      "waste_type",
+      "tipo rifiuto",
+      "enum",
+      [
+       "carta",
+       "plastica",
+       "vetro",
+       "umido"
+      ]
+     ],
+     [
+      "smart_sensor",
+      "sensore attivo",
+      "bool",
+      null
+     ],
+     [
+      "last_empty",
+      "ultimo svuotamento",
+      "null",
+      [
+       "lunedì",
+       "mercoledì",
+       "venerdì"
+      ]
+     ]
+    ]
+   },
+   {
+    "en": "route",
+    "plural_en": "routes",
+    "it": "percorsi raccolta",
+    "fields": [
+     [
+      "total_stops",
+      "numero fermate",
+      "num",
+      [
+       5,
+       50,
+       "int"
+      ]
+     ],
+     [
+      "total_km",
+      "distanza km",
+      "num",
+      [
+       1,
+       200,
+       "float"
+      ]
+     ],
+     [
+      "zone_code",
+      "codice zona",
+      "text",
+      [
+       "ZONA_A",
+       "ZONA_B",
+       "ZONA_C"
+      ]
+     ],
+     [
+      "night_shift",
+      "turno notturno",
+      "bool",
+      null
+     ],
+     [
+      "crew",
+      "membri equipaggio",
+      "arr_scalar",
+      [
+       "autista",
+       "operatore",
+       "supervisore"
+      ]
+     ],
+     [
+      "priority_level",
+      "livello priorità",
+      "enum",
+      [
+       "bassa",
+       "media",
+       "alta",
+       "urgente"
+      ]
+     ]
+    ]
+   }
+  ],
+  "agenzia_viaggi_spaziali": [
+   {
+    "en": "shuttle",
+    "plural_en": "shuttles",
+    "it": "navette",
+    "fields": [
+     [
+      "fuel_level",
+      "carburante residuo",
+      "num",
+      [
+       0,
+       100,
+       "float"
+      ]
+     ],
+     [
+      "seats",
+      "posti passeggeri",
+      "num",
+      [
+       2,
+       20,
+       "int"
+      ]
+     ],
+     [
+      "status",
+      "stato operativo",
+      "enum",
+      [
+       "pronta",
+       "manutenzione",
+       "in volo"
+      ]
+     ],
+     [
+      "is_reusable",
+      "riutilizzabile",
+      "bool",
+      null
+     ],
+     [
+      "specs",
+      "dettagli tecnici",
+      "obj",
+      [
+       [
+        "thrust",
+        "spinta",
+        "num",
+        [
+         1000,
+         9000,
+         "int"
+        ]
+       ],
+       [
+        "engine",
+        "motore",
+        "text",
+        [
+         "ionico",
+         "chimico"
+        ]
+       ]
+      ]
+     ]
+    ]
+   },
+   {
+    "en": "mission",
+    "plural_en": "missions",
+    "it": "missioni",
+    "fields": [
+     [
+      "duration_days",
+      "durata giorni",
+      "num",
+      [
+       1,
+       365,
+       "int"
+      ]
+     ],
+     [
+      "budget",
+      "milioni euro",
+      "num",
+      [
+       1,
+       500,
+       "float"
+      ]
+     ],
+     [
+      "destination",
+      "pianeta",
+      "enum",
+      [
+       "marte",
+       "luna",
+       "venere"
+      ]
+     ],
+     [
+      "critical",
+      "criticità",
+      "bool",
+      null
+     ],
+     [
+      "tasks",
+      "obiettivi",
+      "arr_scalar",
+      [
+       "esplorazione",
+       "campionamento",
+       "rilevamento"
+      ]
+     ]
+    ]
+   }
+  ],
+  "fabbrica_orologi": [
+   {
+    "en": "component",
+    "plural_en": "components",
+    "it": "componenti",
+    "fields": [
+     [
+      "weight_mg",
+      "peso milligrammi",
+      "num",
+      [
+       1,
+       500,
+       "int"
+      ]
+     ],
+     [
+      "stock_qty",
+      "quantità magazzino",
+      "num",
+      [
+       0,
+       5000,
+       "int"
+      ]
+     ],
+     [
+      "material",
+      "materiale",
+      "enum",
+      [
+       "acciaio",
+       "oro",
+       "plastica"
+      ]
+     ],
+     [
+      "is_fragile",
+      "delicato",
+      "bool",
+      null
+     ],
+     [
+      "quality_check",
+      "test superato",
+      "null",
+      [
+       "SI",
+       "NO",
+       "PENDING"
+      ]
+     ],
+     [
+      "dimensions",
+      "dimensioni",
+      "obj",
+      [
+       [
+        "width",
+        "larghezza",
+        "num",
+        [
+         0,
+         100,
+         "float"
+        ]
+       ],
+       [
+        "height",
+        "altezza",
+        "num",
+        [
+         0,
+         100,
+         "float"
+        ]
+       ]
+      ]
+     ]
+    ]
+   },
+   {
+    "en": "watch",
+    "plural_en": "watches",
+    "it": "orologi finiti",
+    "fields": [
+     [
+      "price",
+      "prezzo vendita",
+      "num",
+      [
+       50,
+       5000,
+       "float"
+      ]
+     ],
+     [
+      "water_depth",
+      "impermeabilità metri",
+      "num",
+      [
+       0,
+       500,
+       "int"
+      ]
+     ],
+     [
+      "model_series",
+      "serie",
+      "text",
+      [
+       "classic",
+       "sport",
+       "diver"
+      ]
+     ],
+     [
+      "limited_edition",
+      "serie limitata",
+      "bool",
+      null
+     ],
+     [
+      "parts_list",
+      "lista pezzi",
+      "arr_scalar",
+      [
+       "cassa",
+       "cinturino",
+       "vetro"
+      ]
+     ],
+     [
+      "movement_type",
+      "tipo movimento",
+      "enum",
+      [
+       "automatico",
+       "quarzo",
+       "manuale",
+       "solare"
+      ]
+     ],
+     [
+      "dimensions",
+      "dimensioni cassa",
+      "obj",
+      [
+       [
+        "diameter",
+        "diametro",
+        "num",
+        [
+         20,
+         60,
+         "float"
+        ]
+       ],
+       [
+        "thickness",
+        "spessore",
+        "num",
+        [
+         5,
+         20,
+         "float"
+        ]
+       ]
+      ]
+     ]
+    ]
+   }
+  ],
+  "parco_naturale": [
+   {
+    "en": "animal",
+    "plural_en": "animals",
+    "it": "animali",
+    "fields": [
+     [
+      "species",
+      "specie",
+      "text",
+      [
+       "Lupo",
+       "Orso bruno",
+       "Aquila reale",
+       "Cervo",
+       "Stambecco"
+      ]
+     ],
+     [
+      "age",
+      "eta",
+      "num",
+      [
+       1,
+       20,
+       "int"
+      ]
+     ],
+     [
+      "weight",
+      "peso kg",
+      "num",
+      [
+       10,
+       300,
+       "float"
+      ]
+     ],
+     [
+      "protected",
+      "protetto",
+      "bool",
+      null
+     ],
+     [
+      "observation_zones",
+      "zone osservazione",
+      "arr_scalar",
+      [
+       "Valle Nord",
+       "Bosco Vecchio",
+       "Cresta Alta"
+      ]
+     ],
+     [
+      "diet_type",
+      "tipo dieta",
+      "enum",
+      [
+       "erbivoro",
+       "carnivoro",
+       "onnivoro",
+       "insettivoro"
+      ]
+     ],
+     [
+      "habitat_specs",
+      "specifiche habitat",
+      "obj",
+      [
+       [
+        "temp_min",
+        "temp min",
+        "num",
+        [
+         -20,
+         50,
+         "int"
+        ]
+       ],
+       [
+        "humidity",
+        "umidità",
+        "num",
+        [
+         0,
+         100,
+         "int"
+        ]
+       ]
+      ]
+     ]
+    ]
+   },
+   {
+    "en": "ranger",
+    "plural_en": "rangers",
+    "it": "guardiaparco",
+    "fields": [
+     [
+      "name",
+      "nome completo",
+      "text",
+      [
+       "Marco Rossi",
+       "Elena Bianchi",
+       "Luca Verdi"
+      ]
+     ],
+     [
+      "years_experience",
+      "anni esperienza",
+      "num",
+      [
+       1,
+       40,
+       "int"
+      ]
+     ],
+     [
+      "patrol_radius",
+      "raggio pattuglia km",
+      "num",
+      [
+       5,
+       50,
+       "float"
+      ]
+     ],
+     [
+      "is_active",
+      "in servizio",
+      "bool",
+      null
+     ],
+     [
+      "station_details",
+      "dettagli stazione",
+      "obj",
+      [
+       [
+        "code",
+        "codice",
+        "text",
+        [
+         "ST01",
+         "ST02"
+        ]
+       ],
+       [
+        "elevation",
+        "altitudine",
+        "num",
+        [
+         500,
+         2500,
+         "int"
+        ]
+       ]
+      ]
+     ],
+     [
+      "shift_type",
+      "tipo turno",
+      "enum",
+      [
+       "mattina",
+       "pomeriggio",
+       "notte",
+       "reperibile"
+      ]
+     ]
+    ]
+   }
+  ],
+  "manutenzione_aerea": [
+   {
+    "en": "aircraft",
+    "plural_en": "aircrafts",
+    "it": "aeromobili",
+    "fields": [
+     [
+      "model",
+      "modello",
+      "text",
+      [
+       "Boeing 737",
+       "Airbus A320",
+       "Cessna 172"
+      ]
+     ],
+     [
+      "flight_hours",
+      "ore volo",
+      "num",
+      [
+       100,
+       50000,
+       "int"
+      ]
+     ],
+     [
+      "max_capacity",
+      "capacita massima",
+      "num",
+      [
+       2,
+       300,
+       "int"
+      ]
+     ],
+     [
+      "is_airworthy",
+      "idoneo al volo",
+      "bool",
+      null
+     ],
+     [
+      "category",
+      "categoria",
+      "enum",
+      [
+       "Commerciale",
+       "Privato",
+       "Cargo"
+      ]
+     ]
+    ]
+   },
+   {
+    "en": "maintenance_log",
+    "plural_en": "maintenance_logs",
+    "it": "registri manutenzione",
+    "fields": [
+     [
+      "job_code",
+      "codice lavoro",
+      "text",
+      [
+       "M001",
+       "M002",
+       "M003"
+      ]
+     ],
+     [
+      "hours_spent",
+      "ore impiegate",
+      "num",
+      [
+       2,
+       120,
+       "float"
+      ]
+     ],
+     [
+      "technician_count",
+      "tecnici coinvolti",
+      "num",
+      [
+       1,
+       10,
+       "int"
+      ]
+     ],
+     [
+      "is_completed",
+      "completato",
+      "bool",
+      null
+     ],
+     [
+      "parts_replaced",
+      "pezzi sostituiti",
+      "arr_scalar",
+      [
+       "Filtro",
+       "Olio",
+       "Cavi",
+       "Bulloni"
+      ]
+     ],
+     [
+      "inspector_info",
+      "dati ispettore",
+      "obj",
+      [
+       [
+        "badge",
+        "numero badge",
+        "text",
+        [
+         "B01",
+         "B02"
+        ]
+       ],
+       [
+        "level",
+        "livello",
+        "num",
+        [
+         1,
+         5,
+         "int"
+        ]
+       ]
+      ]
+     ]
+    ]
+   }
+  ],
+  "flotta_marittima": [
+   {
+    "en": "vessel",
+    "plural_en": "vessels",
+    "it": "imbarcazioni",
+    "fields": [
+     [
+      "name",
+      "nome nave",
+      "text",
+      [
+       "Neptune",
+       "Poseidon",
+       "Oceanus"
+      ]
+     ],
+     [
+      "tonnage",
+      "tonnellaggio",
+      "num",
+      [
+       100,
+       50000,
+       "int"
+      ]
+     ],
+     [
+      "crew_size",
+      "numero equipaggio",
+      "num",
+      [
+       5,
+       100,
+       "int"
+      ]
+     ],
+     [
+      "in_port",
+      "in porto",
+      "bool",
+      null
+     ],
+     [
+      "cargo_types",
+      "tipi carico",
+      "arr_scalar",
+      [
+       "Container",
+       "Liquidi",
+       "Secco"
+      ]
+     ],
+     [
+      "registration",
+      "dati registro",
+      "obj",
+      [
+       [
+        "flag",
+        "bandiera",
+        "text",
+        [
+         "Italia",
+         "Panama",
+         "Grecia"
+        ]
+       ],
+       [
+        "year",
+        "anno varo",
+        "num",
+        [
+         1990,
+         2023,
+         "int"
+        ]
+       ]
+      ]
+     ]
+    ]
+   },
+   {
+    "en": "voyage",
+    "plural_en": "voyages",
+    "it": "viaggi marittimi",
+    "fields": [
+     [
+      "departure",
+      "porto partenza",
+      "text",
+      [
+       "Genova",
+       "Trieste",
+       "Napoli"
+      ]
+     ],
+     [
+      "duration_days",
+      "giorni durata",
+      "num",
+      [
+       1,
+       60,
+       "int"
+      ]
+     ],
+     [
+      "fuel_consumed",
+      "carburante tonnellate",
+      "num",
+      [
+       10,
+       500,
+       "float"
+      ]
+     ],
+     [
+      "is_delayed",
+      "ritardo accumulato",
+      "bool",
+      null
+     ],
+     [
+      "route_points",
+      "tappe rotta",
+      "arr_scalar",
+      [
+       "Gibilterra",
+       "Suez",
+       "Canale Panama"
+      ]
+     ],
+     [
+      "cargo_details",
+      "dettagli carico",
+      "obj",
+      [
+       [
+        "weight",
+        "peso",
+        "num",
+        [
+         0,
+         50000,
+         "float"
+        ]
+       ],
+       [
+        "hazard",
+        "pericoloso",
+        "bool",
+        null
+       ]
+      ]
+     ]
+    ]
+   }
+  ],
+  "meteorologia": [
+   {
+    "en": "station",
+    "plural_en": "stations",
+    "it": "stazioni meteo",
+    "fields": [
+     [
+      "station_name",
+      "nome stazione",
+      "text",
+      [
+       "Alpi",
+       "Pianura",
+       "Costiera"
+      ]
+     ],
+     [
+      "altitude",
+      "altitudine",
+      "num",
+      [
+       0,
+       3000,
+       "int"
+      ]
+     ],
+     [
+      "maintenance_cost",
+      "costo manutenzione",
+      "num",
+      [
+       100,
+       5000,
+       "float"
+      ]
+     ],
+     [
+      "is_online",
+      "online",
+      "bool",
+      null
+     ],
+     [
+      "sensor_data",
+      "letture sensori",
+      "arr_obj",
+      [
+       [
+        "type",
+        "tipo",
+        "text",
+        [
+         "Temp",
+         "Umidità"
+        ]
+       ],
+       [
+        "value",
+        "valore",
+        "num",
+        [
+         0,
+         100,
+         "float"
+        ]
+       ]
+      ]
+     ]
+    ]
+   },
+   {
+    "en": "forecast",
+    "plural_en": "forecasts",
+    "it": "previsioni",
+    "fields": [
+     [
+      "region",
+      "regione",
+      "enum",
+      [
+       "Lombardia",
+       "Lazio",
+       "Sicilia",
+       "Veneto"
+      ]
+     ],
+     [
+      "temp_min",
+      "temperatura minima",
+      "num",
+      [
+       -20,
+       20,
+       "float"
+      ]
+     ],
+     [
+      "temp_max",
+      "temperatura massima",
+      "num",
+      [
+       0,
+       45,
+       "float"
+      ]
+     ],
+     [
+      "confidence_level",
+      "livello confidenza",
+      "num",
+      [
+       1,
+       10,
+       "int"
+      ]
+     ],
+     [
+      "alert_active",
+      "allerta attiva",
+      "bool",
+      null
+     ],
+     [
+      "weather_desc",
+      "descrizione",
+      "null",
+      [
+       "Sereno",
+       "Pioggia",
+       "Neve",
+       "Vento"
+      ]
+     ]
+    ]
+   }
+  ],
+  "sicurezza_informatica": [
+   {
+    "en": "threat",
+    "plural_en": "threats",
+    "it": "minacce",
+    "fields": [
+     [
+      "threat_type",
+      "tipo minaccia",
+      "enum",
+      [
+       "Phishing",
+       "Malware",
+       "DDoS",
+       "Spyware"
+      ]
+     ],
+     [
+      "severity",
+      "gravità",
+      "num",
+      [
+       1,
+       10,
+       "int"
+      ]
+     ],
+     [
+      "detected_at",
+      "rilevata ore",
+      "num",
+      [
+       0,
+       23,
+       "int"
+      ]
+     ],
+     [
+      "is_resolved",
+      "risolta",
+      "bool",
+      null
+     ],
+     [
+      "tags",
+      "etichette",
+      "arr_scalar",
+      [
+       "critico",
+       "esterno",
+       "server"
+      ]
+     ],
+     [
+      "origin_coordinates",
+      "coordinate origine",
+      "obj",
+      [
+       [
+        "lat",
+        "latitudine",
+        "num",
+        [
+         -90,
+         90,
+         "float"
+        ]
+       ],
+       [
+        "long",
+        "longitudine",
+        "num",
+        [
+         -180,
+         180,
+         "float"
+        ]
+       ]
+      ]
+     ]
+    ]
+   },
+   {
+    "en": "firewall_rule",
+    "plural_en": "firewall_rules",
+    "it": "regole firewall",
+    "fields": [
+     [
+      "rule_name",
+      "nome regola",
+      "text",
+      [
+       "BloccoPorta",
+       "AccessoWeb",
+       "Whitelist"
+      ]
+     ],
+     [
+      "priority",
+      "priorità",
+      "num",
+      [
+       1,
+       100,
+       "int"
+      ]
+     ],
+     [
+      "packet_size",
+      "dimensione pacchetto",
+      "num",
+      [
+       64,
+       1500,
+       "int"
+      ]
+     ],
+     [
+      "status_active",
+      "stato attivo",
+      "bool",
+      null
+     ],
+     [
+      "config",
+      "configurazione",
+      "obj",
+      [
+       [
+        "protocol",
+        "protocollo",
+        "text",
+        [
+         "TCP",
+         "UDP"
+        ]
+       ],
+       [
+        "port",
+        "porta",
+        "num",
+        [
+         80,
+         443,
+         "int"
+        ]
+       ]
+      ]
+     ]
+    ]
+   }
+  ],
+  "gestione_parchi": [
+   {
+    "en": "tree",
+    "plural_en": "trees",
+    "it": "alberi",
+    "fields": [
+     [
+      "species",
+      "specie",
+      "text",
+      [
+       "Quercia",
+       "Pino",
+       "Betulla",
+       "Acero"
+      ]
+     ],
+     [
+      "height_m",
+      "altezza metri",
+      "num",
+      [
+       1,
+       30,
+       "float"
+      ]
+     ],
+     [
+      "trunk_diameter",
+      "diametro tronco",
+      "num",
+      [
+       10,
+       200,
+       "float"
+      ]
+     ],
+     [
+      "is_protected",
+      "protetto",
+      "bool",
+      null
+     ],
+     [
+      "health_note",
+      "note salute",
+      "null",
+      [
+       "Ottimo",
+       "Malato",
+       "Potatura"
+      ]
+     ],
+     [
+      "location_coords",
+      "coordinate posizione",
+      "obj",
+      [
+       [
+        "lat",
+        "latitudine",
+        "num",
+        [
+         0,
+         90,
+         "float"
+        ]
+       ],
+       [
+        "lon",
+        "longitudine",
+        "num",
+        [
+         -180,
+         180,
+         "float"
+        ]
+       ]
+      ]
+     ]
+    ]
+   },
+   {
+    "en": "garden_zone",
+    "plural_en": "garden_zones",
+    "it": "zone parco",
+    "fields": [
+     [
+      "zone_id",
+      "codice zona",
+      "text",
+      [
+       "Z-Alpha",
+       "Z-Beta",
+       "Z-Gamma"
+      ]
+     ],
+     [
+      "water_usage",
+      "consumo acqua",
+      "num",
+      [
+       10,
+       500,
+       "float"
+      ]
+     ],
+     [
+      "visitor_count",
+      "visitatori stimati",
+      "num",
+      [
+       0,
+       5000,
+       "int"
+      ]
+     ],
+     [
+      "open_to_public",
+      "aperto pubblico",
+      "bool",
+      null
+     ],
+     [
+      "amenities",
+      "servizi",
+      "arr_scalar",
+      [
+       "panchine",
+       "fontanelle",
+       "giochi"
+      ]
+     ]
+    ]
+   }
+  ],
+  "astronomia": [
+   {
+    "en": "exoplanet",
+    "plural_en": "exoplanets",
+    "it": "esopianeti",
+    "fields": [
+     [
+      "name",
+      "nome pianeta",
+      "text",
+      [
+       "Kepler-1",
+       "Proxima-b",
+       "Trappist-1"
+      ]
+     ],
+     [
+      "mass_earth",
+      "massa terra",
+      "num",
+      [
+       0.1,
+       50.0,
+       "float"
+      ]
+     ],
+     [
+      "distance_ly",
+      "distanza anni luce",
+      "num",
+      [
+       4,
+       5000,
+       "int"
+      ]
+     ],
+     [
+      "has_atmosphere",
+      "atmosfera",
+      "bool",
+      null
+     ],
+     [
+      "composition",
+      "composizione",
+      "arr_scalar",
+      [
+       "roccioso",
+       "gassoso",
+       "ghiacciato"
+      ]
+     ],
+     [
+      "orbital_data",
+      "dati orbitali",
+      "obj",
+      [
+       [
+        "period_days",
+        "periodo giorni",
+        "num",
+        [
+         0,
+         10000,
+         "float"
+        ]
+       ],
+       [
+        "eccentricity",
+        "eccentricita",
+        "num",
+        [
+         0,
+         1,
+         "float"
+        ]
+       ]
+      ]
+     ]
+    ]
+   },
+   {
+    "en": "telescope",
+    "plural_en": "telescopes",
+    "it": "telescopi",
+    "fields": [
+     [
+      "model",
+      "modello",
+      "text",
+      [
+       "Hubble",
+       "JamesWebb",
+       "VLT"
+      ]
+     ],
+     [
+      "aperture_m",
+      "apertura metri",
+      "num",
+      [
+       1,
+       10,
+       "float"
+      ]
+     ],
+     [
+      "year_launched",
+      "anno lancio",
+      "num",
+      [
+       1990,
+       2023,
+       "int"
+      ]
+     ],
+     [
+      "operational",
+      "operativo",
+      "bool",
+      null
+     ],
+     [
+      "specs",
+      "specifiche tecniche",
+      "obj",
+      [
+       [
+        "weight",
+        "peso",
+        "num",
+        [
+         500,
+         5000,
+         "float"
+        ]
+       ],
+       [
+        "type",
+        "tipo",
+        "text",
+        [
+         "Ottico",
+         "Infrarossi"
+        ]
+       ]
+      ]
+     ]
+    ]
+   }
+  ],
+  "editoria": [
+   {
+    "en": "manuscript",
+    "plural_en": "manuscripts",
+    "it": "manoscritti",
+    "fields": [
+     [
+      "title",
+      "titolo",
+      "text",
+      [
+       "Storia breve",
+       "La vita",
+       "Viaggio",
+       "Codice"
+      ]
+     ],
+     [
+      "page_count",
+      "numero pagine",
+      "num",
+      [
+       50,
+       1000,
+       "int"
+      ]
+     ],
+     [
+      "word_count",
+      "numero parole",
+      "num",
+      [
+       1000,
+       50000,
+       "int"
+      ]
+     ],
+     [
+      "is_published",
+      "pubblicato",
+      "bool",
+      null
+     ],
+     [
+      "tags",
+      "temi",
+      "arr_scalar",
+      [
+       "fantascienza",
+       "giallo",
+       "saggio"
+      ]
+     ]
+    ]
+   },
+   {
+    "en": "publisher",
+    "plural_en": "publishers",
+    "it": "case editrici",
+    "fields": [
+     [
+      "company_name",
+      "ragione sociale",
+      "text",
+      [
+       "Libri Srl",
+       "Letture Spa",
+       "Editrice X"
+      ]
+     ],
+     [
+      "founded_year",
+      "anno fondazione",
+      "num",
+      [
+       1900,
+       2024,
+       "int"
+      ]
+     ],
+     [
+      "employees",
+      "dipendenti",
+      "num",
+      [
+       1,
+       500,
+       "int"
+      ]
+     ],
+     [
+      "is_independent",
+      "indipendente",
+      "bool",
+      null
+     ],
+     [
+      "contact",
+      "contatti",
+      "obj",
+      [
+       [
+        "city",
+        "città",
+        "text",
+        [
+         "Milano",
+         "Roma"
+        ]
+       ],
+       [
+        "web",
+        "sito",
+        "null",
+        [
+         "web1.it",
+         "web2.it"
+        ]
+       ]
+      ]
+     ]
+    ]
+   }
+  ],
+  "manutenzione_infrastrutture": [
+   {
+    "en": "bridge",
+    "plural_en": "bridges",
+    "it": "ponti",
+    "fields": [
+     [
+      "bridge_name",
+      "nome ponte",
+      "text",
+      [
+       "Ponte Ferro",
+       "Ponte Vecchio",
+       "Viadotto"
+      ]
+     ],
+     [
+      "length_m",
+      "lunghezza metri",
+      "num",
+      [
+       10,
+       2000,
+       "float"
+      ]
+     ],
+     [
+      "load_limit",
+      "limite carico",
+      "num",
+      [
+       5,
+       50,
+       "int"
+      ]
+     ],
+     [
+      "is_under_repair",
+      "in riparazione",
+      "bool",
+      null
+     ],
+     [
+      "materials",
+      "materiali",
+      "arr_scalar",
+      [
+       "acciaio",
+       "cemento",
+       "legno"
+      ]
+     ],
+     [
+      "structural_info",
+      "info strutturali",
+      "obj",
+      [
+       [
+        "foundation_depth",
+        "profondita fondazioni",
+        "num",
+        [
+         0,
+         50,
+         "float"
+        ]
+       ],
+       [
+        "deck_width",
+        "larghezza carreggiata",
+        "num",
+        [
+         2,
+         50,
+         "float"
+        ]
+       ]
+      ]
+     ]
+    ]
+   },
+   {
+    "en": "inspection",
+    "plural_en": "inspections",
+    "it": "ispezioni",
+    "fields": [
+     [
+      "inspector_name",
+      "ispettore",
+      "text",
+      [
+       "Rossi",
+       "Bianchi",
+       "Verdi"
+      ]
+     ],
+     [
+      "score",
+      "punteggio sicurezza",
+      "num",
+      [
+       0,
+       100,
+       "int"
+      ]
+     ],
+     [
+      "repair_cost",
+      "costo stimato",
+      "num",
+      [
+       1000,
+       500000,
+       "float"
+      ]
+     ],
+     [
+      "passed",
+      "superata",
+      "bool",
+      null
+     ],
+     [
+      "details",
+      "dettagli tecnici",
+      "obj",
+      [
+       [
+        "date",
+        "anno",
+        "num",
+        [
+         2020,
+         2024,
+         "int"
+        ]
+       ],
+       [
+        "type",
+        "tipo",
+        "text",
+        [
+         "Visiva",
+         "Strutturale"
+        ]
+       ]
+      ]
+     ]
+    ]
+   }
+  ],
+  "risorse_umane": [
+   {
+    "en": "employee",
+    "plural_en": "employees",
+    "it": "dipendenti",
+    "fields": [
+     [
+      "full_name",
+      "nome completo",
+      "text",
+      [
+       "Anna Rossi",
+       "Luca Neri",
+       "Eva Luna"
+      ]
+     ],
+     [
+      "salary",
+      "salario annuo",
+      "num",
+      [
+       20000,
+       100000,
+       "int"
+      ]
+     ],
+     [
+      "years_tenure",
+      "anni azienda",
+      "num",
+      [
+       0,
+       40,
+       "int"
+      ]
+     ],
+     [
+      "is_manager",
+      "manager",
+      "bool",
+      null
+     ],
+     [
+      "department",
+      "dipartimento",
+      "null",
+      [
+       "HR",
+       "IT",
+       "Sales",
+       "Legal"
+      ]
+     ]
+    ]
+   },
+   {
+    "en": "shift",
+    "plural_en": "shifts",
+    "it": "turni",
+    "fields": [
+     [
+      "shift_type",
+      "tipo turno",
+      "enum",
+      [
+       "Mattina",
+       "Pomeriggio",
+       "Notte"
+      ]
+     ],
+     [
+      "hours_duration",
+      "durata ore",
+      "num",
+      [
+       4,
+       12,
+       "int"
+      ]
+     ],
+     [
+      "staff_required",
+      "personale richiesto",
+      "num",
+      [
+       1,
+       20,
+       "int"
+      ]
+     ],
+     [
+      "active_on_holiday",
+      "attivo festivi",
+      "bool",
+      null
+     ],
+     [
+      "tasks",
+      "compiti",
+      "arr_obj",
+      [
+       [
+        "task_name",
+        "attività",
+        "text",
+        [
+         "Pulizia",
+         "Inventario"
+        ]
+       ],
+       [
+        "priority",
+        "importanza",
+        "num",
+        [
+         1,
+         5,
+         "int"
+        ]
+       ]
+      ]
+     ]
+    ]
+   }
+  ],
+  "apicoltura": [
+   {
+    "en": "hive",
+    "plural_en": "hives",
+    "it": "arnia",
+    "fields": [
+     [
+      "code",
+      "codice arnia",
+      "text",
+      [
+       "A01",
+       "B02",
+       "C03",
+       "D04"
+      ]
+     ],
+     [
+      "weight",
+      "peso",
+      "num",
+      [
+       10.5,
+       50.0,
+       "float"
+      ]
+     ],
+     [
+      "honey_stock",
+      "scorta miele",
+      "num",
+      [
+       0,
+       20,
+       "int"
+      ]
+     ],
+     [
+      "status",
+      "stato",
+      "enum",
+      [
+       "attiva",
+       "manutenzione",
+       "vuota"
+      ]
+     ],
+     [
+      "is_queen_present",
+      "regina presente",
+      "bool",
+      null
+     ],
+     [
+      "tags",
+      "etichette",
+      "arr_scalar",
+      [
+       "biologico",
+       "collina",
+       "vicino bosco"
+      ]
+     ],
+     [
+      "position_coords",
+      "coordinate posizione",
+      "obj",
+      [
+       [
+        "lat",
+        "latitudine",
+        "num",
+        [
+         0,
+         90,
+         "float"
+        ]
+       ],
+       [
+        "lon",
+        "longitudine",
+        "num",
+        [
+         -180,
+         180,
+         "float"
+        ]
+       ]
+      ]
+     ]
+    ]
+   },
+   {
+    "en": "beekeeper",
+    "plural_en": "beekeepers",
+    "it": "apicoltori",
+    "fields": [
+     [
+      "name",
+      "nome completo",
+      "text",
+      [
+       "Marco Rossi",
+       "Luca Bianchi",
+       "Sara Neri"
+      ]
+     ],
+     [
+      "experience_years",
+      "anni esperienza",
+      "num",
+      [
+       1,
+       40,
+       "int"
+      ]
+     ],
+     [
+      "max_hives",
+      "arnia massima",
+      "num",
+      [
+       10,
+       500,
+       "int"
+      ]
+     ],
+     [
+      "licensed",
+      "certificato",
+      "bool",
+      null
+     ],
+     [
+      "contact",
+      "contatto",
+      "null",
+      [
+       "info@api.it",
+       "bio@api.it",
+       "sede@api.it"
+      ]
+     ],
+     [
+      "safety_gear",
+      "attrezzatura sicurezza",
+      "obj",
+      [
+       [
+        "mask",
+        "maschera",
+        "bool",
+        null
+       ],
+       [
+        "gloves",
+        "guanti",
+        "bool",
+        null
+       ]
+      ]
+     ]
+    ]
+   }
+  ],
+  "gestione_cimiteriale": [
+   {
+    "en": "grave",
+    "plural_en": "graves",
+    "it": "tombe",
+    "fields": [
+     [
+      "sector",
+      "settore",
+      "text",
+      [
+       "A",
+       "B",
+       "C",
+       "D"
+      ]
+     ],
+     [
+      "row",
+      "fila",
+      "num",
+      [
+       1,
+       50,
+       "int"
+      ]
+     ],
+     [
+      "depth",
+      "profondita",
+      "num",
+      [
+       1,
+       3,
+       "float"
+      ]
+     ],
+     [
+      "occupied",
+      "occupata",
+      "bool",
+      null
+     ],
+     [
+      "decorations",
+      "decorazioni",
+      "arr_scalar",
+      [
+       "fiori",
+       "lumini",
+       "foto"
+      ]
+     ]
+    ]
+   },
+   {
+    "en": "deceased",
+    "plural_en": "deceased",
+    "it": "defunti",
+    "fields": [
+     [
+      "name",
+      "nome",
+      "text",
+      [
+       "Mario Rossi",
+       "Anna Verdi",
+       "Luigi Gialli"
+      ]
+     ],
+     [
+      "birth_year",
+      "anno nascita",
+      "num",
+      [
+       1900,
+       2000,
+       "int"
+      ]
+     ],
+     [
+      "death_year",
+      "anno morte",
+      "num",
+      [
+       1950,
+       2024,
+       "int"
+      ]
+     ],
+     [
+      "is_cremated",
+      "cremato",
+      "bool",
+      null
+     ],
+     [
+      "notes",
+      "note",
+      "null",
+      [
+       "nessuna",
+       "tumulato",
+       "traslato"
+      ]
+     ]
+    ]
+   }
+  ],
+  "allevamento_pesci": [
+   {
+    "en": "tank",
+    "plural_en": "tanks",
+    "it": "vasche",
+    "fields": [
+     [
+      "volume",
+      "volume litri",
+      "num",
+      [
+       100,
+       5000,
+       "int"
+      ]
+     ],
+     [
+      "temperature",
+      "temperatura",
+      "num",
+      [
+       15,
+       25,
+       "float"
+      ]
+     ],
+     [
+      "ph_level",
+      "livello ph",
+      "num",
+      [
+       6,
+       8,
+       "float"
+      ]
+     ],
+     [
+      "species",
+      "specie",
+      "enum",
+      [
+       "trota",
+       "salmone",
+       "orata"
+      ]
+     ],
+     [
+      "has_filter",
+      "filtro attivo",
+      "bool",
+      null
+     ],
+     [
+      "dimensions",
+      "dimensioni",
+      "obj",
+      [
+       [
+        "width",
+        "larghezza",
+        "num",
+        [
+         1,
+         500,
+         "float"
+        ]
+       ],
+       [
+        "height",
+        "altezza",
+        "num",
+        [
+         1,
+         500,
+         "float"
+        ]
+       ]
+      ]
+     ]
+    ]
+   },
+   {
+    "en": "fish",
+    "plural_en": "fish",
+    "it": "esemplari",
+    "fields": [
+     [
+      "id_code",
+      "codice identificativo",
+      "text",
+      [
+       "F01",
+       "F02",
+       "F03"
+      ]
+     ],
+     [
+      "weight",
+      "peso grammi",
+      "num",
+      [
+       10,
+       5000,
+       "int"
+      ]
+     ],
+     [
+      "health_score",
+      "punteggio salute",
+      "num",
+      [
+       0,
+       10,
+       "int"
+      ]
+     ],
+     [
+      "is_healthy",
+      "in salute",
+      "bool",
+      null
+     ],
+     [
+      "feeding_history",
+      "diete",
+      "arr_scalar",
+      [
+       "mangime secco",
+       "vivo",
+       "vitamine"
+      ]
+     ]
+    ]
+   }
+  ],
+  "filiera_ortofrutticola": [
+   {
+    "en": "batch",
+    "plural_en": "batches",
+    "it": "lotti",
+    "fields": [
+     [
+      "origin",
+      "origine",
+      "text",
+      [
+       "Sicilia",
+       "Puglia",
+       "Toscana"
+      ]
+     ],
+     [
+      "weight",
+      "peso kg",
+      "num",
+      [
+       10,
+       1000,
+       "int"
+      ]
+     ],
+     [
+      "quality_grade",
+      "grado qualita",
+      "num",
+      [
+       1,
+       5,
+       "int"
+      ]
+     ],
+     [
+      "organic",
+      "biologico",
+      "bool",
+      null
+     ],
+     [
+      "supplier_info",
+      "fornitore",
+      "obj",
+      [
+       [
+        "name",
+        "nome azienda",
+        "text",
+        [
+         "BioFarm",
+         "AgriCo"
+        ]
+       ],
+       [
+        "code",
+        "id",
+        "num",
+        [
+         10,
+         99,
+         "int"
+        ]
+       ]
+      ]
+     ],
+     [
+      "processing_method",
+      "metodo di lavorazione",
+      "enum",
+      [
+       "manuale",
+       "meccanico",
+       "naturale",
+       "lavato",
+       "naturale-estivo"
+      ]
+     ]
+    ]
+   },
+   {
+    "en": "crate",
+    "plural_en": "crates",
+    "it": "casse",
+    "fields": [
+     [
+      "product",
+      "prodotto",
+      "enum",
+      [
+       "mele",
+       "pere",
+       "arance"
+      ]
+     ],
+     [
+      "quantity",
+      "pezzi",
+      "num",
+      [
+       10,
+       100,
+       "int"
+      ]
+     ],
+     [
+      "price",
+      "prezzo",
+      "num",
+      [
+       1,
+       50,
+       "float"
+      ]
+     ],
+     [
+      "in_stock",
+      "disponibile",
+      "bool",
+      null
+     ],
+     [
+      "storage_notes",
+      "note magazzino",
+      "null",
+      [
+       "freddo",
+       "secco",
+       "ventilato"
+      ]
+     ],
+     [
+      "dimensions",
+      "dimensioni",
+      "obj",
+      [
+       [
+        "width",
+        "larghezza",
+        "num",
+        [
+         10,
+         200,
+         "float"
+        ]
+       ],
+       [
+        "length",
+        "lunghezza",
+        "num",
+        [
+         10,
+         200,
+         "float"
+        ]
+       ]
+      ]
+     ],
+     [
+      "stacking_info",
+      "informazioni impilamento",
+      "obj",
+      [
+       [
+        "max_height",
+        "altezza massima",
+        "num",
+        [
+         1,
+         10,
+         "int"
+        ]
+       ],
+       [
+        "fragile",
+        "fragile",
+        "bool",
+        null
+       ]
+      ]
+     ]
+    ]
+   }
+  ],
+  "gestione_impianti_sportivi": [
+   {
+    "en": "court",
+    "plural_en": "courts",
+    "it": "campi",
+    "fields": [
+     [
+      "name",
+      "nome campo",
+      "text",
+      [
+       "Tennis 1",
+       "Tennis 2",
+       "Calcetto"
+      ]
+     ],
+     [
+      "surface",
+      "superficie",
+      "enum",
+      [
+       "terra",
+       "erba",
+       "cemento"
+      ]
+     ],
+     [
+      "hourly_rate",
+      "tariffa oraria",
+      "num",
+      [
+       10,
+       50,
+       "int"
+      ]
+     ],
+     [
+      "has_lights",
+      "luci presenti",
+      "bool",
+      null
+     ],
+     [
+      "bookings",
+      "prenotazioni",
+      "arr_obj",
+      [
+       [
+        "user",
+        "utente",
+        "text",
+        [
+         "Mario",
+         "Luigi"
+        ]
+       ],
+       [
+        "duration",
+        "ore",
+        "num",
+        [
+         1,
+         3,
+         "int"
+        ]
+       ]
+      ]
+     ]
+    ]
+   },
+   {
+    "en": "membership",
+    "plural_en": "memberships",
+    "it": "abbonamenti",
+    "fields": [
+     [
+      "level",
+      "livello",
+      "enum",
+      [
+       "base",
+       "premium",
+       "vip"
+      ]
+     ],
+     [
+      "duration_months",
+      "durata mesi",
+      "num",
+      [
+       1,
+       12,
+       "int"
+      ]
+     ],
+     [
+      "discount",
+      "sconto",
+      "num",
+      [
+       0,
+       50,
+       "int"
+      ]
+     ],
+     [
+      "active",
+      "valido",
+      "bool",
+      null
+     ],
+     [
+      "amenities",
+      "servizi inclusi",
+      "arr_scalar",
+      [
+       "doccia",
+       "sauna",
+       "parcheggio"
+      ]
+     ]
+    ]
+   }
+  ],
+  "museo_archeologico": [
+   {
+    "en": "artifact",
+    "plural_en": "artifacts",
+    "it": "reperti",
+    "fields": [
+     [
+      "name",
+      "nome reperto",
+      "text",
+      [
+       "Anfora",
+       "Moneta",
+       "Statua",
+       "Fibula"
+      ]
+     ],
+     [
+      "weight",
+      "peso grammi",
+      "num",
+      [
+       10,
+       5000,
+       "float"
+      ]
+     ],
+     [
+      "age_years",
+      "eta anni",
+      "num",
+      [
+       100,
+       3000,
+       "int"
+      ]
+     ],
+     [
+      "material",
+      "materiale",
+      "enum",
+      [
+       "Terracotta",
+       "Bronzo",
+       "Oro",
+       "Marmo"
+      ]
+     ],
+     [
+      "fragile",
+      "fragile",
+      "bool",
+      null
+     ],
+     [
+      "restoration_notes",
+      "note restauro",
+      "null",
+      [
+       "Pulito",
+       "In restauro",
+       "Da trattare"
+      ]
+     ],
+     [
+      "dimensions",
+      "dimensioni",
+      "obj",
+      [
+       [
+        "width",
+        "larghezza",
+        "num",
+        [
+         1,
+         100,
+         "int"
+        ]
+       ],
+       [
+        "height",
+        "altezza",
+        "num",
+        [
+         1,
+         200,
+         "int"
+        ]
+       ]
+      ]
+     ]
+    ]
+   },
+   {
+    "en": "gallery",
+    "plural_en": "galleries",
+    "it": "sale espositive",
+    "fields": [
+     [
+      "code",
+      "codice sala",
+      "text",
+      [
+       "A1",
+       "B2",
+       "C3",
+       "D4"
+      ]
+     ],
+     [
+      "capacity",
+      "capacita visitatori",
+      "num",
+      [
+       10,
+       100,
+       "int"
+      ]
+     ],
+     [
+      "temperature",
+      "temperatura media",
+      "num",
+      [
+       18,
+       22,
+       "float"
+      ]
+     ],
+     [
+      "climate_control",
+      "climatizzato",
+      "bool",
+      null
+     ],
+     [
+      "tags",
+      "categorie",
+      "arr_scalar",
+      [
+       "Grecia",
+       "Roma",
+       "Egizio"
+      ]
+     ],
+     [
+      "staff",
+      "personale",
+      "arr_obj",
+      [
+       [
+        "role",
+        "ruolo",
+        "text",
+        [
+         "Guardia",
+         "Guida"
+        ]
+       ],
+       [
+        "shift",
+        "turno",
+        "num",
+        [
+         1,
+         3,
+         "int"
+        ]
+       ]
+      ]
+     ],
+     [
+      "security_level",
+      "livello sicurezza",
+      "enum",
+      [
+       "basso",
+       "medio",
+       "alto",
+       "massimo"
+      ]
+     ]
+    ]
+   }
+  ],
+  "centro_ricerca_botanica": [
+   {
+    "en": "plant",
+    "plural_en": "plants",
+    "it": "piante",
+    "fields": [
+     [
+      "species",
+      "specie",
+      "text",
+      [
+       "Quercia",
+       "Pino",
+       "Rosa",
+       "Tulipano"
+      ]
+     ],
+     [
+      "height_cm",
+      "altezza cm",
+      "num",
+      [
+       10,
+       500,
+       "int"
+      ]
+     ],
+     [
+      "age_days",
+      "eta giorni",
+      "num",
+      [
+       1,
+       365,
+       "int"
+      ]
+     ],
+     [
+      "soil_type",
+      "terreno",
+      "enum",
+      [
+       "Acido",
+       "Neutro",
+       "Basico"
+      ]
+     ],
+     [
+      "needs_water",
+      "necessita acqua",
+      "bool",
+      null
+     ],
+     [
+      "notes",
+      "note",
+      "null",
+      [
+       "Crescita rapida",
+       "In fiore",
+       "Secca"
+      ]
+     ],
+     [
+      "sunlight_req",
+      "requisiti luce",
+      "obj",
+      [
+       [
+        "hours",
+        "ore luce",
+        "num",
+        [
+         1,
+         24,
+         "int"
+        ]
+       ],
+       [
+        "intensity",
+        "intensita",
+        "enum",
+        [
+         "bassa",
+         "media",
+         "alta"
+        ]
+       ]
+      ]
+     ]
+    ]
+   },
+   {
+    "en": "greenhouse",
+    "plural_en": "greenhouses",
+    "it": "serre",
+    "fields": [
+     [
+      "id_code",
+      "codice serra",
+      "text",
+      [
+       "S1",
+       "S2",
+       "S3"
+      ]
+     ],
+     [
+      "humidity_pct",
+      "umidita",
+      "num",
+      [
+       30,
+       90,
+       "int"
+      ]
+     ],
+     [
+      "temp_celsius",
+      "temperatura",
+      "num",
+      [
+       15,
+       30,
+       "float"
+      ]
+     ],
+     [
+      "locked",
+      "chiusa",
+      "bool",
+      null
+     ],
+     [
+      "sensors",
+      "sensori attivi",
+      "arr_scalar",
+      [
+       "Luci",
+       "Irrigazione",
+       "Ventilazione"
+      ]
+     ],
+     [
+      "ventilation_status",
+      "stato ventilazione",
+      "enum",
+      [
+       "spento",
+       "lento",
+       "veloce",
+       "automatico"
+      ]
+     ]
+    ]
+   }
+  ],
+  "agenzia_doganale": [
+   {
+    "en": "shipment",
+    "plural_en": "shipments",
+    "it": "spedizioni",
+    "fields": [
+     [
+      "tracking_id",
+      "codice spedizione",
+      "text",
+      [
+       "IT123",
+       "EN456",
+       "US789"
+      ]
+     ],
+     [
+      "weight_kg",
+      "peso kg",
+      "num",
+      [
+       1,
+       2000,
+       "float"
+      ]
+     ],
+     [
+      "value_eur",
+      "valore euro",
+      "num",
+      [
+       100,
+       50000,
+       "int"
+      ]
+     ],
+     [
+      "status",
+      "stato",
+      "enum",
+      [
+       "In transito",
+       "Dogana",
+       "Consegnato"
+      ]
+     ],
+     [
+      "customs_cleared",
+      "sdoganata",
+      "bool",
+      null
+     ],
+     [
+      "contents",
+      "contenuto",
+      "arr_scalar",
+      [
+       "Elettronica",
+       "Abbigliamento",
+       "Alimentari"
+      ]
+     ],
+     [
+      "dimensions",
+      "Dimensioni collo",
+      "obj",
+      [
+       [
+        "width",
+        "Larghezza",
+        "num",
+        [
+         1,
+         500,
+         "float"
+        ]
+       ],
+       [
+        "height",
+        "Altezza",
+        "num",
+        [
+         1,
+         500,
+         "float"
+        ]
+       ]
+      ]
+     ]
+    ]
+   },
+   {
+    "en": "inspector",
+    "plural_en": "inspectors",
+    "it": "ispettori",
+    "fields": [
+     [
+      "name",
+      "nome",
+      "text",
+      [
+       "Marco",
+       "Giulia",
+       "Luca"
+      ]
+     ],
+     [
+      "level",
+      "livello",
+      "num",
+      [
+       1,
+       5,
+       "int"
+      ]
+     ],
+     [
+      "years_exp",
+      "anni esperienza",
+      "num",
+      [
+       1,
+       30,
+       "int"
+      ]
+     ],
+     [
+      "available",
+      "disponibile",
+      "bool",
+      null
+     ],
+     [
+      "contact",
+      "contatto",
+      "obj",
+      [
+       [
+        "email",
+        "email",
+        "text",
+        [
+         "m@dogana.it",
+         "g@dogana.it"
+        ]
+       ],
+       [
+        "phone",
+        "interno",
+        "num",
+        [
+         100,
+         999,
+         "int"
+        ]
+       ]
+      ]
+     ]
+    ]
+   }
+  ],
+  "gestione_parchi_divertimento": [
+   {
+    "en": "attraction",
+    "plural_en": "attractions",
+    "it": "attrazioni",
+    "fields": [
+     [
+      "name",
+      "nome",
+      "text",
+      [
+       "Montagna russa",
+       "Ruota",
+       "Girotondo"
+      ]
+     ],
+     [
+      "capacity",
+      "persone max",
+      "num",
+      [
+       10,
+       50,
+       "int"
+      ]
+     ],
+     [
+      "min_height_cm",
+      "altezza minima",
+      "num",
+      [
+       100,
+       150,
+       "int"
+      ]
+     ],
+     [
+      "active",
+      "attiva",
+      "bool",
+      null
+     ],
+     [
+      "category",
+      "tipo",
+      "enum",
+      [
+       "Familiare",
+       "Estrema",
+       "Acquatica"
+      ]
+     ],
+     [
+      "schedule",
+      "orari",
+      "arr_obj",
+      [
+       [
+        "start",
+        "apertura",
+        "num",
+        [
+         9,
+         10,
+         "int"
+        ]
+       ],
+       [
+        "end",
+        "chiusura",
+        "num",
+        [
+         18,
+         22,
+         "int"
+        ]
+       ]
+      ]
+     ]
+    ]
+   },
+   {
+    "en": "ticket_type",
+    "plural_en": "ticket_types",
+    "it": "tipi biglietto",
+    "fields": [
+     [
+      "name",
+      "nome",
+      "text",
+      [
+       "Adulto",
+       "Bambino",
+       "Senior"
+      ]
+     ],
+     [
+      "price",
+      "prezzo",
+      "num",
+      [
+       10,
+       50,
+       "float"
+      ]
+     ],
+     [
+      "duration_hours",
+      "durata ore",
+      "num",
+      [
+       1,
+       12,
+       "int"
+      ]
+     ],
+     [
+      "discounted",
+      "scontato",
+      "bool",
+      null
+     ],
+     [
+      "extras",
+      "opzioni",
+      "arr_scalar",
+      [
+       "FastPass",
+       "Food",
+       "Parcheggio"
+      ]
+     ],
+     [
+      "terms",
+      "Termini e condizioni",
+      "obj",
+      [
+       [
+        "refundable",
+        "Rimborsabile",
+        "bool",
+        null
+       ],
+       [
+        "transferable",
+        "Trasferibile",
+        "bool",
+        null
+       ]
+      ]
+     ]
+    ]
+   }
+  ]
+ }
+}

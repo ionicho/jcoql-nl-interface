@@ -1,0 +1,1168 @@
+﻿famiglia,db,esito,identica,dettaglio,richiesta,generata,riferimento,secondi
+and,ft_en_070,ERRORE_QUERY,False,"Invalid query: 1.	Syntax Error 1 at [1, 1]: Found ID ('db') - missing EOF at 'db' - missing EOF at 'db'",Quali antenne hanno lo stato attivo falso e codice torre T03?,"db.cell_towers.find({ active: false, code: ""T03"" })",GET COLLECTION cell_towers; FILTER CASE WHERE .active = FALSE AND .code = 'T03';,9.3
+and,ft_en_078,ERRORE_QUERY,False,"Invalid query: 1.	Syntax Error 1 at [1, 1]: Found ID ('db') - missing EOF at 'db' - missing EOF at 'db'",Mostrami le strumentazioni con tensione pari o superiore a 227 e ubicate nel laboratorio,"db.equipments.find({ voltage: { $gte: 227 }, storage_location: ""laboratorio"" })",GET COLLECTION equipments; FILTER CASE WHERE .storage_location = 'laboratorio' AND .voltage >= 227;,5.0
+and,ft_it_069,ERRORE_QUERY,False,"Invalid query: 1.	Syntax Error 1 at [1, 1]: Found ID ('db') - missing EOF at 'db' - missing EOF at 'db'",Quali arnie hanno stato diverso da vuota e longitudine compresa tra -131.2 e 136.4?,"db.arnia.find({ stato: { $ne: ""vuota"" }, ""coordinate_posizione.longitudine"": { $gt: -131.2, $lt: 136.4 } })","GET COLLECTION arnia; FILTER CASE WHERE .stato != 'vuota' AND .coordinate_posizione.longitudine IN_RANGE [-131.2, 136.4];",5.6
+and,ft_it_073,ERRORE_QUERY,False,"Invalid query: 1.	Syntax Error 1 at [1, 1]: Found ID ('db') - missing EOF at 'db' - missing EOF at 'db'",Quali ispettori hanno una email diversa da g@dogana.it e un nome diverso da Giulia?,"db.ispettori.find({ ""contatto.email"": { $ne: ""g@dogana.it"" }, nome: { $ne: ""Giulia"" } })",GET COLLECTION ispettori; FILTER CASE WHERE .contatto.email != 'g@dogana.it' AND .nome != 'Giulia';,5.3
+and,ft_en_070,ERRORE_QUERY,False,"Invalid query: 1.	Syntax Error 1 at [1, 1]: Found ID ('db') - missing EOF at 'db' - missing EOF at 'db'",Elenca le antenne non attive installate sulla torre T03,"db.cell_towers.find({ code: ""T03"", active: false })",GET COLLECTION cell_towers; FILTER CASE WHERE .active = FALSE AND .code = 'T03';,4.7
+and,ft_it_077,ERRORE_QUERY,False,"Invalid query: 1.	Syntax Error 1 at [1, 1]: Found ID ('db') - missing EOF at 'db' - missing EOF at 'db'","Elenca l'arnia con codice D04, priva di regina e con peso non superiore a 36.3","db.arnia.find({ codice_arnia: ""D04"", stato: ""attiva"", regina_presente: false, peso: { $lte: 36.3 } })",GET COLLECTION arnia; FILTER CASE WHERE .codice_arnia = 'D04' AND .peso <= 36.3 AND .regina_presente = FALSE;,5.4
+and,ft_it_077,ERRORE_QUERY,False,"Invalid query: 1.	Syntax Error 1 at [1, 1]: Found ID ('db') - missing EOF at 'db' - missing EOF at 'db'",Elenca le arnie che hanno il codice B02 e la regina presente,"db.arnia.find({ codice_arnia: ""B02"", regina_presente: true })",GET COLLECTION arnia; FILTER CASE WHERE .regina_presente = TRUE AND .codice_arnia = 'B02';,4.9
+and,ft_it_077,ERRORE_QUERY,False,"Invalid query: 1.	Syntax Error 1 at [1, 1]: Found ID ('db') - missing EOF at 'db' - missing EOF at 'db'",Dammi i dati dell'arnia D04 con peso massimo di 36.3 e senza regina,"db.arnia.find({ codice_arnia: ""D04"", peso: { $lte: 36.3 }, regina_presente: false })",GET COLLECTION arnia; FILTER CASE WHERE .codice_arnia = 'D04' AND .peso <= 36.3 AND .regina_presente = FALSE;,5.2
+and,ft_en_074,ERRORE_QUERY,False,"Invalid query: 1.	Syntax Error 1 at [1, 1]: Found ID ('db') - missing EOF at 'db' - missing EOF at 'db'",Trova operai con telefono uguale a 333987654 e con certificato falso,"db.workers.find({ ""contact.phone"": ""333987654"", certified: false })",GET COLLECTION workers; FILTER CASE WHERE .contact.phone = '333987654' AND .certified = FALSE;,5.0
+and,ft_it_073,ERRORE_QUERY,False,"Invalid query: 1.	Syntax Error 1 at [1, 1]: Found ID ('db') - missing EOF at 'db' - missing EOF at 'db'",Elenca gli ispettori con livello sotto 4 e indirizzo email non corrispondente a g@dogana.it,"db.ispettori.find({ livello: { $lt: 4 }, ""contatto.email"": { $ne: ""g@dogana.it"" } })",GET COLLECTION ispettori; FILTER CASE WHERE .livello < 4 AND .contatto.email != 'g@dogana.it';,5.2
+array_expand,ft_en_072,ERRORE_QUERY,False,"Invalid query: 1.	Syntax Error 1 at [1, 1]: Found ID ('db') - missing EOF at 'db' - missing EOF at 'db'",Mostrami l'elenco completo degli obiettivi per ogni missione,"db.missions.find({}, { tasks: 1 })",GET COLLECTION missions; EXPAND UNPACK TRUE ARRAY .tasks TO .r;,4.8
+array_expand,ft_en_072,ERRORE_QUERY,False,"Invalid query: 1.	Syntax Error 1 at [1, 1]: Found ID ('db') - missing EOF at 'db' - missing EOF at 'db'",Fammi vedere tutti gli obiettivi delle missioni,db.missions.find({}),GET COLLECTION missions; EXPAND UNPACK TRUE ARRAY .tasks TO .r;,4.6
+array_expand,ft_en_072,ERRORE_QUERY,False,"Invalid query: 1.	Syntax Error 1 at [1, 1]: Found ID ('db') - missing EOF at 'db' - missing EOF at 'db'",Visualizza le tappe rotta dei viaggi marittimi singolarmente,"db.missions.aggregate([{$unwind: ""$route_points""}, {$match: {""destination"": ""marte""}}])",GET COLLECTION voyages; EXPAND UNPACK TRUE ARRAY .route_points TO .r;,5.0
+array_expand,ft_it_077,ERRORE_QUERY,False,"Invalid query: 1.	Syntax Error 1 at [1, 1]: Found ID ('db') - missing EOF at 'db' - missing EOF at 'db'",Visualizza lo storico manutenzione dei macchinari su righe distinte,"db.macchinari.aggregate([
+  {
+    $unwind: ""$log_manutenzione""
+  },
+  {
+    $group: {
+      _id: ""$log_manutenzione.tecnico"",
+      costoTotale: { $sum: ""$log_manutenzione.costo"" },
+      righe: { $push: ""$_id"" }
+    }
+  }
+])",GET COLLECTION macchinari; EXPAND UNPACK TRUE ARRAY .log_manutenzione TO .e;,6.0
+array_expand,ft_it_077,ERRORE_QUERY,False,"Invalid query: 1.	Syntax Error 1 at [1, 1]: Found ID ('db') - missing EOF at 'db' - missing EOF at 'db'",Mostra il log di manutenzione dei macchinari separando le singole voci,"db.macchinari.aggregate([
+  {
+    $unwind: ""$log_manutenzione""
+  },
+  {
+    $project: {
+      _id: 1,
+      codice_modello: 1,
+      anno_costruzione: 1,
+      ore_operative: 1,
+      stato: 1,
+      automatizzato: 1,
+      tecnico: ""$log_manutenzione.tecnico"",
+      costo: ""$log_manutenzione.costo""
+    }
+  }
+])",GET COLLECTION macchinari; EXPAND UNPACK TRUE ARRAY .log_manutenzione TO .e;,6.5
+array_expand,ft_en_072,ERRORE_QUERY,False,"Invalid query: 1.	Syntax Error 1 at [1, 1]: Found ID ('db') - missing EOF at 'db' - missing EOF at 'db'",Mostra le tappe rotta dei viaggi marittimi in un elenco separato,"db.missions.aggregate([{$match: {""destination"": ""marte"", ""critical"": true}}, {$lookup: {""from"": ""voyages"", ""localField"": ""voyage_id"", ""foreignField"": ""_id"", ""as"": ""route_points""}}, {$project: {""_id"": 0, ""route_points"": 1}}])",GET COLLECTION voyages; EXPAND UNPACK TRUE ARRAY .route_points TO .r;,5.8
+array_filter,ft_it_079,ERRORE_QUERY,False,"Invalid query: 1.	Syntax Error 1 at [1, 1]: Found ID ('db') - missing EOF at 'db' - missing EOF at 'db'",Quali tombe hanno come decorazione le foto?,"db.tombe.aggregate([  { $unwind: ""$decorazioni"" },  { $match: { ""decorazioni.tipo"": ""foto"" } }])",GET COLLECTION tombe; EXPAND UNPACK TRUE ARRAY .decorazioni TO .elem; FILTER CASE WHERE .elem.item = 'foto';,5.1
+array_filter,ft_en_068,ERRORE_QUERY,False,"Invalid query: 1.	Syntax Error 1 at [1, 1]: Found ID ('db') - missing EOF at 'db' - missing EOF at 'db'",Quali sono le opzioni dei tipi biglietto che corrispondono a Food?,"db.ticket_types.find({ name: ""Food"" })",GET COLLECTION ticket_types; EXPAND UNPACK TRUE ARRAY .extras TO .x; FILTER CASE WHERE .x.item = 'Food';,4.8
+array_filter,ft_it_079,ERRORE_QUERY,False,"Invalid query: 1.	Syntax Error 1 at [1, 1]: Found ID ('db') - missing EOF at 'db' - missing EOF at 'db'",Trova decorazioni di tombe uguali a lumini,"db.tombe.aggregate([
+  {
+    $unwind: ""$decorazioni""
+  },
+  {
+    $match: {
+      ""decorazioni"": ""lumini""
+    }
+  }
+])",GET COLLECTION tombe; EXPAND UNPACK TRUE ARRAY .decorazioni TO .e; FILTER CASE WHERE .e.item = 'lumini';,5.2
+array_filter,ft_en_074,ERRORE_QUERY,False,"Invalid query: 1.	Syntax Error 1 at [1, 1]: Found ID ('db') - missing EOF at 'db' - missing EOF at 'db'",Elenca gli operai che usano i guanti come dotazione di sicurezza.,"db.workers.find({ ""safety_gear"": { $elemMatch: { $eq: ""guanti"" } } })",GET COLLECTION workers; EXPAND UNPACK TRUE ARRAY .safety_gear TO .el; FILTER CASE WHERE .el.item = 'guanti';,5.0
+array_filter,ft_it_071,ERRORE_QUERY,False,"Invalid query: 1.	Syntax Error 1 at [1, 1]: Found ID ('db') - missing EOF at 'db' - missing EOF at 'db'",Elenca le zone magazzino dei centri logistici che hanno un codice diverso da B2,"db.centri_logistici.find({ ""zone_magazzino.codice"": { $ne: ""B2"" } })",GET COLLECTION centri_logistici; EXPAND UNPACK TRUE ARRAY .zone_magazzino TO .x; FILTER CASE WHERE .x.item.codice != 'B2';,5.1
+array_filter,ft_en_070,ERRORE_QUERY,False,"Invalid query: 1.	Syntax Error 1 at [1, 1]: Found ID ('db') - missing EOF at 'db' - missing EOF at 'db'",Trova le opzioni extra degli abbonamenti Streaming,"db.subscriptions.aggregate([
+  {
+    $match: {
+      ""features"": {
+        $elemMatch: {
+          ""name"": ""Streaming""
+        }
+      }
+    }
+  },
+  {
+    $project: {
+      _id: 1,
+      plan_name: 1,
+      price: 1,
+      data_limit: 1,
+      unlimited_calls: 1,
+      features: {
+        $filter: {
+          input: ""$features"",
+          as: ""feature"",
+          cond: {
+            $eq: [""$$feature.name"", ""Streaming""]
+          }
+        }
+      }
+    }
+  }
+])",GET COLLECTION subscriptions; EXPAND UNPACK TRUE ARRAY .features TO .elem; FILTER CASE WHERE .elem.item = 'Streaming';,7.1
+array_filter,ft_en_078,ERRORE_QUERY,False,"Invalid query: 1.	Syntax Error 1 at [1, 1]: Found ID ('db') - missing EOF at 'db' - missing EOF at 'db'",Elenca le etichette relative agli esperimenti di tipo biologia,"db.experiments.find({tags: ""biologia""})",GET COLLECTION experiments; EXPAND UNPACK TRUE ARRAY .tags TO .r; FILTER CASE WHERE .r.item = 'biologia';,4.7
+array_filter,ft_it_069,ERRORE_QUERY,False,"Invalid query: 1.	Syntax Error 1 at [1, 1]: Found ID ('db') - missing EOF at 'db' - missing EOF at 'db'",Mostrami le minacce che hanno l'etichetta esterno,"db.minacce.find({ ""etichette"": { ""$elemMatch"": { ""$eq"": ""esterno"" } } })",GET COLLECTION minacce; EXPAND UNPACK TRUE ARRAY .etichette TO .el; FILTER CASE WHERE .el.item = 'esterno';,5.1
+array_filter,ft_it_073,ERRORE_QUERY,False,"Invalid query: 1.	Syntax Error 1 at [1, 1]: Found ID ('db') - missing EOF at 'db' - missing EOF at 'db'",Mostrami le spedizioni che contengono Alimentari.,"db.spedizioni.find({ ""contenuto"": { $elemMatch: { $eq: ""Alimentari"" } } })",GET COLLECTION spedizioni; EXPAND UNPACK TRUE ARRAY .contenuto TO .r; FILTER CASE WHERE .r.item = 'Alimentari';,5.0
+array_filter,ft_en_068,ERRORE_QUERY,False,"Invalid query: 1.	Syntax Error 1 at [1, 1]: Found ID ('db') - missing EOF at 'db' - missing EOF at 'db'",Elenca i tipi di biglietto con opzione Food.,"db.ticket_types.find({ name: ""Food"" })",GET COLLECTION ticket_types; EXPAND UNPACK TRUE ARRAY .extras TO .x; FILTER CASE WHERE .x.item = 'Food';,4.7
+get_all,ft_en_068,ERRORE_QUERY,False,"Invalid query: 1.	Syntax Error 1 at [1, 1]: Found ID ('db') - missing EOF at 'db' - missing EOF at 'db'",Elencami tutti i tipi di biglietto.,db.ticket_types.find(),GET COLLECTION ticket_types;,4.6
+get_all,ft_en_078,ERRORE_QUERY,False,"Invalid query: 1.	Syntax Error 1 at [1, 1]: Found ID ('db') - missing EOF at 'db' - missing EOF at 'db'",Mostrami l'elenco completo delle strumentazioni,db.equipments.find({}),GET COLLECTION equipments;,4.7
+get_all,ft_it_077,ERRORE_QUERY,False,"Invalid query: 1.	Syntax Error 1 at [1, 1]: Found ID ('db') - missing EOF at 'db' - missing EOF at 'db'",Fammi vedere la lista dei macchinari,db.macchinari.find(),GET COLLECTION macchinari;,4.6
+get_all,ft_en_076,ERRORE_QUERY,False,"Invalid query: 1.	Syntax Error 1 at [1, 1]: Found ID ('db') - missing EOF at 'db' - missing EOF at 'db'",Fammi vedere i casi legali,db.cases.find(),GET COLLECTION cases;,4.6
+get_all,ft_en_078,ERRORE_QUERY,False,"Invalid query: 1.	Syntax Error 1 at [1, 1]: Found ID ('db') - missing EOF at 'db' - missing EOF at 'db'",Fammi una lista di tutte le strumentazioni,db.equipments.find(),GET COLLECTION equipments;,4.5
+get_all,ft_en_076,ERRORE_QUERY,False,"Invalid query: 1.	Syntax Error 1 at [1, 1]: Found ID ('db') - missing EOF at 'db' - missing EOF at 'db'",Mostrami l'elenco dei casi legali,db.cases.find(),GET COLLECTION cases;,4.6
+get_all,ft_en_074,ERRORE_QUERY,False,"Invalid query: 1.	Syntax Error 1 at [1, 1]: Found ID ('db') - missing EOF at 'db' - missing EOF at 'db'",Fammi vedere tutti gli avvocati.,db.lawyers.find(),GET COLLECTION lawyers;,4.6
+get_all,ft_en_070,ERRORE_QUERY,False,"Invalid query: 1.	Syntax Error 1 at [1, 1]: Found ID ('db') - missing EOF at 'db' - missing EOF at 'db'",Fammi vedere l'elenco delle antenne,db.cell_towers.find(),GET COLLECTION cell_towers;,4.6
+get_all,ft_en_070,ERRORE_QUERY,False,"Invalid query: 1.	Syntax Error 1 at [1, 1]: Found ID ('db') - missing EOF at 'db' - missing EOF at 'db'",Dammi antenne,"db.subscriptions.find({$text: {$search: ""antenne""}})",GET COLLECTION cell_towers;,4.8
+get_all,ft_en_076,ERRORE_QUERY,False,"Invalid query: 1.	Syntax Error 1 at [1, 1]: Found ID ('db') - missing EOF at 'db' - missing EOF at 'db'",Mostrami un riepilogo dei casi legali,"db.cases.aggregate([
+  {
+    $group: {
+      _id: null,
+      totalCases: { $sum: 1 },
+      totalFees: { $sum: ""$legal_costs.fees"" },
+      totalTaxes: { $sum: ""$legal_costs.taxes"" }
+    }
+  }
+])",GET COLLECTION cases;,5.8
+group,ft_en_076,ERRORE_QUERY,False,"Invalid query: 1.	Syntax Error 1 at [1, 1]: Found ID ('SELECT') - missing EOF at 'SELECT' - missing EOF at 'SELECT'",Dividi gli avvocati in gruppi a seconda se sono soci,SELECT lawyers.* FROM lawyers GROUP BY is_partner,GET COLLECTION lawyers; GROUP PARTITION TRUE BY .is_partner INTO .lawyersByIsPartner;,4.7
+group,ft_it_071,ERRORE_QUERY,False,"Invalid query: 1.	Syntax Error 1 at [1, 1]: Found ID ('db') - missing EOF at 'db' - missing EOF at 'db'",Raggruppa per targa tutti i veicoli presenti.,"db.veicoli.aggregate([ { $group: { _id: ""$targa"", veicoli: { $push: ""$$ROOT"" } } } ])",GET COLLECTION veicoli; GROUP PARTITION TRUE BY .targa INTO .veicoliByTarga;,5.2
+group,ft_en_078,ERRORE_QUERY,False,"Invalid query: 1.	Syntax Error 1 at [1, 1]: Found ID ('db') - missing EOF at 'db' - missing EOF at 'db'",Raggruppa tutti gli esperimenti in base al loro id esperimento.,"db.experiments.aggregate([
+  {
+    $group: {
+      _id: ""$exp_id"",
+      count: { $sum: 1 }
+    }
+  }
+])",GET COLLECTION experiments; GROUP PARTITION TRUE BY .exp_id INTO .experimentsByExpId;,5.4
+group,ft_it_075,ERRORE_QUERY,False,"Invalid query: 1.	Syntax Error 1 at [1, 1]: Found ID ('db') - missing EOF at 'db' - missing EOF at 'db'",Dividi i cassonetti in gruppi in base al fatto che il sensore sia attivo o meno,"db.cassonetti.aggregate([{$group: {_id: ""$sensore_attivo"", cassonetti: {$push: ""$_id""}}}])",GET COLLECTION cassonetti; GROUP PARTITION TRUE BY .sensore_attivo INTO .cassonettiBySensoreAttivo;,5.2
+group,ft_it_075,ERRORE_QUERY,False,"Invalid query: 1.	Syntax Error 1 at [1, 1]: Found ID ('db') - missing EOF at 'db' - missing EOF at 'db'",Dividi i percorsi raccolta per livello di priorità,"db.percorsi_raccolta.aggregate([ { $group: { _id: ""$livello_priorita"", count: { $sum: 1 } } } ])",GET COLLECTION percorsi_raccolta; GROUP PARTITION TRUE BY .livello_priorita INTO .percorsiRaccoltaByLivelloPriorita;,5.2
+group,ft_en_076,ERRORE_QUERY,False,"Invalid query: 1.	Syntax Error 1 at [1, 1]: Found ID ('db') - missing EOF at 'db' - missing EOF at 'db'",Raggruppa i casi legali per il loro livello di giurisdizione,"db.cases.aggregate([
+  {
+    $group: {
+      _id: ""$jurisdiction_level"",
+      count: { $sum: 1 }
+    }
+  }
+])",GET COLLECTION cases; GROUP PARTITION TRUE BY .jurisdiction_level INTO .casesByJurisdictionLevel;,5.3
+group,ft_it_079,ERRORE_QUERY,False,"Invalid query: 1.	Syntax Error 1 at [1, 1]: Found ID ('db') - missing EOF at 'db' - missing EOF at 'db'",Dividi le tombe in gruppi per settore.,"db.tombe.group({ key: { settore: 1 }, initial: { }, reduce: function (obj, prev) { prev[obj.settore] = prev[obj.settore] || []; prev[obj.settore].push(obj); return prev; } })",GET COLLECTION tombe; GROUP PARTITION TRUE BY .settore INTO .tombeBySettore;,5.5
+group,ft_it_073,ERRORE_QUERY,False,"Invalid query: 1.	Syntax Error 1 at [1, 1]: Found ID ('db') - missing EOF at 'db' - missing EOF at 'db'",Raggruppa le spedizioni in base allo stato di sdoganata.,"db.spedizioni.aggregate([ { $group: { _id: ""$stato"", count: { $sum: 1 } } } ])",GET COLLECTION spedizioni; GROUP PARTITION TRUE BY .sdoganata INTO .spedizioniBySdoganata;,5.1
+group,ft_it_079,ERRORE_QUERY,False,"Invalid query: 1.	Syntax Error 1 at [1, 1]: Found ID ('db') - missing EOF at 'db' - missing EOF at 'db'",Raggruppa i defunti in base al campo cremato.,"db.defunti.aggregate([ { $group: { _id: ""$cremato"", count: { $sum: 1 } } } ])",GET COLLECTION defunti; GROUP PARTITION TRUE BY .cremato INTO .defuntiByCremato;,5.0
+group,ft_it_077,ERRORE_QUERY,False,"Invalid query: 1.	Syntax Error 1 at [1, 1]: Found ID ('db') - missing EOF at 'db' - missing EOF at 'db'",Raggruppa gli stabilimenti in base alla zona regionale,"db.stabilimenti.aggregate([ { $group: { _id: ""$zona_regionale"", count: { $sum: 1 } } } ])",GET COLLECTION stabilimenti; GROUP PARTITION TRUE BY .zona_regionale INTO .stabilimentiByZonaRegionale;,5.2
+group_filter,ft_en_072,ERRORE_QUERY,False,"Invalid query: 1.	Syntax Error 1 at [1, 1]: Found ID ('db') - missing EOF at 'db' - missing EOF at 'db'","Dividi in gruppi i viaggi marittimi con durata compresa tra 3 e 6 giorni, ordinandoli per porto di partenza.","db.missions.aggregate([
+  {
+    $match: {
+      destination: ""marte"",
+      duration_days: { $gt: 3, $lt: 6 }
+    }
+  },
+  {
+    $sort: {
+      departure: 1
+    }
+  },
+  {
+    $group: {
+      _id: ""$departure"",
+      voyage_id: { $push: ""$voyage_id"" }
+    }
+  }
+])","GET COLLECTION voyages; FILTER CASE WHERE .duration_days IN_RANGE [3, 6]; GROUP PARTITION TRUE BY .departure INTO .voyagesByDeparture;",6.4
+group_filter,ft_en_078,ERRORE_QUERY,False,"Invalid query: 1.	Syntax Error 1 at [1, 1]: Found ID ('db') - missing EOF at 'db' - missing EOF at 'db'","Dividi in gruppi le strumentazioni per nome dispositivo, considerando solo quelle con ubicazione magazzino diversa da deposito B.","db.equipments.aggregate([
+  {
+    $group: {
+      _id: ""$device_name"",
+      storage_locations: { $addToSet: ""$storage_location"" }
+    }
+  },
+  {
+    $match: {
+      ""storage_locations"": { $ne: ""Deposito B"" }
+    }
+  }
+])",GET COLLECTION equipments; FILTER CASE WHERE .storage_location != 'deposito B'; GROUP PARTITION TRUE BY .device_name INTO .equipmentsByDeviceName;,5.7
+group_filter,ft_en_074,ERRORE_QUERY,False,"Invalid query: 1.	Syntax Error 1 at [1, 1]: Found ID ('db') - missing EOF at 'db' - missing EOF at 'db'",Dividi in gruppi casi legali con numero fascicolo diverso da F-2023-02 per chiuso,"db.cases.aggregate([
+  {
+    $group: {
+      _id: ""$dossier_id"",
+      closedCases: { $sum: 1 }
+    }
+  },
+  {
+    $match: {
+      _id: { $ne: ""F-2023-02"" },
+      is_closed: true
+    }
+  }
+])",GET COLLECTION cases; FILTER CASE WHERE .dossier_id != 'F-2023-02'; GROUP PARTITION TRUE BY .is_closed INTO .casesByIsClosed;,5.9
+group_filter,ft_it_073,ERRORE_QUERY,False,"Invalid query: 1.	Syntax Error 1 at [1, 1]: Found ID ('db') - missing EOF at 'db' - missing EOF at 'db'",Raggruppa per disponibilità gli ispettori con anni di esperienza tra 15 e 20.,"db.ispettori.aggregate([
+  {
+    $match: {
+      anni_esperienza: { $gt: 15, $lt: 20 },
+      disponibile: true
+    }
+  },
+  {
+    $group: {
+      _id: ""$disponibile"",
+      count: { $sum: 1 }
+    }
+  }
+])","GET COLLECTION ispettori; FILTER CASE WHERE .anni_esperienza IN_RANGE [15, 20]; GROUP PARTITION TRUE BY .disponibile INTO .ispettoriByDisponibile;",6.0
+group_filter,ft_en_068,ERRORE_QUERY,False,"Invalid query: 1.	Syntax Error 1 at [1, 1]: Found ID ('db') - missing EOF at 'db' - missing EOF at 'db'",Raggruppa in base allo stato attivo le regole firewall che hanno porta inferiore a 295.,"db.firewall_rules.aggregate([
+  {
+    $match: {
+      ""config.port"": { $lt: 295 },
+      ""status_active"": true
+    }
+  },
+  {
+    $group: {
+      _id: ""$status_active"",
+      regole: { $push: ""$_id"" }
+    }
+  }
+])",GET COLLECTION firewall_rules; FILTER CASE WHERE .config.port < 295; GROUP PARTITION TRUE BY .status_active INTO .firewallRulesByStatusActive;,6.0
+group_filter,ft_en_074,ERRORE_QUERY,False,"Invalid query: 1.	Syntax Error 1 at [1, 1]: Found ID ('db') - missing EOF at 'db' - missing EOF at 'db'","Raggruppa i casi legali con numero fascicolo diverso da F-2023-02, dividendoli per chiuso.","db.cases.aggregate([
+  {
+    $match: {
+      dossier_id: { $ne: ""F-2023-02"" }
+    }
+  },
+  {
+    $group: {
+      _id: ""$is_closed"",
+      cases: { $push: ""$_id"" }
+    }
+  }
+])",GET COLLECTION cases; FILTER CASE WHERE .dossier_id != 'F-2023-02'; GROUP PARTITION TRUE BY .is_closed INTO .casesByIsClosed;,5.9
+group_filter,ft_it_075,ERRORE_QUERY,False,"Invalid query: 1.	Syntax Error 1 at [1, 1]: Found ID ('db') - missing EOF at 'db' - missing EOF at 'db'",Raggruppa per sensore attivo i cassonetti che hanno una percentuale di riempimento superiore al 21%,"db.cassonetti.aggregate([
+  {
+    $match: {
+      percentuale_riempimento: { $gt: 21 },
+      sensore_attivo: true
+    }
+  },
+  {
+    $group: {
+      _id: ""$sensore_attivo"",
+      count: { $sum: 1 }
+    }
+  }
+])",GET COLLECTION cassonetti; FILTER CASE WHERE .percentuale_riempimento > 21; GROUP PARTITION TRUE BY .sensore_attivo INTO .cassonettiBySensoreAttivo;,6.0
+group_filter,ft_it_069,ERRORE_QUERY,False,"Invalid query: 1.	Syntax Error 1 at [1, 1]: Found ID ('db') - missing EOF at 'db' - missing EOF at 'db'",Dividi le minacce con tipo minaccia valorizzato in gruppi a seconda che siano risolte.,"db.minacce.aggregate([
+  {
+    $group: {
+      _id: ""$tipo_minaccia"",
+      risolte: { $sum: { $cond: [ ""$risolta"", 1, 0 ] } }
+    }
+  }
+])",GET COLLECTION minacce; FILTER CASE WHERE FIELD .tipo_minaccia IS NOT NULL; GROUP PARTITION TRUE BY .risolta INTO .minacceByRisolta;,5.6
+group_filter,ft_en_070,ERRORE_QUERY,False,"Invalid query: 1.	Syntax Error 1 at [1, 1]: Found ID ('SELECT') - missing EOF at 'SELECT' - missing EOF at 'SELECT'","Per gli abbonamenti chiamati Family, dividi in gruppi in base alle chiamate illimitate.","SELECT features FROM subscriptions WHERE plan_name = ""Family"" GROUP BY features",GET COLLECTION subscriptions; FILTER CASE WHERE .plan_name = 'Family'; GROUP PARTITION TRUE BY .unlimited_calls INTO .subscriptionsByUnlimitedCalls;,5.0
+group_filter,ft_en_078,ERRORE_QUERY,False,"Invalid query: 1.	Syntax Error 1 at [1, 1]: Found ID ('db') - missing EOF at 'db' - missing EOF at 'db'","Raggruppa le strumentazioni che non si trovano nel deposito B, ordinandole per nome dispositivo.","db.equipments.aggregate([
+  {
+    $match: {
+      ""storage_location"": { $ne: ""deposito B"" }
+    }
+  },
+  {
+    $sort: {
+      ""device_name"": 1
+    }
+  },
+  {
+    $group: {
+      _id: ""$device_name"",
+      count: { $sum: 1 }
+    }
+  }
+])",GET COLLECTION equipments; FILTER CASE WHERE .storage_location != 'deposito B'; GROUP PARTITION TRUE BY .device_name INTO .equipmentsByDeviceName;,6.3
+join_array,ft_it_073,ERRORE_QUERY,False,"Invalid query: 1.	Syntax Error 1 at [1, 1]: Found ID ('db') - missing EOF at 'db' - missing EOF at 'db'",Metti in relazione i dati di spedizioni e ispettori.,"db.spedizioni.aggregate([
+  {
+    $lookup: {
+      from: ""ispettori"",
+      localField: ""righe.id_ispettori"",
+      foreignField: ""_id"",
+      as: ""ispettore""
+    }
+  }
+])","GET COLLECTION spedizioni; EXPAND UNPACK TRUE ARRAY .righe TO .el; SAVE AS chaintemp1@ft_it_073; GET COLLECTION chaintemp1; JOIN OF COLLECTIONS chaintemp1@ft_it_073 AS a, ispettori@ft_it_073 AS b CASE WHERE .a.el.item.id_ispettori = .b._id;",5.6
+join_array,ft_en_078,ERRORE_QUERY,False,"Invalid query: 1.	Syntax Error 1 at [1, 1]: Found ID ('SELECT') - missing EOF at 'SELECT' - missing EOF at 'SELECT'",Metti in relazione gli esperimenti con le relative strumentazioni,"SELECT e._id, e.device_name, e.last_calibration, e.voltage, e.storage_location, x._id, x.exp_id, x.duration_hours, x.is_successful, x.tags, x.safety_level, x.items.equipment_id, x.items.quantity
+FROM experiments x
+JOIN equipments e ON x.items.equipment_id = e._id","GET COLLECTION experiments; EXPAND UNPACK TRUE ARRAY .items TO .elem; SAVE AS chaintemp1@ft_en_078; GET COLLECTION chaintemp1; JOIN OF COLLECTIONS chaintemp1@ft_en_078 AS a, equipments@ft_en_078 AS b CASE WHERE .a.elem.item.equipment_id = .b._id;",6.1
+join_array,ft_it_079,ERRORE_QUERY,False,"Invalid query: 1.	Syntax Error 1 at [1, 1]: Found ID ('db') - missing EOF at 'db' - missing EOF at 'db'",Crea un legame tra le tombe e i defunti,"db.tombe.aggregate([
+  {
+    $lookup: {
+      from: ""defunti"",
+      localField: ""righe.id_defunti"",
+      foreignField: ""_id"",
+      as: ""defunti""
+    }
+  }
+])","GET COLLECTION tombe; EXPAND UNPACK TRUE ARRAY .righe TO .elem; SAVE AS chaintemp2@ft_it_079; GET COLLECTION chaintemp2; JOIN OF COLLECTIONS chaintemp2@ft_it_079 AS x, defunti@ft_it_079 AS y CASE WHERE .x.elem.item.id_defunti = .y._id;",5.6
+join_array,ft_en_078,ERRORE_QUERY,False,"Invalid query: 1.	Syntax Error 1 at [1, 1]: Found ID ('SELECT') - missing EOF at 'SELECT' - missing EOF at 'SELECT'",Associa le strumentazioni agli esperimenti,SELECT e FROM experiments AS e JOIN e.items AS i ON true JOIN equipments AS eq ON i.equipment_id = eq._id,"GET COLLECTION experiments; EXPAND UNPACK TRUE ARRAY .items TO .x; SAVE AS chaintemp1@ft_en_078; GET COLLECTION chaintemp1; JOIN OF COLLECTIONS chaintemp1@ft_en_078 AS p, equipments@ft_en_078 AS q CASE WHERE .p.x.item.equipment_id = .q._id;",5.1
+join_array,ft_it_079,ERRORE_QUERY,False,"Invalid query: 1.	Syntax Error 1 at [1, 1]: Found ID ('db') - missing EOF at 'db' - missing EOF at 'db'",Associa tra loro tombe e defunti,"db.tombe.aggregate([
+  {
+    $lookup: {
+      from: ""defunti"",
+      localField: ""righe.id_defunti"",
+      foreignField: ""_id"",
+      as: ""defunti""
+    }
+  }
+])","GET COLLECTION tombe; EXPAND UNPACK TRUE ARRAY .righe TO .e; SAVE AS chaintemp3@ft_it_079; GET COLLECTION chaintemp3; JOIN OF COLLECTIONS chaintemp3@ft_it_079 AS o, defunti@ft_it_079 AS u CASE WHERE .o.e.item.id_defunti = .u._id;",5.6
+join_array,ft_en_074,ERRORE_QUERY,False,"Invalid query: 1.	Syntax Error 1 at [1, 1]: Found ID ('db') - missing EOF at 'db' - missing EOF at 'db'",Metti in relazione i casi legali con i rispettivi operai.,"db.cases.aggregate([
+  {
+    $lookup: {
+      from: ""workers"",
+      localField: ""items.worker_id"",
+      foreignField: ""_id"",
+      as: ""worker""
+    }
+  }
+])","GET COLLECTION cases; EXPAND UNPACK TRUE ARRAY .items TO .el; SAVE AS chaintemp2@ft_en_074; GET COLLECTION chaintemp2; JOIN OF COLLECTIONS chaintemp2@ft_en_074 AS p, workers@ft_en_074 AS q CASE WHERE .p.el.item.worker_id = .q._id;",5.5
+join_array,ft_it_073,ERRORE_QUERY,False,"Invalid query: 1.	Syntax Error 1 at [1, 1]: Found ID ('db') - missing EOF at 'db' - missing EOF at 'db'",Fammi vedere le spedizioni abbinate ai relativi ispettori.,"db.spedizioni.aggregate([
+  {
+    $unwind: ""$righe""
+  },
+  {
+    $lookup: {
+      from: ""ispettori"",
+      localField: ""righe.id_ispettori"",
+      foreignField: ""_id"",
+      as: ""ispettore""
+    }
+  },
+  {
+    $unwind: ""$ispettore""
+  },
+  {
+    $project: {
+      _id: 1,
+      peso_kg: 1,
+      stato: 1,
+      sdoganata: 1,
+      contenuto: 1,
+      dimensioni_collo: 1,
+      righe: 1,
+      ispettore: {
+        _id: 1,
+        nome: 1,
+        livello: 1,
+        anni_esperienza: 1,
+        disponibile: 1,
+        contatto: {
+          email: 1,
+          interno: 1
+        }
+      }
+    }
+  }
+])","GET COLLECTION spedizioni; EXPAND UNPACK TRUE ARRAY .righe TO .x; SAVE AS chaintemp3@ft_it_073; GET COLLECTION chaintemp3; JOIN OF COLLECTIONS chaintemp3@ft_it_073 AS o, ispettori@ft_it_073 AS u CASE WHERE .o.x.item.id_ispettori = .u._id;",8.7
+join_array,ft_en_078,ERRORE_QUERY,False,"Invalid query: 1.	Syntax Error 1 at [1, 1]: Found ID ('db') - missing EOF at 'db' - missing EOF at 'db'",Crea un link tra gli esperimenti e le strumentazioni,"db.experiments.updateMany({}, { $push: { ""items.equipment_id"": ""$_id"" } })
+db.equipments.updateMany({}, { $push: { ""history"": { $each: [ { year: 2022, desc: ""link creato"" } ] } } })","GET COLLECTION experiments; EXPAND UNPACK TRUE ARRAY .items TO .x; SAVE AS chaintemp1@ft_en_078; GET COLLECTION chaintemp1; JOIN OF COLLECTIONS chaintemp1@ft_en_078 AS p, equipments@ft_en_078 AS q CASE WHERE .p.x.item.equipment_id = .q._id;",5.8
+join_array,ft_it_077,ERRORE_QUERY,False,"Invalid query: 1.	Syntax Error 1 at [1, 1]: Found ID ('db') - missing EOF at 'db' - missing EOF at 'db'",Associa ogni arnia al macchinario di riferimento,"db.arnia.aggregate([
+  {
+    $lookup: {
+      from: ""macchinari"",
+      localField: ""righe.id_macchinari"",
+      foreignField: ""_id"",
+      as: ""macchinario_di_riferimento""
+    }
+  }
+])","GET COLLECTION arnia; EXPAND UNPACK TRUE ARRAY .righe TO .el; SAVE AS chaintemp3@ft_it_077; GET COLLECTION chaintemp3; JOIN OF COLLECTIONS chaintemp3@ft_it_077 AS x, macchinari@ft_it_077 AS y CASE WHERE .x.el.item.id_macchinari = .y._id;",5.7
+join_array,ft_it_077,ERRORE_QUERY,False,"Invalid query: 1.	Syntax Error 1 at [1, 1]: Found ID ('db') - missing EOF at 'db' - missing EOF at 'db'",Crea una vista combinata di arnie e macchinari,"db.createView('vista_combinata', ['arnia', 'macchinari'], [
+  {
+    $project: {
+      _id: 1,
+      nome: {
+        $cond: [
+          { $eq: ['$codice_arnia', 'B02'] },
+          '$codice_arnia',
+          '$codice_modello'
+        ]
+      },
+      peso: 1,
+      stato: 1,
+      automatizzato: 1,
+      ore_operative: 1
+    }
+  }
+])","GET COLLECTION arnia; EXPAND UNPACK TRUE ARRAY .righe TO .el; SAVE AS chaintemp1@ft_it_077; GET COLLECTION chaintemp1; JOIN OF COLLECTIONS chaintemp1@ft_it_077 AS a, macchinari@ft_it_077 AS b CASE WHERE .a.el.item.id_macchinari = .b._id;",6.8
+join_direct,ft_en_076,ERRORE_QUERY,False,"Invalid query: 1.	Syntax Error 1 at [1, 1]: Found ID ('SELECT') - missing EOF at 'SELECT' - missing EOF at 'SELECT'",Collega insieme i dati dei casi legali e degli avvocati,"SELECT cases.*, lawyers.* FROM cases JOIN lawyers ON cases.lawyer_id = lawyers._id","JOIN OF COLLECTIONS cases@ft_en_076 AS p, lawyers@ft_en_076 AS q CASE WHERE .p.lawyer_id = .q._id;",4.9
+join_direct,ft_it_075,ERRORE_QUERY,False,"Invalid query: 1.	Syntax Error 1 at [1, 1]: Found ID ('db') - missing EOF at 'db' - missing EOF at 'db'",Incrocia i dati dei cassonetti con quelli dei percorsi di raccolta,"db.cassonetti.aggregate([
+  {
+    $lookup: {
+      from: ""percorsi_raccolta"",
+      localField: ""id_percorsi_raccolta"",
+      foreignField: ""_id"",
+      as: ""percorsi_raccolta""
+    }
+  }
+])","JOIN OF COLLECTIONS cassonetti@ft_it_075 AS a, percorsi_raccolta@ft_it_075 AS b CASE WHERE .a.id_percorsi_raccolta = .b._id;",5.7
+join_direct,ft_en_076,ERRORE_QUERY,False,"Invalid query: 1.	Syntax Error 1 at [1, 1]: Found ID ('SELECT') - missing EOF at 'SELECT' - missing EOF at 'SELECT'",Visualizza l'abbinamento tra casi legali e avvocati,"SELECT cases._id, cases.lawyer_id, lawyers._id, lawyers.full_name
+FROM cases
+JOIN lawyers ON cases.lawyer_id = lawyers._id","JOIN OF COLLECTIONS cases@ft_en_076 AS x, lawyers@ft_en_076 AS y CASE WHERE .x.lawyer_id = .y._id;",5.2
+join_direct,ft_en_068,ERRORE_QUERY,False,"Invalid query: 1.	Syntax Error 1 at [1, 1]: Found ID ('db') - missing EOF at 'db' - missing EOF at 'db'",Collega le regole firewall con i tipi biglietto.,"db.ticket_types.aggregate([
+  {
+    $lookup: {
+      from: ""firewall_rules"",
+      localField: ""firewall_rule_id"",
+      foreignField: ""_id"",
+      as: ""firewall_rule""
+    }
+  }
+])","JOIN OF COLLECTIONS firewall_rules@ft_en_068 AS y, ticket_types@ft_en_068 AS x CASE WHERE .x.firewall_rule_id = .y._id;",5.4
+join_direct,ft_it_075,ERRORE_QUERY,False,"Invalid query: 1.	Syntax Error 1 at [1, 1]: Found ID ('db') - missing EOF at 'db' - missing EOF at 'db'",Crea un collegamento tra i percorsi di raccolta e i cassonetti,"db.cassonetti.aggregate([
+  {
+    $lookup: {
+      from: ""percorsi_raccolta"",
+      localField: ""id_percorsi_raccolta"",
+      foreignField: ""_id"",
+      as: ""percorsi_raccolta""
+    }
+  }
+])","JOIN OF COLLECTIONS percorsi_raccolta@ft_it_075 AS b, cassonetti@ft_it_075 AS a CASE WHERE .a.id_percorsi_raccolta = .b._id;",5.8
+join_direct,ft_en_072,ERRORE_QUERY,False,"Invalid query: 1.	Syntax Error 1 at [1, 1]: Found ID ('SELECT') - missing EOF at 'SELECT' - missing EOF at 'SELECT'",Metti in relazione le missioni con i viaggi marittimi,"SELECT m, v FROM ft_en_072.missions AS m JOIN ft_en_072.voyages AS v ON m.voyage_id = v._id","JOIN OF COLLECTIONS missions@ft_en_072 AS o, voyages@ft_en_072 AS u CASE WHERE .o.voyage_id = .u._id;",5.3
+join_direct,ft_it_077,ERRORE_QUERY,False,"Invalid query: 1.	Syntax Error 1 at [1, 1]: Found ID ('db') - missing EOF at 'db' - missing EOF at 'db'",Visualizza una lista combinata di stabilimenti e macchinari,"db.stabilimenti.aggregate([
+  {
+    $lookup: {
+      from: ""macchinari"",
+      localField: ""id_macchinari"",
+      foreignField: ""_id"",
+      as: ""macchinari""
+    }
+  },
+  {
+    $unwind: ""$macchinari""
+  },
+  {
+    $project: {
+      _id: 1,
+      nome_stabilimento: 1,
+      superficie: 1,
+      numero_dipendenti: 1,
+      mensa_presente: 1,
+      zona_regionale: 1,
+      id_macchinari: 1,
+      macchinari: {
+        _id: 1,
+        codice_modello: 1,
+        anno_costruzione: 1,
+        ore_operative: 1,
+        stato: 1,
+        automatizzato: 1
+      }
+    }
+  }
+])","JOIN OF COLLECTIONS stabilimenti@ft_it_077 AS x, macchinari@ft_it_077 AS y CASE WHERE .x.id_macchinari = .y._id;",8.4
+join_direct,ft_it_075,ERRORE_QUERY,False,"Invalid query: 1.	Syntax Error 1 at [1, 1]: Found ID ('db') - missing EOF at 'db' - missing EOF at 'db'",Relaziona i cassonetti ai rispettivi percorsi di raccolta,"db.cassonetti.aggregate([ { $lookup: { from: ""percorsi_raccolta"", localField: ""id_percorsi_raccolta"", foreignField: ""_id"", as: ""percorsi_raccolta"" } }, { $unwind: ""$percorsi_raccolta"" } ])","JOIN OF COLLECTIONS cassonetti@ft_it_075 AS a, percorsi_raccolta@ft_it_075 AS b CASE WHERE .a.id_percorsi_raccolta = .b._id;",5.9
+join_direct,ft_it_071,ERRORE_QUERY,False,"Invalid query: 1.	Syntax Error 1 at [1, 1]: Found ID ('db') - missing EOF at 'db' - missing EOF at 'db'",Visualizza i centri logistici insieme ai loro veicoli,"db.centri_logistici.aggregate([  { $lookup: { from: ""veicoli"", localField: ""id_veicoli"", foreignField: ""_id"", as: ""veicoli"" } },  { $unwind: ""$veicoli"" },  { $project: { _id: 1, citta: 1, numero_magazzini: 1, punteggio_efficienza: 1, zone_magazzino: 1, livello_hub: 1, stato_operativo: 1, ""veicoli._id"": 1, ""veicoli.targa"": 1, ""veicoli.capacita_ton"": 1, ""veicoli.motore"": 1, ""veicoli.km_manutenzione"": 1 } }])","JOIN OF COLLECTIONS centri_logistici@ft_it_071 AS o, veicoli@ft_it_071 AS u CASE WHERE .o.id_veicoli = .u._id;",8.1
+join_direct,ft_it_077,ERRORE_QUERY,False,"Invalid query: 1.	Syntax Error 1 at [1, 1]: Found ID ('db') - missing EOF at 'db' - missing EOF at 'db'",Metti in relazione i macchinari con i relativi stabilimenti,"db.macchinari.aggregate([
+  {
+    $lookup: {
+      from: ""stabilimenti"",
+      localField: ""_id"",
+      foreignField: ""id_macchinari"",
+      as: ""stabilimenti""
+    }
+  }
+])","JOIN OF COLLECTIONS macchinari@ft_it_077 AS y, stabilimenti@ft_it_077 AS x CASE WHERE .x.id_macchinari = .y._id;",5.5
+not,ft_en_072,ERRORE_QUERY,False,"Invalid query: 1.	Syntax Error 1 at [1, 1]: Found ID ('db') - missing EOF at 'db' - missing EOF at 'db'",Elenca le missioni che non hanno come pianeta Venere,"db.missions.find({ destination: { $ne: ""Venere"" } })",GET COLLECTION missions; FILTER CASE WHERE NOT (.destination = 'venere');,4.8
+not,ft_it_071,ERRORE_QUERY,False,"Invalid query: 1.	Syntax Error 1 at [1, 1]: Found ID ('db') - missing EOF at 'db' - missing EOF at 'db'",Elenca i centri logistici che non si trovano a Bologna,"db.centri_logistici.find({ _id: { $ne: ""logi_001"" }, ""citta"": { $ne: ""Bologna"" } })",GET COLLECTION centri_logistici; FILTER CASE WHERE NOT (.citta = 'Bologna');,5.2
+not,ft_en_072,ERRORE_QUERY,False,"Invalid query: 1.	Syntax Error 1 at [1, 1]: Found ID ('db') - missing EOF at 'db' - missing EOF at 'db'",Elenca i viaggi marittimi che non hanno come porto di partenza Napoli,"db.missions.aggregate([
+  {
+    $match: {
+      ""departure"": { $ne: ""Napoli"" }
+    }
+  }
+])",GET COLLECTION voyages; FILTER CASE WHERE NOT (.departure = 'Napoli');,5.0
+not,ft_en_072,ERRORE_QUERY,False,"Invalid query: 1.	Syntax Error 1 at [1, 1]: Found ID ('db') - missing EOF at 'db' - missing EOF at 'db'",Quali missioni non riguardano il pianeta Venere?,"db.missions.find({ destination: { $ne: ""Venere"" } })",GET COLLECTION missions; FILTER CASE WHERE NOT (.destination = 'venere');,4.8
+not,ft_it_075,ERRORE_QUERY,False,"Invalid query: 1.	Syntax Error 1 at [1, 1]: Found ID ('db') - missing EOF at 'db' - missing EOF at 'db'",Fammi l'elenco dei percorsi di raccolta che non hanno come priorità urgente,"db.percorsi_raccolta.find({ livello_priorita: { $ne: ""urgente"" } })",GET COLLECTION percorsi_raccolta; FILTER CASE WHERE NOT (.livello_priorita = 'urgente');,5.0
+not,ft_en_076,ERRORE_QUERY,False,"Invalid query: 1.	Syntax Error 1 at [1, 1]: Found ID ('db') - missing EOF at 'db' - missing EOF at 'db'",Elenca gli avvocati che non si chiamano Mario Rossi,"db.lawyers.find({ full_name: { $ne: ""Mario Rossi"" } })",GET COLLECTION lawyers; FILTER CASE WHERE NOT (.full_name = 'Mario Rossi');,4.9
+not,ft_it_071,ERRORE_QUERY,False,"Invalid query: 1.	Syntax Error 1 at [1, 1]: Found ID ('db') - missing EOF at 'db' - missing EOF at 'db'",Quali centri logistici non hanno Bologna come città?,"db.centri_logistici.find({ _id: { $ne: ""Bologna"" } })",GET COLLECTION centri_logistici; FILTER CASE WHERE NOT (.citta = 'Bologna');,5.0
+not,ft_en_072,ERRORE_QUERY,False,"Invalid query: 1.	Syntax Error 1 at [1, 1]: Found ID ('db') - missing EOF at 'db' - missing EOF at 'db'",Quali viaggi marittimi non partono dal porto di Napoli?,"db.missions.aggregate([  { $match: { ""destination"": ""mare"" } },  { $lookup: { from: ""voyages"", localField: ""voyage_id"", foreignField: ""_id"", as: ""voyage"" } },  { $unwind: ""$voyage"" },  { $match: { ""voyage.departure"": { $ne: ""Napoli"" } } },  { $project: { _id: 1, destination: 1, voyage_id: 1 } }])",GET COLLECTION voyages; FILTER CASE WHERE NOT (.departure = 'Napoli');,6.7
+or,ft_en_076,ERRORE_QUERY,False,"Invalid query: 1.	Syntax Error 1 at [1, 1]: Found ID ('SELECT') - missing EOF at 'SELECT' - missing EOF at 'SELECT'","Elenca gli avvocati che sono soci, che si chiamano Giulia Verdi o che hanno una sede d'ufficio indicata","SELECT * FROM lawyers WHERE is_partner = true OR full_name = ""Giulia Verdi"" OR office_branch != null",GET COLLECTION lawyers; FILTER CASE WHERE .is_partner = TRUE OR .full_name = 'Giulia Verdi' OR FIELD .office_branch IS NOT NULL;,5.1
+or,ft_en_068,ERRORE_QUERY,False,"Invalid query: 1.	Syntax Error 1 at [1, 1]: Found ID ('db') - missing EOF at 'db' - missing EOF at 'db'",Elenca le regole firewall con stato attivo falso o protocollo uguale a TCP,"db.firewall_rules.find({ $or: [ { status_active: false }, { ""config.protocol"": ""TCP"" } ] })",GET COLLECTION firewall_rules; FILTER CASE WHERE .status_active = FALSE OR .config.protocol = 'TCP';,5.0
+or,ft_it_075,ERRORE_QUERY,False,"Invalid query: 1.	Syntax Error 1 at [1, 1]: Found ID ('db') - missing EOF at 'db' - missing EOF at 'db'","Quali cassonetti hanno il sensore attivo, l'ultimo svuotamento indicato o sono destinati alla plastica?","db.cassonetti.find({ $or: [ { sensore_attivo: true }, { ultimo_svuotamento: { $ne: null } }, { tipo_rifiuto: ""plastica"" } ] })",GET COLLECTION cassonetti; FILTER CASE WHERE .sensore_attivo = TRUE OR FIELD .ultimo_svuotamento IS NOT NULL OR .tipo_rifiuto = 'plastica';,5.4
+or,ft_it_069,ERRORE_QUERY,False,"Invalid query: 1.	Syntax Error 1 at [1, 1]: Found ID ('db') - missing EOF at 'db' - missing EOF at 'db'",Trova le arnie con longitudine 175.6 o con regina presente,"db.arnia.find({ $or: [ { ""coordinate_posizione.longitudine"": 175.6 }, { ""regina_presente"": true } ] })",GET COLLECTION arnia; FILTER CASE WHERE .coordinate_posizione.longitudine = 175.6 OR .regina_presente = TRUE;,5.1
+or,ft_en_074,ERRORE_QUERY,False,"Invalid query: 1.	Syntax Error 1 at [1, 1]: Found ID ('db') - missing EOF at 'db' - missing EOF at 'db'",Quali casi legali risalgono a un anno dopo il 2007 o hanno una priorità non superiore a 2?,"db.cases.find({ $or: [ { year: { $gt: 2007 } }, { year: { $gt: 2007, $lte: 2008 } } ], urgency_level: { $lte: 2 } }",GET COLLECTION cases; FILTER CASE WHERE .year > 2007 OR .urgency_level <= 2;,5.6
+or,ft_it_075,ERRORE_QUERY,False,"Invalid query: 1.	Syntax Error 1 at [1, 1]: Found ID ('db') - missing EOF at 'db' - missing EOF at 'db'",Visualizza i percorsi di raccolta con distanza non superiore a 66.1 km oppure quelli che prevedono il turno notturno,"db.percorsi_raccolta.find({ $or: [ { distanza_km: { $lte: 66.1 } }, { turno_notturno: true } ] })",GET COLLECTION percorsi_raccolta; FILTER CASE WHERE .distanza_km <= 66.1 OR .turno_notturno = TRUE;,5.3
+or,ft_en_074,ERRORE_QUERY,False,"Invalid query: 1.	Syntax Error 1 at [1, 1]: Found ID ('db') - missing EOF at 'db' - missing EOF at 'db'",Fammi vedere casi legali con anno maggiore di 2007 oppure con priorità non superiore a 2,"db.cases.find({ $or: [ { year: { $gt: 2007 } }, { urgency_level: { $lte: 2 } } ] })",GET COLLECTION cases; FILTER CASE WHERE .year > 2007 OR .urgency_level <= 2;,5.1
+or,ft_it_069,ERRORE_QUERY,False,"Invalid query: 1.	Syntax Error 1 at [1, 1]: Found ID ('db') - missing EOF at 'db' - missing EOF at 'db'",Quali regole firewall hanno priorità pari a 66 o hanno lo stato attivo impostato su vero?,"db.regole_firewall.find({ $or: [ { priorita: 66 }, { stato_attivo: true } ] })",GET COLLECTION regole_firewall; FILTER CASE WHERE .priorita = 66 OR .stato_attivo = TRUE;,5.1
+or,ft_it_075,ERRORE_QUERY,False,"Invalid query: 1.	Syntax Error 1 at [1, 1]: Found ID ('db') - missing EOF at 'db' - missing EOF at 'db'","Visualizza i cassonetti con sensore attivo, con ultimo svuotamento segnato o che contengono plastica","db.cassonetti.find({ $or: [ { sensore_attivo: true }, { ultimo_svuotamento: { $ne: null } }, { tipo_rifiuto: ""plastica"" } ] })",GET COLLECTION cassonetti; FILTER CASE WHERE .sensore_attivo = TRUE OR FIELD .ultimo_svuotamento IS NOT NULL OR .tipo_rifiuto = 'plastica';,5.4
+or,ft_it_073,ERRORE_QUERY,False,"Invalid query: 1.	Syntax Error 1 at [1, 1]: Found ID ('db') - missing EOF at 'db' - missing EOF at 'db'",Mostrami gli ispettori con livello 1 o che non sono attivi,"db.ispettori.find({ livello: 1, disponibile: false })",GET COLLECTION ispettori; FILTER CASE WHERE .livello = 1 OR .disponibile = FALSE;,4.8
+project,ft_en_070,ERRORE_QUERY,False,"Invalid query: 1.	Syntax Error 1 at [1, 1]: Found ID ('db') - missing EOF at 'db' - missing EOF at 'db'","Mostrami soltanto prezzo mensile, chiamate illimitate e limite gb per gli abbonamenti.","db.subscriptions.aggregate([
+  {
+    $project: {
+      _id: 1,
+      price: 1,
+      unlimited_calls: 1,
+      data_limit: 1
+    }
+  }
+])","GET COLLECTION subscriptions; FILTER GENERATE BUILD { .price: .price, .unlimited_calls: .unlimited_calls, .data_limit: .data_limit };",5.3
+project,ft_en_068,ERRORE_QUERY,False,"Invalid query: 1.	Syntax Error 1 at [1, 1]: Found ID ('db') - missing EOF at 'db' - missing EOF at 'db'",Elenca solo dimensione pacchetto e priorità per le regole firewall.,"db.firewall_rules.aggregate([{$project: {_id: 0, packet_size: 1, priority: 1}}])","GET COLLECTION firewall_rules; FILTER GENERATE BUILD { .packet_size: .packet_size, .priority: .priority };",5.1
+project,ft_it_079,ERRORE_QUERY,False,"Invalid query: 1.	Syntax Error 1 at [1, 1]: Found ID ('db') - missing EOF at 'db' - missing EOF at 'db'",Elenca defunti con solo anno nascita,db.defunti.find({ anno_nascita: { $exists: true } }),GET COLLECTION defunti; FILTER GENERATE BUILD { .anno_nascita: .anno_nascita };,4.8
+project,ft_en_070,ERRORE_QUERY,False,"Invalid query: 1.	Syntax Error 1 at [1, 1]: Found ID ('db') - missing EOF at 'db' - missing EOF at 'db'",Fammi vedere abbonamenti con solo limite gb e prezzo mensile,"db.subscriptions.find({ $and: [ { unlimited_calls: false }, { data_limit: { $gt: 0 } }, { price: { $gt: 0 } } ] })","GET COLLECTION subscriptions; FILTER GENERATE BUILD { .data_limit: .data_limit, .price: .price };",5.2
+project,ft_it_075,ERRORE_QUERY,False,"Invalid query: 1.	Syntax Error 1 at [1, 1]: Found ID ('db') - missing EOF at 'db' - missing EOF at 'db'","Dammi solo l'ultimo svuotamento, il sensore attivo e il tipo di rifiuto di ogni cassonetto","db.cassonetti.find({}, { ultimo_svuotamento: 1, sensore_attivo: 1, tipo_rifiuto: 1 })","GET COLLECTION cassonetti; FILTER GENERATE BUILD { .ultimo_svuotamento: .ultimo_svuotamento, .sensore_attivo: .sensore_attivo, .tipo_rifiuto: .tipo_rifiuto };",5.1
+project,ft_it_075,ERRORE_QUERY,False,"Invalid query: 1.	Syntax Error 1 at [1, 1]: Found ID ('db') - missing EOF at 'db' - missing EOF at 'db'","Mostrami solo la percentuale di riempimento, l'ultimo svuotamento e il tipo di rifiuto dei cassonetti","db.cassonetti.find({}, { percentuale_riempimento: 1, ultimo_svuotamento: 1, tipo_rifiuto: 1 })","GET COLLECTION cassonetti; FILTER GENERATE BUILD { .percentuale_riempimento: .percentuale_riempimento, .ultimo_svuotamento: .ultimo_svuotamento, .tipo_rifiuto: .tipo_rifiuto };",5.2
+project,ft_it_079,ERRORE_QUERY,False,"Invalid query: 1.	Syntax Error 1 at [1, 1]: Found ID ('db') - missing EOF at 'db' - missing EOF at 'db'",Mostrami tombe mostrando soltanto occupata,db.tombe.find({ occupata: true }),GET COLLECTION tombe; FILTER GENERATE BUILD { .occupata: .occupata };,4.7
+project,ft_it_073,ERRORE_QUERY,False,"Invalid query: 1.	Syntax Error 1 at [1, 1]: Found ID ('db') - missing EOF at 'db' - missing EOF at 'db'","Elenca per le spedizioni solo i dati su sdoganata, stato e peso kg.","db.spedizioni.find({}, { _id: 1, sdoganata: 1, stato: 1, peso_kg: 1 })","GET COLLECTION spedizioni; FILTER GENERATE BUILD { .sdoganata: .sdoganata, .stato: .stato, .peso_kg: .peso_kg };",5.1
+project,ft_it_075,ERRORE_QUERY,False,"Invalid query: 1.	Syntax Error 1 at [1, 1]: Found ID ('db') - missing EOF at 'db' - missing EOF at 'db'",Mostrami esclusivamente il sensore attivo e il volume in litri dei cassonetti,"db.cassonetti.find({sensore_attivo: true}, {volume_litri: 1})","GET COLLECTION cassonetti; FILTER GENERATE BUILD { .sensore_attivo: .sensore_attivo, .volume_litri: .volume_litri };",4.9
+project,ft_it_073,ERRORE_QUERY,False,"Invalid query: 1.	Syntax Error 1 at [1, 1]: Found ID ('db') - missing EOF at 'db' - missing EOF at 'db'",Mostrami solo peso kg e sdoganata per le spedizioni.,"db.spedizioni.find({}, {peso_kg: 1, sdoganata: 1})","GET COLLECTION spedizioni; FILTER GENERATE BUILD { .peso_kg: .peso_kg, .sdoganata: .sdoganata };",4.9
+setop_intersect,ft_it_075,ERRORE_QUERY,False,"Invalid query: 1.	Syntax Error 1 at [1, 1]: Found ID ('db') - missing EOF at 'db' - missing EOF at 'db'","Trova percorsi raccolta con numero fermate non superiore a 32 e con distanza km uguale a 118.9, usando l'intersezione tra i due insiemi","db.percorsi_raccolta.aggregate([
+  {
+    $match: {
+      numero_fermate: { $lte: 32 },
+      distanza_km: 118.9
+    }
+  },
+  {
+    $lookup: {
+      from: ""cassonetti"",
+      localField: ""_id"",
+      foreignField: ""id_percorsi_raccolta"",
+      as: ""cassonetti""
+    }
+  },
+  {
+    $unwind: ""$cassonetti""
+  },
+  {
+    $group: {
+      _id: ""$_id"",
+      numero_fermate: { $first: ""$numero_fermate"" },
+      distanza_km: { $first: ""$distanza_km"" },
+      cassonetti: { $push: ""$cassonetti"" }
+    }
+  },
+  {
+    $project: {
+      _id: 1,
+      numero_fermate: 1,
+      distanza_km: 1,
+      cassonetti: 1
+    }
+  }
+])","GET COLLECTION percorsi_raccolta; FILTER CASE WHERE .numero_fermate <= 32; SAVE AS selA@ft_it_075; GET COLLECTION percorsi_raccolta; FILTER CASE WHERE .distanza_km = 118.9; SAVE AS selB@ft_it_075; INTERSECT COLLECTIONS selA@ft_it_075, selB@ft_it_075;",9.1
+setop_intersect,ft_en_072,ERRORE_QUERY,False,"Invalid query: 1.	Syntax Error 1 at [1, 1]: Found ID ('db') - missing EOF at 'db' - missing EOF at 'db'","Mostrami i viaggi marittimi che hanno ritardo accumulato e partono da Genova, usando l'intersezione.","db.missions.aggregate([
+  {
+    $match: {
+      critical: true,
+      departure: ""Genova""
+    }
+  },
+  {
+    $lookup: {
+      from: ""voyages"",
+      localField: ""voyage_id"",
+      foreignField: ""_id"",
+      as: ""voyage""
+    }
+  },
+  {
+    $unwind: ""$voyage""
+  },
+  {
+    $match: {
+      ""voyage.is_delayed"": true
+    }
+  },
+  {
+    $project: {
+      _id: 1,
+      departure: 1,
+      duration_days: 1,
+      fuel_consumed: 1,
+      is_delayed: 1,
+      route_points: 1,
+      cargo_details: 1
+    }
+  }
+])","GET COLLECTION voyages; FILTER CASE WHERE .is_delayed = TRUE; SAVE AS selA@ft_en_072; GET COLLECTION voyages; FILTER CASE WHERE .departure = 'Genova'; SAVE AS selB@ft_en_072; INTERSECT COLLECTIONS selA@ft_en_072, selB@ft_en_072;",7.8
+setop_intersect,ft_en_074,ERRORE_QUERY,False,"Invalid query: 1.	Syntax Error 1 at [1, 1]: Found ID ('db') - missing EOF at 'db' - missing EOF at 'db'",Usa l'intersezione per avere l'elenco degli avvocati che non sono soci e hanno un nome completo diverso da Mario Rossi.,"db.lawyers.find({ is_partner: false, .full_name: { $ne: ""Mario Rossi"" } })","GET COLLECTION lawyers; FILTER CASE WHERE .is_partner = FALSE; SAVE AS selA@ft_en_074; GET COLLECTION lawyers; FILTER CASE WHERE .full_name != 'Mario Rossi'; SAVE AS selB@ft_en_074; INTERSECT COLLECTIONS selA@ft_en_074, selB@ft_en_074;",4.9
+setop_intersect,ft_en_070,ERRORE_QUERY,False,"Invalid query: 1.	Syntax Error 1 at [1, 1]: Found ID ('SELECT') - missing EOF at 'SELECT' - missing EOF at 'SELECT'",Trova l'intersezione tra gli abbonamenti con prezzo mensile di almeno 44 e quelli con piano Gold.,"SELECT * FROM subscriptions WHERE price >= 44 INTERSECT SELECT * FROM subscriptions WHERE plan_name = ""Gold""","GET COLLECTION subscriptions; FILTER CASE WHERE .price >= 44; SAVE AS selA@ft_en_070; GET COLLECTION subscriptions; FILTER CASE WHERE .plan_name = 'Gold'; SAVE AS selB@ft_en_070; INTERSECT COLLECTIONS selA@ft_en_070, selB@ft_en_070;",5.0
+setop_intersect,ft_it_075,ERRORE_QUERY,False,"Invalid query: 1.	Syntax Error 1 at [1, 1]: Found ID ('db') - missing EOF at 'db' - missing EOF at 'db'",Quali sono i percorsi raccolta che hanno sia al massimo 32 fermate sia una distanza di 118.9 km? (calcola l'intersezione),"db.percorsi_raccolta.aggregate([
+  {
+    $match: {
+      numero_fermate: { $lte: 32 },
+      distanza_km: 118.9
+    }
+  },
+  {
+    $group: {
+      _id: ""$_id""
+    }
+  }
+])","GET COLLECTION percorsi_raccolta; FILTER CASE WHERE .numero_fermate <= 32; SAVE AS selA@ft_it_075; GET COLLECTION percorsi_raccolta; FILTER CASE WHERE .distanza_km = 118.9; SAVE AS selB@ft_it_075; INTERSECT COLLECTIONS selA@ft_it_075, selB@ft_it_075;",5.8
+setop_intersect,ft_en_068,ERRORE_QUERY,False,"Invalid query: 1.	Syntax Error 1 at [1, 1]: Found ID ('db') - missing EOF at 'db' - missing EOF at 'db'","Trova, tramite l'intersezione tra insiemi, i tipi di biglietto che non sono trasferibili e hanno un prezzo compreso tra 22.9 e 28.2.","db.ticket_types.find({$and: [{terms.transferable: false}, {$and: [{price: {$gte: 22.9}}, {price: {$lte: 28.2}}]}]})","GET COLLECTION ticket_types; FILTER CASE WHERE .terms.transferable = FALSE; SAVE AS selA@ft_en_068; GET COLLECTION ticket_types; FILTER CASE WHERE .price IN_RANGE [22.9, 28.2]; SAVE AS selB@ft_en_068; INTERSECT COLLECTIONS selA@ft_en_068, selB@ft_en_068;",5.3
+setop_intersect,ft_en_072,ERRORE_QUERY,False,"Invalid query: 1.	Syntax Error 1 at [1, 1]: Found ID ('db') - missing EOF at 'db' - missing EOF at 'db'",Quali sono i viaggi marittimi con ritardo accumulato e porto di partenza Genova? Calcola l'intersezione.,"db.missions.aggregate([
+  {
+    $match: {
+      ""is_delayed"": true,
+      ""departure"": ""Genova""
+    }
+  },
+  {
+    $lookup: {
+      from: ""voyages"",
+      localField: ""voyage_id"",
+      foreignField: ""_id"",
+      as: ""voyage""
+    }
+  },
+  {
+    $unwind: ""$voyage""
+  },
+  {
+    $project: {
+      _id: 1,
+      voyage_id: 1,
+      departure: ""$voyage.departure"",
+      is_delayed: 1
+    }
+  },
+  {
+    $group: {
+      _id: ""$voyage_id"",
+      count: { $sum: 1 }
+    }
+  }
+])","GET COLLECTION voyages; FILTER CASE WHERE .is_delayed = TRUE; SAVE AS selA@ft_en_072; GET COLLECTION voyages; FILTER CASE WHERE .departure = 'Genova'; SAVE AS selB@ft_en_072; INTERSECT COLLECTIONS selA@ft_en_072, selB@ft_en_072;",7.7
+setop_intersect,ft_it_075,ERRORE_QUERY,False,"Invalid query: 1.	Syntax Error 1 at [1, 1]: Found ID ('db') - missing EOF at 'db' - missing EOF at 'db'",Trova l'intersezione tra i percorsi raccolta con al massimo 32 fermate e quelli lunghi esattamente 118.9 km,"db.percorsi_raccolta.aggregate([
+  {
+    $match: {
+      numero_fermate: { $lte: 32 },
+      distanza_km: { $eq: 118.9 }
+    }
+  },
+  {
+    $group: {
+      _id: null,
+      id_percorsi_raccolta: { $addToSet: ""$_id"" }
+    }
+  }
+])","GET COLLECTION percorsi_raccolta; FILTER CASE WHERE .numero_fermate <= 32; SAVE AS selA@ft_it_075; GET COLLECTION percorsi_raccolta; FILTER CASE WHERE .distanza_km = 118.9; SAVE AS selB@ft_it_075; INTERSECT COLLECTIONS selA@ft_it_075, selB@ft_it_075;",6.3
+setop_intersect,ft_en_068,ERRORE_QUERY,False,"Invalid query: 1.	Syntax Error 1 at [1, 1]: Found ID ('db') - missing EOF at 'db' - missing EOF at 'db'",Elenca tramite intersezione le regole firewall che hanno una porta tra 195 e 394 e una dimensione del pacchetto maggiore di 309.,"db.firewall_rules.find({ $and: [ { ""config.port"": { $gt: 195, $lt: 394 } }, { packet_size: { $gt: 309 } } ] })","GET COLLECTION firewall_rules; FILTER CASE WHERE .config.port IN_RANGE [195, 394]; SAVE AS selA@ft_en_068; GET COLLECTION firewall_rules; FILTER CASE WHERE .packet_size > 309; SAVE AS selB@ft_en_068; INTERSECT COLLECTIONS selA@ft_en_068, selB@ft_en_068;",5.3
+setop_intersect,ft_en_078,ERRORE_QUERY,False,"Invalid query: 1.	Syntax Error 1 at [1, 1]: Found ID ('db') - missing EOF at 'db' - missing EOF at 'db'",Usa l'intersezione tra insiemi per mostrarmi gli esperimenti con id diverso da EXP-B e che sono privi di livello sicurezza.,"db.experiments.find({ $and: [ { exp_id: { $ne: ""EXP-B"" } }, { safety_level: null } ] })","GET COLLECTION experiments; FILTER CASE WHERE .exp_id != 'EXP-B'; SAVE AS selA@ft_en_078; GET COLLECTION experiments; FILTER CASE WHERE FIELD .safety_level IS NULL; SAVE AS selB@ft_en_078; INTERSECT COLLECTIONS selA@ft_en_078, selB@ft_en_078;",5.1
+setop_merge,ft_en_072,ERRORE_QUERY,False,"Invalid query: 1.	Syntax Error 1 at [1, 1]: Found ID ('db') - missing EOF at 'db' - missing EOF at 'db'",Unisci senza duplicati i viaggi marittimi pericolosi e quelli con ritardo accumulato.,"db.missions.aggregate([
+  {
+    $match: {
+      critical: true
+    }
+  },
+  {
+    $lookup: {
+      from: ""voyages"",
+      localField: ""voyage_id"",
+      foreignField: ""_id"",
+      as: ""voyage""
+    }
+  },
+  {
+    $unwind: ""$voyage""
+  },
+  {
+    $match: {
+      ""voyage.is_delayed"": true
+    }
+  },
+  {
+    $group: {
+      _id: ""$voyage._id"",
+      mission_id: ""$_id"",
+      voyage_id: ""$voyage_id"",
+      critical: ""$critical"",
+      tasks: ""$tasks"",
+      destination: ""$destination"",
+      budget: ""$budget"",
+      duration_days: ""$duration_days""
+    }
+  },
+  {
+    $group: {
+      _id: ""$_id"",
+      mission_id: { $push: ""$mission_id"" },
+      voyage_id: { $push: ""$voyage_id"" },
+      critical: { $push: ""$critical"" },
+      tasks: { $push: ""$tasks"" },
+      destination: { $push: ""$destination"" },
+      budget: { $push: ""$budget"" },
+      duration_days: { $push: ""$duration_days"" }
+    }
+  }
+])","GET COLLECTION voyages; FILTER CASE WHERE .cargo_details.hazard = TRUE; SAVE AS selA@ft_en_072; GET COLLECTION voyages; FILTER CASE WHERE .is_delayed = TRUE; SAVE AS selB@ft_en_072; MERGE COLLECTIONS selA@ft_en_072, selB@ft_en_072 REMOVE DUPLICATES;",10.1
+setop_merge,ft_en_078,ERRORE_QUERY,False,"Invalid query: 1.	Syntax Error 1 at [1, 1]: Found ID ('db') - missing EOF at 'db' - missing EOF at 'db'","Unendo i due insiemi senza duplicati, trova le strumentazioni nel laboratorio o con anno di calibrazione tra 2021 e 2024.","db.equipments.aggregate([
+  {
+    $match: {
+      $or: [
+        { ""storage_location"": ""laboratorio"" },
+        { ""history.year"": { $gte: 2021, $lte: 2024 } }
+      ]
+    }
+  },
+  {
+    $lookup: {
+      from: ""experiments"",
+      localField: ""items.equipment_id"",
+      foreignField: ""_id"",
+      as: ""experiments""
+    }
+  },
+  {
+    $unwind: ""$experiments""
+  },
+  {
+    $group: {
+      _id: ""$_id"",
+      items: { $addToSet: ""$items"" }
+    }
+  },
+  {
+    $project: {
+      _id: 1,
+      items: 1
+    }
+  }
+])","GET COLLECTION equipments; FILTER CASE WHERE .storage_location = 'laboratorio'; SAVE AS selA@ft_en_078; GET COLLECTION equipments; FILTER CASE WHERE .last_calibration IN_RANGE [2021, 2024]; SAVE AS selB@ft_en_078; MERGE COLLECTIONS selA@ft_en_078, selB@ft_en_078 REMOVE DUPLICATES;",7.9
+setop_merge,ft_it_071,ERRORE_QUERY,False,"Invalid query: 1.	Syntax Error 1 at [1, 1]: Found ID ('db') - missing EOF at 'db' - missing EOF at 'db'",Unisci senza duplicati i veicoli con motore non Diesel e quelli con km manutenzione diversi da 460607.,"db.veicoli.aggregate([
+  {
+    $match: {
+      motore: { $ne: ""Diesel"" },
+      km_manutenzione: { $ne: 460607 }
+    }
+  },
+  {
+    $group: {
+      _id: ""$_id"",
+      targa: { $first: ""$targa"" },
+      capacita_ton: { $first: ""$capacita_ton"" },
+      motore: { $first: ""$motore"" },
+      km_manutenzione: { $first: ""$km_manutenzione"" },
+      fermate_rotta: { $first: ""$fermate_rotta"" },
+      dimensioni: { $first: ""$dimensioni"" }
+    }
+  }
+])","GET COLLECTION veicoli; FILTER CASE WHERE .motore != 'Diesel'; SAVE AS selA@ft_it_071; GET COLLECTION veicoli; FILTER CASE WHERE .km_manutenzione != 460607; SAVE AS selB@ft_it_071; MERGE COLLECTIONS selA@ft_it_071, selB@ft_it_071 REMOVE DUPLICATES;",7.7
+setop_merge,ft_en_072,ERRORE_QUERY,False,"Invalid query: 1.	Syntax Error 1 at [1, 1]: Found ID ('db') - missing EOF at 'db' - missing EOF at 'db'","Mostrami l'unione, senza duplicati, dei viaggi marittimi dove pericoloso è vero o dove il ritardo accumulato è vero.","db.missions.aggregate([
+  {
+    $match: {
+      $or: [
+        { critical: true },
+        { is_delayed: true }
+      ]
+    }
+  },
+  {
+    $group: {
+      _id: ""$voyage_id"",
+      voyage_id: ""$voyage_id"",
+      departure: { $first: ""$departure"" },
+      duration_days: { $first: ""$duration_days"" },
+      fuel_consumed: { $first: ""$fuel_consumed"" },
+      is_delayed: { $first: ""$is_delayed"" },
+      route_points: { $first: ""$route_points"" },
+      cargo_details: { $first: ""$cargo_details"" }
+    }
+  },
+  {
+    $project: {
+      _id: 0,
+      voyage_id: 1,
+      departure: 1,
+      duration_days: 1,
+      fuel_consumed: 1,
+      is_delayed: 1,
+      route_points: 1,
+      cargo_details: 1
+    }
+  }
+])","GET COLLECTION voyages; FILTER CASE WHERE .cargo_details.hazard = TRUE; SAVE AS selA@ft_en_072; GET COLLECTION voyages; FILTER CASE WHERE .is_delayed = TRUE; SAVE AS selB@ft_en_072; MERGE COLLECTIONS selA@ft_en_072, selB@ft_en_072 REMOVE DUPLICATES;",8.8
+setop_merge,ft_it_071,ERRORE_QUERY,False,"Invalid query: 1.	Syntax Error 1 at [1, 1]: Found ID ('db') - missing EOF at 'db' - missing EOF at 'db'",Unisci senza duplicati i veicoli con km manutenzione diverso da 272059 e quelli con Larghezza tra 2.1 e 3.6.,"db.veicoli.aggregate([
+  {
+    $match: {
+      km_manutenzione: { $ne: 272059 },
+      ""dimensioni.larghezza"": { $gt: 2.1, $lt: 3.6 }
+    }
+  },
+  {
+    $group: {
+      _id: ""$_id"",
+      targa: ""$targa"",
+      capacita_ton: ""$capacita_ton"",
+      motore: ""$motore"",
+      km_manutenzione: ""$km_manutenzione"",
+      fermate_rotta: ""$fermate_rotta"",
+      dimensioni: ""$dimensioni""
+    }
+  }
+])","GET COLLECTION veicoli; FILTER CASE WHERE .km_manutenzione != 272059; SAVE AS selA@ft_it_071; GET COLLECTION veicoli; FILTER CASE WHERE .dimensioni.larghezza IN_RANGE [2.1, 3.6]; SAVE AS selB@ft_it_071; MERGE COLLECTIONS selA@ft_it_071, selB@ft_it_071 REMOVE DUPLICATES;",7.4
+setop_merge,ft_en_072,ERRORE_QUERY,False,"Invalid query: 1.	Syntax Error 1 at [1, 1]: Found ID ('db') - missing EOF at 'db' - missing EOF at 'db'",Ottieni l'unione senza duplicati tra i viaggi marittimi con almeno 47.0 tonnellate di carburante e quelli che partono da Genova.,"db.missions.aggregate([
+  {
+    $match: {
+      ""voyage_id"": {
+        $in: db.voyages.distinct(""_id"", { ""fuel_consumed"": { $gte: 47.0 } })
+      }
+    }
+  },
+  {
+    $lookup: {
+      from: ""voyages"",
+      localField: ""voyage_id"",
+      foreignField: ""_id"",
+      as: ""voyage""
+    }
+  },
+  {
+    $unwind: ""$voyage""
+  },
+  {
+    $match: {
+      ""voyage.departure"": ""Genova""
+    }
+  },
+  {
+    $group: {
+      _id: ""$_id"",
+      voyage_id: { $first: ""$voyage_id"" },
+      destination: { $first: ""$destination"" },
+      duration_days: { $first: ""$duration_days"" },
+      budget: { $first: ""$budget"" },
+      critical: { $first: ""$critical"" },
+      tasks: { $first: ""$tasks"" },
+      fuel_consumed: { $first: ""$fuel_consumed"" },
+      is_delayed: { $first: ""$is_delayed"" },
+      route_points: { $first: ""$route_points"" },
+      cargo_details: { $first: ""$cargo_details"" }
+    }
+  },
+  {
+    $project: {
+      _id: 1,
+      voyage_id: 1,
+      destination: 1,
+      duration_days: 1,
+      budget: 1,
+      critical: 1,
+      tasks: 1,
+      fuel_consumed: 1,
+      is_delayed: 1,
+      route_points: 1,
+      cargo_details: 1
+    }
+  }
+])","GET COLLECTION voyages; FILTER CASE WHERE .fuel_consumed >= 47.0; SAVE AS selA@ft_en_072; GET COLLECTION voyages; FILTER CASE WHERE .departure = 'Genova'; SAVE AS selB@ft_en_072; MERGE COLLECTIONS selA@ft_en_072, selB@ft_en_072 REMOVE DUPLICATES;",12.0
+setop_merge,ft_en_072,ERRORE_QUERY,False,"Invalid query: 1.	Syntax Error 1 at [1, 1]: Found ID ('db') - missing EOF at 'db' - missing EOF at 'db'",Unisci senza duplicati i viaggi marittimi con carburante tonnellate di almeno 47.0 e quelli con porto partenza Genova.,"db.missions.aggregate([
+  {
+    $lookup: {
+      from: ""voyages"",
+      localField: ""voyage_id"",
+      foreignField: ""_id"",
+      as: ""voyage""
+    }
+  },
+  {
+    $match: {
+      ""voyage.cargo_details.weight"": { $gte: 47.0 },
+      ""voyage.departure"": ""Genova""
+    }
+  },
+  {
+    $group: {
+      _id: ""$_id"",
+      voyage_id: { $first: ""$voyage_id"" },
+      destination: { $first: ""$destination"" },
+      duration_days: { $first: ""$duration_days"" },
+      budget: { $first: ""$budget"" },
+      critical: { $first: ""$critical"" },
+      tasks: { $first: ""$tasks"" },
+      voyage: { $push: ""$voyage"" }
+    }
+  },
+  {
+    $project: {
+      _id: 1,
+      voyage_id: 1,
+      destination: 1,
+      duration_days: 1,
+      budget: 1,
+      critical: 1,
+      tasks: 1,
+      voyage: 1
+    }
+  }
+])","GET COLLECTION voyages; FILTER CASE WHERE .fuel_consumed >= 47.0; SAVE AS selA@ft_en_072; GET COLLECTION voyages; FILTER CASE WHERE .departure = 'Genova'; SAVE AS selB@ft_en_072; MERGE COLLECTIONS selA@ft_en_072, selB@ft_en_072 REMOVE DUPLICATES;",9.6
+setop_merge,ft_it_071,ERRORE_QUERY,False,"Invalid query: 1.	Syntax Error 1 at [1, 1]: Found ID ('db') - missing EOF at 'db' - missing EOF at 'db'","Trova i veicoli che hanno Altezza non pari a 3.2 oppure km manutenzione di almeno 205255, unendoli in un unico elenco senza duplicati.","db.veicoli.aggregate([
+  {
+    $match: {
+      $or: [
+        { ""dimensioni.altezza"": { $ne: 3.2 } },
+        { ""km_manutenzione"": { $gte: 205255 } }
+      ]
+    }
+  },
+  {
+    $group: {
+      _id: ""$_id"",
+      id_veicoli: { $first: ""$id_veicoli"" },
+      targa: { $first: ""$targa"" },
+      capacita_ton: { $first: ""$capacita_ton"" },
+      motore: { $first: ""$motore"" },
+      km_manutenzione: { $first: ""$km_manutenzione"" },
+      fermate_rotta: { $first: ""$fermate_rotta"" },
+      dimensioni: { $first: ""$dimensioni"" }
+    }
+  },
+  {
+    $project: {
+      _id: 1,
+      id_veicoli: 1,
+      targa: 1,
+      capacita_ton: 1,
+      motore: 1,
+      km_manutenzione: 1,
+      fermate_rotta: 1,
+      dimensioni: 1
+    }
+  }
+])","GET COLLECTION veicoli; FILTER CASE WHERE .dimensioni.altezza != 3.2; SAVE AS selA@ft_it_071; GET COLLECTION veicoli; FILTER CASE WHERE .km_manutenzione >= 205255; SAVE AS selB@ft_it_071; MERGE COLLECTIONS selA@ft_it_071, selB@ft_it_071 REMOVE DUPLICATES;",10.0
+setop_merge,ft_en_074,ERRORE_QUERY,False,"Invalid query: 1.	Syntax Error 1 at [1, 1]: Found ID ('db') - missing EOF at 'db' - missing EOF at 'db'","Dammi i casi legali con fascicolo diverso da F-2023-02 oppure con anno tra 2011 e 2023, unendo gli insiemi senza duplicati.","db.cases.aggregate([
+  {
+    $match: {
+      $or: [
+        { dossier_id: { $ne: ""F-2023-02"" } },
+        { year: { $gt: 2010, $lt: 2024 } }
+      ]
+    }
+  },
+  {
+    $group: {
+      _id: null,
+      cases: { $push: ""$$ROOT"" }
+    }
+  },
+  {
+    $unwind: ""$cases""
+  },
+  {
+    $replaceRoot: { newRoot: ""$cases"" }
+  }
+])","GET COLLECTION cases; FILTER CASE WHERE .dossier_id != 'F-2023-02'; SAVE AS selA@ft_en_074; GET COLLECTION cases; FILTER CASE WHERE .year IN_RANGE [2011, 2023]; SAVE AS selB@ft_en_074; MERGE COLLECTIONS selA@ft_en_074, selB@ft_en_074 REMOVE DUPLICATES;",7.0
+setop_merge,ft_it_079,ERRORE_QUERY,False,"Invalid query: 1.	Syntax Error 1 at [1, 1]: Found ID ('db') - missing EOF at 'db' - missing EOF at 'db'","Elenca le tombe che hanno settore diverso da C oppure che sono occupate, combinando i due gruppi senza duplicati.","db.tombe.aggregate([
+  {
+    $match: {
+      $or: [
+        { settore: { $ne: ""C"" } },
+        { occupata: true }
+      ]
+    }
+  },
+  {
+    $group: {
+      _id: ""$_id"",
+      settore: { $first: ""$settore"" },
+      occupata: { $first: ""$occupata"" }
+    }
+  },
+  {
+    $project: {
+      _id: 1,
+      settore: 1,
+      occupata: 1
+    }
+  }
+])","GET COLLECTION tombe; FILTER CASE WHERE .settore != 'C'; SAVE AS selA@ft_it_079; GET COLLECTION tombe; FILTER CASE WHERE .occupata = TRUE; SAVE AS selB@ft_it_079; MERGE COLLECTIONS selA@ft_it_079, selB@ft_it_079 REMOVE DUPLICATES;",7.0
+setop_subtract,ft_en_074,ERRORE_QUERY,False,"Invalid query: 1.	Syntax Error 1 at [1, 1]: Found ID ('db') - missing EOF at 'db' - missing EOF at 'db'","Usa la differenza tra insiemi per trovare i casi legali non numerati F-2023-02, escludendo quelli del 2021.","db.cases.aggregate([
+  {
+    $match: {
+      dossier_id: ""F-2023-02"",
+      year: { $ne: 2021 },
+      is_closed: false
+    }
+  },
+  {
+    $group: {
+      _id: null,
+      count: { $sum: 1 }
+    }
+  },
+  {
+    $project: {
+      _id: 0,
+      count: 1
+    }
+  },
+  {
+    $match: {
+      count: { $eq: 0 }
+    }
+  }
+])","GET COLLECTION cases; FILTER CASE WHERE .dossier_id != 'F-2023-02'; SAVE AS selA@ft_en_074; GET COLLECTION cases; FILTER CASE WHERE .year = 2021; SAVE AS selB@ft_en_074; SUBTRACT COLLECTIONS selA@ft_en_074, selB@ft_en_074;",6.9
+setop_subtract,ft_en_072,ERRORE_QUERY,False,"Invalid query: 1.	Syntax Error 1 at [1, 1]: Found ID ('db') - missing EOF at 'db' - missing EOF at 'db'","Mostrami viaggi marittimi con ritardo accumulato falso, escludendo quelli con pericoloso vero, usando la differenza tra insiemi","db.missions.aggregate([
+  {
+    $match: {
+      ""is_delayed"": false,
+      ""critical"": false
+    }
+  },
+  {
+    $group: {
+      _id: ""$_id"",
+      voyage_id: { $addToSet: ""$voyage_id"" }
+    }
+  },
+  {
+    $lookup: {
+      from: ""voyages"",
+      localField: ""voyage_id"",
+      foreignField: ""_id"",
+      as: ""voyage""
+    }
+  },
+  {
+    $unwind: ""$voyage""
+  },
+  {
+    $match: {
+      ""voyage.is_delayed"": false
+    }
+  },
+  {
+    $group: {
+      _id: ""$_id"",
+      voyage_id: { $addToSet: ""$voyage_id"" },
+      voyage: { $addToSet: ""$voyage"" }
+    }
+  },
+  {
+    $project: {
+      _id: 1,
+      voyage_id: 1,
+      voyage: 1
+    }
+  }
+])","GET COLLECTION voyages; FILTER CASE WHERE .is_delayed = FALSE; SAVE AS selA@ft_en_072; GET COLLECTION voyages; FILTER CASE WHERE .cargo_details.hazard = TRUE; SAVE AS selB@ft_en_072; SUBTRACT COLLECTIONS selA@ft_en_072, selB@ft_en_072;",8.9
+setop_subtract,ft_it_073,ERRORE_QUERY,False,"Invalid query: 1.	Syntax Error 1 at [1, 1]: Found ID ('db') - missing EOF at 'db' - missing EOF at 'db'","Trova gli ispettori chiamati Giulia, sottraendo con la differenza tra insiemi quelli che hanno almeno 26 anni di esperienza.","db.ispettori.aggregate([
+  {
+    $match: {
+      nome: ""Giulia"",
+      anni_esperienza: { $gte: 26 }
+    }
+  },
+  {
+    $group: {
+      _id: ""$_id"",
+      id_ispettori: { $push: ""$_id"" }
+    }
+  },
+  {
+    $project: {
+      _id: 1,
+      id_ispettori: 1
+    }
+  },
+  {
+    $group: {
+      _id: null,
+      id_ispettori: { $setDifference: [""$id_ispettori"", ""$$REMOVE""] }
+    }
+  },
+  {
+    $project: {
+      _id: 0,
+      id_ispettori: 1
+    }
+  }
+])","GET COLLECTION ispettori; FILTER CASE WHERE .nome = 'Giulia'; SAVE AS selA@ft_it_073; GET COLLECTION ispettori; FILTER CASE WHERE .anni_esperienza >= 26; SAVE AS selB@ft_it_073; SUBTRACT COLLECTIONS selA@ft_it_073, selB@ft_it_073;",8.0
+setop_subtract,ft_en_078,ERRORE_QUERY,False,"Invalid query: 1.	Syntax Error 1 at [1, 1]: Found ID ('db') - missing EOF at 'db' - missing EOF at 'db'","Usa la differenza tra insiemi per vedere le strumentazioni nel deposito A, escludendo quelle con tensione inferiore a 194.","db.equipments.aggregate([
+  {
+    $match: {
+      storage_location: ""deposito A"",
+      voltage: { $gt: 194 }
+    }
+  },
+  {
+    $group: {
+      _id: ""$_id"",
+      equipment_id: { $addToSet: ""$items.equipment_id"" }
+    }
+  },
+  {
+    $project: {
+      _id: 1,
+      equipment_id: 1
+    }
+  }
+])","GET COLLECTION equipments; FILTER CASE WHERE .storage_location = 'deposito A'; SAVE AS selA@ft_en_078; GET COLLECTION equipments; FILTER CASE WHERE .voltage < 194; SAVE AS selB@ft_en_078; SUBTRACT COLLECTIONS selA@ft_en_078, selB@ft_en_078;",6.5
+setop_subtract,ft_en_068,ERRORE_QUERY,False,"Invalid query: 1.	Syntax Error 1 at [1, 1]: Found ID ('db') - missing EOF at 'db' - missing EOF at 'db'","Trova i tipi di biglietto che hanno un nome, escludendo tramite differenza quelli rimborsabili.","db.ticket_types.find({ name: { $ne: null }, discounted: false })","GET COLLECTION ticket_types; FILTER CASE WHERE FIELD .name IS NOT NULL; SAVE AS selA@ft_en_068; GET COLLECTION ticket_types; FILTER CASE WHERE .terms.refundable = TRUE; SAVE AS selB@ft_en_068; SUBTRACT COLLECTIONS selA@ft_en_068, selB@ft_en_068;",4.7
+setop_subtract,ft_en_076,ERRORE_QUERY,False,"Invalid query: 1.	Syntax Error 1 at [1, 1]: Found ID ('SELECT') - missing EOF at 'SELECT' - missing EOF at 'SELECT'","Voglio vedere avvocati con è socio vero, escludendo quelli con anni esperienza diverso da 20, usando la differenza tra insiemi",SELECT * FROM lawyers WHERE is_partner = TRUE EXCEPT SELECT * FROM lawyers WHERE years_experience != 20,"GET COLLECTION lawyers; FILTER CASE WHERE .is_partner = TRUE; SAVE AS selA@ft_en_076; GET COLLECTION lawyers; FILTER CASE WHERE .years_experience != 20; SAVE AS selB@ft_en_076; SUBTRACT COLLECTIONS selA@ft_en_076, selB@ft_en_076;",5.0
+setop_subtract,ft_en_072,ERRORE_QUERY,False,"Invalid query: 1.	Syntax Error 1 at [1, 1]: Found ID ('db') - missing EOF at 'db' - missing EOF at 'db'","Mostrami i viaggi marittimi senza ritardo accumulato, sottraendo quelli pericolosi tramite la differenza tra insiemi.","db.missions.aggregate([
+  {
+    $match: {
+      critical: false
+    }
+  },
+  {
+    $lookup: {
+      from: ""voyages"",
+      localField: ""voyage_id"",
+      foreignField: ""_id"",
+      as: ""voyage""
+    }
+  },
+  {
+    $unwind: {
+      path: ""$voyage""
+    }
+  },
+  {
+    $match: {
+      ""voyage.is_delayed"": false
+    }
+  },
+  {
+    $group: {
+      _id: ""$voyage._id"",
+      id: { $addToSet: ""$_id"" }
+    }
+  },
+  {
+    $project: {
+      _id: 1,
+      id: 1
+    }
+  }
+])","GET COLLECTION voyages; FILTER CASE WHERE .is_delayed = FALSE; SAVE AS selA@ft_en_072; GET COLLECTION voyages; FILTER CASE WHERE .cargo_details.hazard = TRUE; SAVE AS selB@ft_en_072; SUBTRACT COLLECTIONS selA@ft_en_072, selB@ft_en_072;",7.7
+setop_subtract,ft_en_074,ERRORE_QUERY,False,"Invalid query: 1.	Syntax Error 1 at [1, 1]: Found ID ('db') - missing EOF at 'db' - missing EOF at 'db'","Trova i casi legali con numero fascicolo diverso da F-2023-02, togliendo quelli dell'anno 2021 con la differenza tra insiemi.","db.cases.find({ dossier_id: { $ne: ""F-2023-02"" }, year: { $ne: 2021 }, urgency_level: { $ne: ""differenza tra insiemi"" } })","GET COLLECTION cases; FILTER CASE WHERE .dossier_id != 'F-2023-02'; SAVE AS selA@ft_en_074; GET COLLECTION cases; FILTER CASE WHERE .year = 2021; SAVE AS selB@ft_en_074; SUBTRACT COLLECTIONS selA@ft_en_074, selB@ft_en_074;",5.5
+setop_subtract,ft_en_072,ERRORE_QUERY,False,"Invalid query: 1.	Syntax Error 1 at [1, 1]: Found ID ('db') - missing EOF at 'db' - missing EOF at 'db'",Quali viaggi marittimi non hanno ritardo accumulato e non sono pericolosi? Fammi la differenza tra questi due insiemi.,"db.missions.aggregate([
+  {
+    $match: {
+      critical: false
+    }
+  },
+  {
+    $lookup: {
+      from: ""voyages"",
+      localField: ""voyage_id"",
+      foreignField: ""_id"",
+      as: ""voyage""
+    }
+  },
+  {
+    $unwind: ""$voyage""
+  },
+  {
+    $match: {
+      ""voyage.is_delayed"": false
+    }
+  },
+  {
+    $group: {
+      _id: null,
+      ids: {
+        $push: ""$_id""
+      }
+    }
+  },
+  {
+    $project: {
+      _id: 0,
+      ids: 1
+    }
+  }
+])","GET COLLECTION voyages; FILTER CASE WHERE .is_delayed = FALSE; SAVE AS selA@ft_en_072; GET COLLECTION voyages; FILTER CASE WHERE .cargo_details.hazard = TRUE; SAVE AS selB@ft_en_072; SUBTRACT COLLECTIONS selA@ft_en_072, selB@ft_en_072;",7.6
+setop_subtract,ft_it_077,ERRORE_QUERY,False,"Invalid query: 1.	Syntax Error 1 at [1, 1]: Found ID ('db') - missing EOF at 'db' - missing EOF at 'db'","Trova i macchinari senza codice modello, escludendo tramite differenza tra insiemi quelli che hanno lo stato spento","db.macchinari.find({ codice_modello: null }, { stato: { $ne: ""spento"" } })","GET COLLECTION macchinari; FILTER CASE WHERE FIELD .codice_modello IS NULL; SAVE AS selA@ft_it_077; GET COLLECTION macchinari; FILTER CASE WHERE .stato = 'spento'; SAVE AS selB@ft_it_077; SUBTRACT COLLECTIONS selA@ft_it_077, selB@ft_it_077;",4.9
+single,ft_it_071,ERRORE_QUERY,False,"Invalid query: 1.	Syntax Error 1 at [1, 1]: Found ID ('db') - missing EOF at 'db' - missing EOF at 'db'",Elenca i veicoli con un'altezza pari o superiore a 2.9,"db.veicoli.find({ ""dimensioni.altezza"": { $gte: 2.9 } })",GET COLLECTION veicoli; FILTER CASE WHERE .dimensioni.altezza >= 2.9;,5.0
+single,ft_en_070,ERRORE_QUERY,False,"Invalid query: 1.	Syntax Error 1 at [1, 1]: Found ID ('db') - missing EOF at 'db' - missing EOF at 'db'",Mostrami gli abbonamenti con le chiamate illimitate attive,db.subscriptions.find({ unlimited_calls: true }),GET COLLECTION subscriptions; FILTER CASE WHERE .unlimited_calls = TRUE;,4.7
+single,ft_en_078,ERRORE_QUERY,False,"Invalid query: 1.	Syntax Error 1 at [1, 1]: Found ID ('db') - missing EOF at 'db' - missing EOF at 'db'",Fammi l'elenco degli esperimenti che non hanno come id EXP-C,"db.experiments.find({ .exp_id: { $ne: ""EXP-C"" } })",GET COLLECTION experiments; FILTER CASE WHERE .exp_id != 'EXP-C';,4.8
+single,ft_en_070,ERRORE_QUERY,False,"Invalid query: 1.	Syntax Error 1 at [1, 1]: Found ID ('db') - missing EOF at 'db' - missing EOF at 'db'",Elenca abbonamenti con chiamate illimitate vero,db.subscriptions.find({ unlimited_calls: true }),GET COLLECTION subscriptions; FILTER CASE WHERE .unlimited_calls = TRUE;,4.6
+single,ft_it_069,ERRORE_QUERY,False,"Invalid query: 1.	Syntax Error 1 at [1, 1]: Found ID ('db') - missing EOF at 'db' - missing EOF at 'db'",Quali arnie si trovano nello stato di manutenzione?,"db.arnia.find({ stato: ""manutenzione"" })",GET COLLECTION arnia; FILTER CASE WHERE .stato = 'manutenzione';,4.7
+single,ft_it_079,ERRORE_QUERY,False,"Invalid query: 1.	Syntax Error 1 at [1, 1]: Found ID ('db') - missing EOF at 'db' - missing EOF at 'db'",Mostrami le tombe che hanno una profondità diversa da 2.4,db.tombe.find({ profondita: { $ne: 2.4 } }),GET COLLECTION tombe; FILTER CASE WHERE .profondita != 2.4;,4.9
+single,ft_it_071,ERRORE_QUERY,False,"Invalid query: 1.	Syntax Error 1 at [1, 1]: Found ID ('db') - missing EOF at 'db' - missing EOF at 'db'",Quali centri logistici hanno uno stato operativo diverso da In espansione?,"db.centri_logistici.find({ stato_operativo: { $ne: ""In espansione"" } })",GET COLLECTION centri_logistici; FILTER CASE WHERE .stato_operativo != 'In espansione';,4.9
+single,ft_en_068,ERRORE_QUERY,False,"Invalid query: 1.	Syntax Error 1 at [1, 1]: Found ID ('db') - missing EOF at 'db' - missing EOF at 'db'",Quali tipi di biglietto hanno una durata in ore compresa tra 4 e 8?,"db.ticket_types.find({ duration_hours: { $gt: 4, $lt: 8 } })","GET COLLECTION ticket_types; FILTER CASE WHERE .duration_hours IN_RANGE [4, 8];",4.9
+single,ft_it_069,ERRORE_QUERY,False,"Invalid query: 1.	Syntax Error 1 at [1, 1]: Found ID ('db') - missing EOF at 'db' - missing EOF at 'db'",Mostrami gli apicoltori che hanno tra 3 e 14 anni di esperienza,"db.apicoltori.find({anni_esperienza: {$gt: 3, $lt: 14}})","GET COLLECTION apicoltori; FILTER CASE WHERE .anni_esperienza IN_RANGE [3, 14];",4.9
+single,ft_it_069,ERRORE_QUERY,False,"Invalid query: 1.	Syntax Error 1 at [1, 1]: Found ID ('db') - missing EOF at 'db' - missing EOF at 'db'",Quali apicoltori hanno un'esperienza lavorativa compresa tra 3 e 14 anni?,"db.apicoltori.find({anni_esperienza: {$gt: 3, $lt: 14}})","GET COLLECTION apicoltori; FILTER CASE WHERE .anni_esperienza IN_RANGE [3, 14];",5.0

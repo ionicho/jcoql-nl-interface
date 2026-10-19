@@ -1,0 +1,23 @@
+# PROVA BREVE: misura il tempo reale per passo (160 esempi, ~18 passi). Si lancia da questa cartella.
+base: meta-llama/Llama-3.1-8B-Instruct
+task: sft
+
+data:
+  train: ./probe.jsonl
+  format: alpaca
+  val_split: 0.1
+  max_length: 768
+
+training:
+  epochs: 1
+  lr: 2e-4
+  batch_size: 2
+  gradient_checkpointing: true
+  stream_layers: true
+  lora:
+    r: 16
+    alpha: 32
+    target_modules: auto
+  quantization: 4bit
+
+output: ./output_probe

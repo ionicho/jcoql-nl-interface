@@ -1,0 +1,25 @@
+# CORSA v4 (bilingue: italiano + traduzioni inglesi, 12288 esempi, 1 epoca ~1459 passi): dati v3 + famiglie nuove (join a tre collezioni, TRANSLATE, ADD/REMOVE FIELDS, GROUP avanzato, ...)
+# e LoRA su TUTTI i livelli lineari (q, k, v, o, gate, up, down), rango 16 (41,9 milioni di parametri addestrabili, provato con probe_all.yaml).
+# Il resto della configurazione e' identico a soup_v3_b1.yaml (batch 1). Si lancia da questa cartella.
+base: meta-llama/Llama-3.1-8B-Instruct
+task: sft
+
+data:
+  train: ../out_v4/train_final_v4_bi.jsonl
+  format: alpaca
+  val_split: 0.05
+  max_length: 1280
+
+training:
+  epochs: 1
+  lr: 2e-4
+  batch_size: 1
+  gradient_checkpointing: true
+  stream_layers: true
+  lora:
+    r: 16
+    alpha: 32
+    target_modules: [q_proj, k_proj, v_proj, o_proj, gate_proj, up_proj, down_proj]
+  quantization: 4bit
+
+output: ./output_v4

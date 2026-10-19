@@ -1,0 +1,23 @@
+# CORSA v2 con batch 4 (piu' veloce di batch 2 + accumulo): max_length 672 basta, il piu' lungo esempio e' 662 token. Si lancia da questa cartella.
+base: meta-llama/Llama-3.1-8B-Instruct
+task: sft
+
+data:
+  train: ../out/train_final.jsonl
+  format: alpaca
+  val_split: 0.05
+  max_length: 672
+
+training:
+  epochs: 2
+  lr: 2e-4
+  batch_size: 4
+  gradient_checkpointing: true
+  stream_layers: true
+  lora:
+    r: 16
+    alpha: 32
+    target_modules: auto
+  quantization: 4bit
+
+output: ./output_v2

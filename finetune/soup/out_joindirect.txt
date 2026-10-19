@@ -1,0 +1,53 @@
+﻿categoria joindirect: 291 esempi nel training, provo 30
+GEN: JOIN OF COLLECTIONS casse@ft_it_503 AS x, partite@ft_it_503 AS y CASE WHERE .id_casse = .id; 
+REF: JOIN OF COLLECTIONS casse@ft_it_503 AS b, partite@ft_it_503 AS a CASE WHERE .a.id_casse = .b._id; 
+
+GEN: JOIN OF COLLECTIONS centri_logistici@ft_it_009 AS x, veicoli@ft_it_009 AS y CASE WHERE .id_centri_logistici = .x._id; 
+REF: JOIN OF COLLECTIONS centri_logistici@ft_it_009 AS b, veicoli@ft_it_009 AS a CASE WHERE .a.id_centri_logistici = .b._id; 
+
+GEN: JOIN OF COLLECTIONS campi@ft_it_501 AS x, minacce@ft_it_501 AS y CASE WHERE .x.id_minacce = .y._id; 
+REF: JOIN OF COLLECTIONS minacce@ft_it_501 AS d, campi@ft_it_501 AS c CASE WHERE .c.id_minacce = .d._id; 
+
+GEN: JOIN OF COLLECTIONS vasche@ft_it_021 AS x, attrazioni@ft_it_021 AS y CASE WHERE .id_attrazioni = ._id; 
+REF: JOIN OF COLLECTIONS vasche@ft_it_021 AS p, attrazioni@ft_it_021 AS q CASE WHERE .p.id_attrazioni = .q._id; 
+
+GEN: JOIN OF COLLECTIONS veicoli@ft_it_011 AS x, dipendenti@ft_it_011 AS y CASE WHERE .id_veicoli = .x._id; 
+REF: JOIN OF COLLECTIONS veicoli@ft_it_011 AS b, dipendenti@ft_it_011 AS a CASE WHERE .a.id_veicoli = .b._id; 
+
+GEN: JOIN OF COLLECTIONS watches@ft_en_056 AS u, workers@ft_en_056 AS o CASE WHERE .o._id = .u.worker_id; 
+REF: JOIN OF COLLECTIONS watches@ft_en_056 AS c, workers@ft_en_056 AS d CASE WHERE .c.worker_id = .d._id; 
+
+GEN: JOIN OF COLLECTIONS avvocati@ft_it_049 AS x, casse@ft_it_049 AS y CASE WHERE .x.id_avvocati = .y._id; 
+REF: JOIN OF COLLECTIONS avvocati@ft_it_049 AS q, casse@ft_it_049 AS p CASE WHERE .p.id_avvocati = .q._id; 
+
+GEN: JOIN OF COLLECTIONS ospiti@ft_it_005 AS x, campi@ft_it_005 AS y CASE WHERE .id_campi = .id; 
+REF: JOIN OF COLLECTIONS ospiti@ft_it_005 AS o, campi@ft_it_005 AS u CASE WHERE .o.id_campi = .u._id; 
+
+GEN: JOIN OF COLLECTIONS ispettori@ft_it_029 AS x, spedizioni@ft_it_029 AS y CASE WHERE .id_ispettori = ._id; 
+REF: JOIN OF COLLECTIONS ispettori@ft_it_029 AS r, spedizioni@ft_it_029 AS l CASE WHERE .l.id_ispettori = .r._id; 
+
+GEN: JOIN OF COLLECTIONS casse@ft_it_503 AS x, partite@ft_it_503 AS y CASE WHERE .id_casse = .x._id; 
+REF: JOIN OF COLLECTIONS casse@ft_it_503 AS t, partite@ft_it_503 AS s CASE WHERE .s.id_casse = .t._id; 
+
+GEN: JOIN OF COLLECTIONS spedizioni@ft_it_029 AS x, ispettori@ft_it_029 AS y CASE WHERE .id_ispettori = ._id; 
+REF: JOIN OF COLLECTIONS spedizioni@ft_it_029 AS o, ispettori@ft_it_029 AS u CASE WHERE .o.id_ispettori = .u._id; 
+
+GEN: JOIN OF COLLECTIONS reperti@ft_it_027 AS x, esemplari@ft_it_027 AS y CASE WHERE .x.id_reperti = .y._id; 
+REF: JOIN OF COLLECTIONS reperti@ft_it_027 AS q, esemplari@ft_it_027 AS p CASE WHERE .p.id_reperti = .q._id; 
+
+GEN: JOIN OF COLLECTIONS case_editrici@ft_it_051 AS x, manoscritti@ft_it_051 AS y CASE WHERE .x.id_case_editrici = .y._id; 
+REF: JOIN OF COLLECTIONS case_editrici@ft_it_051 AS u, manoscritti@ft_it_051 AS o CASE WHERE .o.id_case_editrici = .u._id; 
+
+GEN: JOIN OF COLLECTIONS centri_logistici@ft_it_009 AS x, veicoli@ft_it_009 AS y CASE WHERE .id_centri_logistici = .x._id; 
+REF: JOIN OF COLLECTIONS centri_logistici@ft_it_009 AS b, veicoli@ft_it_009 AS a CASE WHERE .a.id_centri_logistici = .b._id; 
+
+GEN: JOIN OF COLLECTIONS case_editrici@ft_it_051 AS x, manoscritti@ft_it_051 AS y CASE WHERE .x.id_case_editrici = .y._id; 
+REF: JOIN OF COLLECTIONS case_editrici@ft_it_051 AS u, manoscritti@ft_it_051 AS o CASE WHERE .o.id_case_editrici = .u._id; 
+
+GEN: JOIN OF COLLECTIONS centri_logistici@ft_it_009 AS x, veicoli@ft_it_009 AS y CASE WHERE .id_centri_logistici = .x._id; 
+REF: JOIN OF COLLECTIONS centri_logistici@ft_it_009 AS y, veicoli@ft_it_009 AS x CASE WHERE .x.id_centri_logistici = .y._id; 
+
+GEN: JOIN OF COLLECTIONS attrazioni@ft_it_505 AS x, tipi_biglietto@ft_it_505 AS y CASE WHERE .id_attrazioni = .id; 
+REF: JOIN OF COLLECTIONS attrazioni@ft_it_505 AS d, tipi_biglietto@ft_it_505 AS c CASE WHERE .c.id_attrazioni = .d._id; 
+
+identiche al carattere: 4/30  |  identiche con alias normalizzati: 13/30

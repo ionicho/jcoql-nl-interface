@@ -1,0 +1,23 @@
+# CORSA v2: dataset v1 + esempi mirati (join, NULL, group_filter, merge). Si lancia da questa cartella.
+base: meta-llama/Llama-3.1-8B-Instruct
+task: sft
+
+data:
+  train: ../out/train_final.jsonl
+  format: alpaca
+  val_split: 0.05
+  max_length: 768
+
+training:
+  epochs: 2
+  lr: 2e-4
+  batch_size: 2
+  gradient_checkpointing: true
+  stream_layers: true
+  lora:
+    r: 16
+    alpha: 32
+    target_modules: auto
+  quantization: 4bit
+
+output: ./output_v2
