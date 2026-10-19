@@ -160,3 +160,17 @@ _da_eliminare/
 main_backup_*.py
 ablation_*
 commitmsg.txt
+
+# ===== FINE-TUNING (heavy files, reproducible from the scripts) =====
+# Models, adapters and training runs
+finetune/soup/*.gguf
+finetune/soup/output*/
+finetune/soup/merged*/
+finetune/soup/.soup-crashes/
+finetune/soup/*.jsonl
+finetune/soup/Modelfile*
+# Generated datasets (finetune/out/ is already covered by the rule "out/")
+finetune/out_v*/
+
+# Backups of result files made before each test run
+*_prima_*.csv
