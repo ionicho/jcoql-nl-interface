@@ -182,7 +182,28 @@ class MongoSchemaDiscoverer:
             if value_type not in ['array', 'object']:
                 if len(fields_info[field_path]['examples']) < 3:
                     try:
-                        fields_info[field_path]['examples'].append(value)
+                        """
+                        Gli esempi finiscono nello schema che
+                        GET /api/databases/<nome> restituisce al frontend
+                        come JSON. Un valore Mongo non nativo (tipicamente
+                        l'ObjectId di _id nelle collection create da un
+                        SAVE AS, dove _id lo genera MongoDB, ma anche
+                        datetime, Decimal128...) farebbe fallire
+                        jsonable_encoder di FastAPI con un 500
+                        ("'ObjectId' object is not iterable"), osservato il
+                        05/10 durante il round 3 della campagna di test.
+                        Qui si converte in stringa tutto cio' che non e'
+                        gia' un tipo JSON nativo (la risposta della
+                        generazione non era coinvolta: il 500 era solo sul
+                        refresh dello schema). Il tipo del campo resta
+                        quello calcolato da _get_type (invariato per il
+                        prompt).
+                        """
+                        if value is None or isinstance(value, (str, int, float, bool)):
+                            example_value = value
+                        else:
+                            example_value = str(value)
+                        fields_info[field_path]['examples'].append(example_value)
                     except:
                         pass
             
@@ -239,3 +260,138 @@ class MongoSchemaDiscoverer:
         if self.client:
             self.client.close()
             discovery_logger.info(f"✅ Connessione chiusa a {self.database_name}")
+
+
+# ==============================================================================
+# AGGIUNTO 03/10/2026 — integrazione JCO DS (vedi database_registry.py)
+# ==============================================================================
+class JcoDsSchemaDiscoverer:
+    """
+    Scopre lo schema di un database JCO DS (J-CO Document Store), il
+    server alternativo a MongoDB dei professori
+    (https://github.com/JcoProjectTeam), campionando i documenti
+    attraverso il motore Java stesso (JCoFrameworkExecutor) invece che
+    con un client Python del protocollo DS — non esiste un client Python
+    per quel protocollo binario proprietario, mentre il motore Java sa
+    già parlarci (stesso percorso validato a mano con "USE DB ... ON
+    SERVER 'jcods' '...'; GET COLLECTION x@y;").
+
+    LIMITE NOTO: a differenza di MongoSchemaDiscoverer, qui le collection
+    da ispezionare vanno indicate esplicitamente (parametro `collections`
+    del costruttore) — JCoQL non ha un comando per elencare le collection
+    di un database (non esiste un "SHOW COLLECTIONS"), quindi non c'è modo
+    di scoprirle automaticamente come con database.list_collection_names()
+    di pymongo. Chi registra un database JCO DS deve già sapere quali
+    collection vuole esporre all'interfaccia.
+    """
+
+    def __init__(self, host: str, port: int, database_name: str, collections: list):
+        self.host = host
+        self.port = port
+        self.database_name = database_name
+        self.collections = collections or []
+
+    def discover_schema(self, sample_size: int = 100) -> dict:
+        # Import locale per evitare un import circolare a livello modulo
+        # (jco_framework_executor_v2.py non importa questo file, ma
+        # tenerlo locale evita comunque di caricare l'intero executor —
+        # con tutta la logica di costruzione del classpath Java — ogni
+        # volta che schema_discovery.py viene importato per il solo
+        # ramo MongoDB, che è il caso comune).
+        from backend.executors.jco_framework_executor_v2 import JCoFrameworkExecutor
+        executor = JCoFrameworkExecutor()
+
+        schema = {}
+        for collection_name in self.collections:
+            schema[collection_name] = self.discover_collection_schema(executor, collection_name, sample_size)
+        return schema
+
+    def discover_collection_schema(self, executor, collection_name: str, sample_size: int = 100) -> dict:
+        """
+        Una query completa per collection (USE DB + GET COLLECTION), non
+        una sola sessione riutilizzata — ogni chiamata a executor.execute()
+        lancia un sottoprocesso Java indipendente (stesso funzionamento
+        del resto dell'app), quindi il costo è lo stesso di qualunque
+        altra query eseguita dall'interfaccia.
+        """
+        query = (
+            f"USE DB {self.database_name} ON SERVER 'jcods' 'http://{self.host}:{self.port}';\n"
+            f"GET COLLECTION {collection_name}@{self.database_name};"
+        )
+        try:
+            result = executor.execute(query, timeout=30)
+        except Exception as err:
+            discovery_logger.error(f"❌ Errore discovery collezione JCO DS '{collection_name}': {err}")
+            return {"total_documents": 0, "sampled_documents": 0, "fields": {}}
+
+        if not result.get('success'):
+            discovery_logger.warning(f"⚠️ Discovery JCO DS '{collection_name}' fallita: {result.get('error')}")
+            return {"total_documents": 0, "sampled_documents": 0, "fields": {}}
+
+        samples = (result.get('results') or [])[:sample_size]
+        if not samples:
+            discovery_logger.debug(f"  📭 Collezione JCO DS vuota: {collection_name}")
+            return {"total_documents": result.get('count', 0), "sampled_documents": 0, "fields": {}}
+
+        fields_info = defaultdict(lambda: {'types': set(), 'count': 0, 'examples': []})
+        for doc in samples:
+            self._extract_fields(doc, fields_info)
+
+        fields = {}
+        for field_path, info in fields_info.items():
+            fields[field_path] = {
+                'types': list(info['types']),
+                'frequency': info['count'] / len(samples),
+                'examples': info['examples'][:3]
+            }
+
+        discovery_logger.debug(f"  📋 {collection_name} (JCO DS): mappati {len(fields)} campi")
+
+        return {
+            "total_documents": result.get('count', len(samples)),
+            "sampled_documents": len(samples),
+            "fields": fields
+        }
+
+    # Stessa identica logica di estrazione/tipizzazione campi di
+    # MongoSchemaDiscoverer sopra — duplicata qui apposta (non unificata
+    # in un helper condiviso) per non legare un fix futuro pensato per
+    # una sola delle due classi all'altra.
+    def _extract_fields(self, doc, fields_info: dict, prefix: str = ""):
+        if not isinstance(doc, dict):
+            return
+        for key, value in doc.items():
+            field_path = f"{prefix}.{key}" if prefix else key
+            value_type = self._get_type(value)
+            fields_info[field_path]['types'].add(value_type)
+            fields_info[field_path]['count'] += 1
+
+            if value_type not in ['array', 'object']:
+                if len(fields_info[field_path]['examples']) < 3:
+                    try:
+                        fields_info[field_path]['examples'].append(value)
+                    except Exception:
+                        pass
+
+            if isinstance(value, dict):
+                self._extract_fields(value, fields_info, field_path)
+            elif isinstance(value, list) and value and isinstance(value[0], dict):
+                self._extract_fields(value[0], fields_info, field_path)
+
+    def _get_type(self, value) -> str:
+        if isinstance(value, bool):
+            return 'boolean'
+        elif isinstance(value, int):
+            return 'integer'
+        elif isinstance(value, float):
+            return 'number'
+        elif isinstance(value, str):
+            return 'string'
+        elif isinstance(value, list):
+            return 'array'
+        elif isinstance(value, dict):
+            return 'object'
+        elif value is None:
+            return 'null'
+        else:
+            return 'unknown'

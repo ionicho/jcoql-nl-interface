@@ -115,6 +115,35 @@ def _fix_missing_collection_db(query: str, current_db: str) -> str:
     return re.sub(pattern, fix_refs, query, flags=re.IGNORECASE | re.DOTALL)
 
 
+def _fix_alias_written_as_database(query: str, current_db: str, real_databases: set) -> str:
+    """
+    Riparazione deterministica per il JOIN: il modello scrive l'ALIAS al posto
+    del database e dimentica "AS", cioe' "orders@x, users@y" invece di
+    "orders@db AS x, users@db AS y" (osservato con il modello tuned su test_db:
+    il motore risponde "[JOIN]: Invalid database x"). Nel JOIN ogni lato richiede
+    "AS alias", quindi un riferimento "coll@nome" senza AS dove "nome" non e' un
+    database realmente connesso viene letto come alias e riscritto in
+    "coll@current_db AS nome". Non tocca i riferimenti che hanno gia' AS ne' quelli
+    con un database reale (join tra due database veri).
+    """
+    def fix_refs(match):
+        keyword = match.group(1)
+        parts = [p.strip() for p in match.group(2).split(',')]
+        fixed = []
+        for part in parts:
+            m = re.match(r'^(\w+)@(\w+)$', part)
+            if m and m.group(2) not in real_databases and m.group(2) != current_db:
+                part = f"{m.group(1)}@{current_db} AS {m.group(2)}"
+            fixed.append(part)
+        return f"{keyword} " + ", ".join(fixed)
+
+    pattern = (
+        r'(JOIN OF COLLECTIONS)\s+(.+?)'
+        r'(?=\s*(?:CASE\b|CASES\b|ON\s+GEOMETRY|SET\s+GEOMETRY|REMOVE\s+DUPLICATES|;))'
+    )
+    return re.sub(pattern, fix_refs, query, flags=re.IGNORECASE | re.DOTALL)
+
+
 def _fix_hallucinated_databases(query: str, current_db: str, real_databases: set) -> str:
     """
     Riparazione deterministica, seconda parte: a differenza del
@@ -951,7 +980,7 @@ def _format_schema_compact(schema: dict) -> str:
         parts = []
         for field_name, info in fields.items():
             types = info.get('types', []) if isinstance(info, dict) else []
-            type_str = 'ARRAY' if 'array' in types else ('/'.join(types) if types else 'unknown')
+            type_str = 'ARRAY' if 'array' in types else ('/'.join(sorted(types)) if types else 'unknown')   # sorted: l'ordine di un set cambia a ogni avvio di Python, e il modello addestrato vede sempre lo stesso ordine
             item = f".{field_name}:{type_str}"
             if isinstance(info, dict) and 'string' in types and 'array' not in types:
                 ex = [str(e) for e in (info.get('examples') or []) if e is not None]
@@ -990,6 +1019,20 @@ def _build_compact_local_prompt(db_name, collections_str, schema, other_database
         "Nessun testo aggiuntivo.\n"
     )
     return prompt
+
+
+def _build_tuned_local_prompt(db_name, schema, nl_query):
+    """Prompt BREVE per il modello addestrato (modalità 'tuned'). Deve restare IDENTICO a
+    finetune/ft_prompt.py (build_tuned_prompt): è il formato visto in addestramento, se lo si
+    cambia qui va cambiato là e il modello va riaddestrato."""
+    collections_str = ", ".join(schema.keys()) if schema else "nessuna"
+    return (
+        "Traduci la richiesta in una query JCoQL+ per MongoDB. Rispondi SOLO con la query.\n"
+        f"DATABASE CORRENTE: {db_name}\n"
+        f"COLLEZIONI DISPONIBILI: {collections_str}\n"
+        f"SCHEMA (una riga per collezione):\n{_format_schema_compact(schema)}\n"
+        f"RICHIESTA: \"{nl_query}\"\n"
+    )
 
 
 def _check_join_on_array_key(query: str, current_schema):
@@ -1428,12 +1471,11 @@ class QueryRequest(BaseModel):
     """
     Modalità "database di grandi dimensioni / risultato non necessario"
     (vedi jco_framework_executor_v2.py: execute_count_only()). Quando True,
-    non viene accodato il SAVE AS automatico usato per rileggere i
-    documenti dal browser: si ottiene solo il conteggio stampato dal
-    motore su stdout, evitando il costo di persistenza su MongoDB isolato
-    come collo di bottiglia su collezioni grandi. Il risultato completo
-    resta comunque ispezionabile a mano su Compass se la query contiene un
-    SAVE AS scritto esplicitamente dall'utente (quello non viene toccato).
+    la query viene eseguita senza stampare i documenti del risultato: si
+    ottiene solo il conteggio stampato dal motore su stdout, evitando il
+    costo di serializzare e leggere una collezione grande (con timeout più
+    lungo). Un SAVE AS scritto esplicitamente dall'utente viene comunque
+    eseguito (non viene toccato), e il risultato resta ispezionabile su Compass.
     """
     count_only: bool = False
     """
@@ -1731,9 +1773,12 @@ async def generate_query(request: GenerateRequest):
     current_query = ""
     all_errors = []
     validation_errors_for_frontend = []
+    # Modalità 'tuned': a temperatura 0 e con lo stesso prompt un secondo tentativo darebbe la
+    # stessa identica query (osservato 3 volte uguale nei log), quindi si smette al primo errore.
+    stop_retries = False
 
     """Repair Loop"""
-    while attempts < request.max_retries and not is_valid:
+    while attempts < request.max_retries and not is_valid and not stop_retries:
         attempts += 1
         missing_get_collection_hint = None
         current_db = db_registry.current_database or "nessuno"
@@ -2336,7 +2381,27 @@ Usa ESATTAMENTE i nomi campi dello schema. NESSUN testo aggiuntivo.
             qualunque database connesso.
             """
             local_model_prompt = prompt
+            tuned_mode_active = (
+                ACTIVE_LLM in ("llama", "gemma", "llama32", "gemma4")
+                and _local_prompt_mode() == "tuned"
+            )
             if ACTIVE_LLM in ("llama", "gemma", "llama32", "gemma4") and \
+                    _local_prompt_mode() == "tuned":
+                """
+                Modalità 'tuned': prompt breve, nel formato visto in addestramento dal modello
+                fine-tuned (vedi _build_tuned_local_prompt). Niente regole, niente esempi RAG:
+                il linguaggio è già nei pesi del modello. L'errore del tentativo precedente
+                NON viene aggiunto: il modello non è stato addestrato a leggerlo.
+                """
+                local_model_prompt = _build_tuned_local_prompt(
+                    current_db, current_schema, request.nl_query
+                )
+                query_logger.info(
+                    f"📏 Dimensione prompt (modello locale, TUNED): "
+                    f"{len(local_model_prompt):,} caratteri "
+                    f"(~{len(local_model_prompt)//4:,} token stimati)"
+                )
+            elif ACTIVE_LLM in ("llama", "gemma", "llama32", "gemma4") and \
                     _local_prompt_mode() != "full":
                 """
                 Prompt compatto (default) per i modelli locali. LOCAL_PROMPT_MODE=full
@@ -2371,7 +2436,7 @@ Usa ESATTAMENTE i nomi campi dello schema. NESSUN testo aggiuntivo.
                 )
 
             if ACTIVE_LLM == "llama":
-                current_query = generate_with_llama(local_model_prompt)
+                current_query = generate_with_llama(local_model_prompt, use_llamacpp=tuned_mode_active)
             elif ACTIVE_LLM == "gemma":
                 current_query = generate_with_gemma(local_model_prompt)
             elif ACTIVE_LLM == "llama32":
@@ -2430,9 +2495,15 @@ Usa ESATTAMENTE i nomi campi dello schema. NESSUN testo aggiuntivo.
                             )
                             query_logger.info(f"🔧 {ACTIVE_LLM.capitalize()} corretto: {coll_name} → {close_matches[0]}")
                             current_query = corrected
-                else:
+                elif not re.match(
+                    r'\s*(?:JOIN OF COLLECTIONS|MERGE COLLECTIONS|INTERSECT COLLECTIONS|'
+                    r'SUBTRACT COLLECTIONS|GET DICTIONARY|USE DB)\b', current_query, re.IGNORECASE
+                ):
                     """
-                    (b) GET COLLECTION del tutto assente: non indoviniamo il nome collezione
+                    (b) GET COLLECTION del tutto assente (NON segnalato se la query inizia
+                    con JOIN/MERGE/INTERSECT/SUBTRACT OF COLLECTIONS, GET DICTIONARY o USE DB:
+                    un JOIN tra collezioni del database non richiede nessun GET COLLECTION,
+                    e il modello addestrato lo scrive correttamente senza): non indoviniamo il nome collezione
                     (rischia di essere semanticamente sbagliato, es. "film" vs "movies"),
                     ma segnaliamo l'errore in modo esplicito così il repair loop successivo
                     ha un'istruzione chiara da correggere, invece di un errore di parsing
@@ -2495,7 +2566,7 @@ Usa ESATTAMENTE i nomi campi dello schema. NESSUN testo aggiuntivo.
             la GET COLLECTION — rete di sicurezza per quando il prompt
             da solo non basta a farsi seguire dal modello.
             """
-            if not has_filter_request and 'FILTER CASE WHERE' in current_query.upper():
+            if not has_filter_request and not tuned_mode_active and 'FILTER CASE WHERE' in current_query.upper():
                 collection_match = re.search(r'GET\s+COLLECTION\s+\w+', current_query, re.IGNORECASE)
                 if collection_match:
                     current_query = collection_match.group(0) + ";"
@@ -2707,6 +2778,9 @@ Usa ESATTAMENTE i nomi campi dello schema. NESSUN testo aggiuntivo.
             più affidabile ripararlo qui che sperare in un altro
             tentativo di generazione.
             """
+            current_query = _fix_alias_written_as_database(
+                current_query, current_db, set(db_registry.databases.keys())
+            )
             current_query = _fix_missing_collection_db(current_query, current_db)
 
             """
@@ -2802,15 +2876,20 @@ Usa ESATTAMENTE i nomi campi dello schema. NESSUN testo aggiuntivo.
                 dell'utente (non dalla query generata, dove può essere già
                 sbagliata).
                 """
-                dict_name_match = re.search(
-                    r'dizionario\s+(\w+)|tramite\s+(?:il\s+)?(\w+)',
-                    request.nl_query, re.IGNORECASE
+                # Le parole che introducono il nome (italiano e inglese) sono solo un indizio:
+                # il nome candidato viene comunque accettato solo se nello schema è una collezione
+                # a forma di dizionario (_is_dict_shaped), quindi un indizio sbagliato non produce
+                # mai una query errata, ma al massimo passa al ripiego sotto.
+                dict_hint_pattern = re.compile(
+                    r'\b(?:dizionario|dictionary|tramite|through|using|via)\s+(?:(?:il|lo|la|the|del|of)\s+)?(?=(\w+))',
+                    re.IGNORECASE
                 )
                 dict_collection = None
-                if dict_name_match:
-                    candidate = dict_name_match.group(1) or dict_name_match.group(2)
+                for dict_name_match in dict_hint_pattern.finditer(request.nl_query):
+                    candidate = dict_name_match.group(1)
                     if _is_dict_shaped(candidate):
                         dict_collection = candidate
+                        break
 
                 """
                 FALLBACK: osservato dal vivo che una richiesta di
@@ -2961,6 +3040,11 @@ Usa ESATTAMENTE i nomi campi dello schema. NESSUN testo aggiuntivo.
                     error_messages = [missing_get_collection_hint] + error_messages
                 all_errors.append(f"Tentativo {attempts}: {', '.join(error_messages)}")
                 validation_errors_for_frontend = [{"message": msg} for msg in error_messages]
+                if tuned_mode_active:
+                    query_logger.info(
+                        "⏭️ Modalità tuned: nessun nuovo tentativo (stesso prompt a temperatura 0 = stessa query)"
+                    )
+                    stop_retries = True
 
         except Exception as e:
             query_logger.error(f"⚠️ Errore durante la generazione: {e}")
@@ -3062,7 +3146,8 @@ async def list_llms():
         "current": ACTIVE_LLM
     }
 
-# Modalità del prompt per i modelli locali: "compact" (default) o "full".
+# Modalità del prompt per i modelli locali: "compact" (default), "full" o "tuned"
+# (prompt breve del modello fine-tuned, vedi _build_tuned_local_prompt).
 # Si può cambiare a runtime con /api/set_local_prompt_mode (utile per i
 # confronti A/B senza riavviare il backend). Se non impostata, vale la
 # variabile d'ambiente LOCAL_PROMPT_MODE (default "compact").
@@ -3074,14 +3159,47 @@ def _local_prompt_mode() -> str:
 @app.post("/api/set_local_prompt_mode")
 async def set_local_prompt_mode(mode: str):
     global LOCAL_PROMPT_MODE_RUNTIME
-    if mode.lower() not in ("compact", "full"):
-        raise HTTPException(status_code=400, detail="mode must be 'compact' or 'full'")
+    if mode.lower() not in ("compact", "full", "tuned"):
+        raise HTTPException(status_code=400, detail="mode must be 'compact', 'full' or 'tuned'")
     LOCAL_PROMPT_MODE_RUNTIME = mode.lower()
     return {"success": True, "local_prompt_mode": _local_prompt_mode()}
 
 @app.get("/api/local_prompt_mode")
 async def get_local_prompt_mode():
     return {"local_prompt_mode": _local_prompt_mode()}
+
+@app.post("/api/eval/build_prompt")
+async def eval_build_prompt(database_name: str, nl_query: str, mode: str = "compact"):
+    """
+    Solo per la valutazione (finetune/soup/ft_eval.py): costruisce il prompt che il backend
+    userebbe per un database MongoDB QUALUNQUE, senza connetterlo (nessuna modifica a
+    connected_databases.json) e senza chiamare nessun modello. mode: "compact" (regole + schema
+    + esempi RAG, per il modello base) oppure "tuned" (prompt breve del modello addestrato).
+    """
+    from backend.database.schema_discovery import MongoSchemaDiscoverer
+    mode = mode.lower()
+    if mode not in ("compact", "tuned"):
+        raise HTTPException(status_code=400, detail="mode must be 'compact' or 'tuned'")
+    try:
+        disc = MongoSchemaDiscoverer("mongodb://localhost:27017", database_name)
+        schema = disc.discover_schema(sample_size=100)
+        disc.client.close()
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"schema discovery failed: {e}")
+    if mode == "tuned":
+        return {"prompt": _build_tuned_local_prompt(database_name, schema, nl_query)}
+    context_str = ""
+    if collection:
+        try:
+            r = collection.query(query_texts=[nl_query], n_results=7)
+            docs = r["documents"][0] if (r and r.get("documents")) else []
+            context_str = "\n\n".join(docs)
+        except Exception:
+            context_str = ""
+    return {"prompt": _build_compact_local_prompt(
+        database_name, ", ".join(schema.keys()) if schema else "nessuna", schema, "",
+        context_str, nl_query, "")}
+
 
 @app.post("/api/set_llm")
 async def set_llm(llm_type: str):

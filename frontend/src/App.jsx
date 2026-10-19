@@ -32,6 +32,10 @@ const API_BASE_URL = 'http://localhost:8000'
 function MainInterface() {
   // --- STATI LOCALI ---
   const [selectedLlm, setSelectedLlm] = useState('gemini') 
+  // Modalità del prompt per i modelli locali: 'compact' (modello base) o
+  // 'tuned' (Llama 3.1 fine-tuned servito da llama.cpp). In modalità tuned
+  // l'unico LLM utilizzabile è Llama 3.1, quindi il selettore LLM è bloccato.
+  const [promptMode, setPromptMode] = useState('compact')
   
   // Stato dei database selezionati (multiplo), gestito da DatabaseSelector.
   // Non include configurazione di JOIN: un JOIN resta comunque possibile
@@ -82,6 +86,16 @@ function MainInterface() {
       .catch(err => console.error('Error loading active parser:', err))
   }, [])
 
+  // --- EFFECT: ALLINEAMENTO CON LO STATO DEL BACKEND (LLM e modalità prompt) ---
+  useEffect(() => {
+    axios.get(`${API_BASE_URL}/api/llms`)
+      .then(res => { if (res.data.current) setSelectedLlm(res.data.current) })
+      .catch(err => console.error('Error loading active LLM:', err))
+    axios.get(`${API_BASE_URL}/api/local_prompt_mode`)
+      .then(res => setPromptMode(res.data.local_prompt_mode === 'tuned' ? 'tuned' : 'compact'))
+      .catch(err => console.error('Error loading prompt mode:', err))
+  }, [])
+
   // --- EFFECT: CARICAMENTO INIZIALE DA LOCAL STORAGE ---
   useEffect(() => {
     try {
@@ -117,6 +131,29 @@ function MainInterface() {
     }
   }
 
+  // --- HANDLER: CAMBIO MODALITÀ PROMPT (standard / tuned) ---
+  // Passando a 'tuned' si forza prima Llama 3.1 e poi si attiva la modalità;
+  // tornando a 'compact' il selettore LLM torna libero.
+  const handlePromptModeChange = async (e) => {
+    const newMode = e.target.value
+    try {
+      if (newMode === 'tuned') {
+        await axios.post(`${API_BASE_URL}/api/set_llm`, null, { params: { llm_type: 'llama' } })
+        setSelectedLlm('llama')
+      }
+      const response = await axios.post(`${API_BASE_URL}/api/set_local_prompt_mode`, null, {
+        params: { mode: newMode }
+      })
+      if (response.data.success) {
+        setPromptMode(newMode)
+        showToast(newMode === 'tuned' ? 'Tuned mode: Llama 3.1 fine-tuned' : 'Standard mode', 'success')
+      }
+    } catch (error) {
+      console.error('Error while switching prompt mode:', error)
+      showToast('Error switching mode', 'error')
+    }
+  }
+
   // --- HANDLER: GESTIONE UNIFICATA DATABASE (Da DatabaseSelector) ---
   const handleDatabasesChange = (databases) => {
     setSelectedDatabases(databases)
@@ -142,7 +179,7 @@ function MainInterface() {
       {/* ════════════════ HEADER ════════════════ */}
       <header className="app-header">
         <div className="header-content">
-          <h1> J-CO-QL+ Natural Language Interface</h1>
+          <h1> JCoQL+ Natural Language Interface</h1>
           
           <div className="header-info">
             <span className="info-item">
@@ -154,13 +191,28 @@ function MainInterface() {
                 value={selectedLlm} 
                 onChange={handleLlmChange} 
                 className="llm-selector"
-                title={`Current: ${selectedLlm === 'gemini' ? 'Cloud (Google API)' : 'Local (Ollama)'}`}
+                disabled={promptMode === 'tuned'}
+                title={promptMode === 'tuned'
+                  ? 'Tuned mode: only Llama 3.1 is available'
+                  : `Current: ${selectedLlm === 'gemini' ? 'Cloud (Google API)' : 'Local (Ollama)'}`}
               >
                 <option value="gemini">☁️ Gemini (Cloud)</option>
                 <option value="llama">🏠 Llama 3.1 8B (Local - 4.7GB)</option>
                 <option value="gemma">🏠 Gemma 1 7B (Local - 5.4GB) </option>
                 <option value="llama32">🏠 Llama 3.2 3B (Local - 2GB)</option>
                 <option value="gemma4">🏠 Gemma 4 E4B (Local - 6.6GB)</option>
+              </select>
+            </span>
+            <span className="info-item">
+              <strong>Mode:</strong>
+              <select
+                value={promptMode}
+                onChange={handlePromptModeChange}
+                className="llm-selector"
+                title="Standard: base model with rules and examples. Tuned: fine-tuned Llama 3.1 (requires llama-server on port 8081)"
+              >
+                <option value="compact">Standard</option>
+                <option value="tuned">🎯 Tuned (Llama 3.1 fine-tuned)</option>
               </select>
             </span>
           </div>
@@ -274,7 +326,7 @@ function MainInterface() {
       {/* ════════════════ FOOTER ════════════════ */}
       <footer className="app-footer">
         <p>Iotti Nicholas</p>
-        <p>J-CO-QL+ NL Interface | University of Bergamo</p>
+        <p>JCoQL+ NL Interface | University of Bergamo</p>
       </footer>
     </div>
   )
@@ -298,4 +350,4 @@ export default function App() {
       </BrowserRouter>
     </QueryClientProvider>
   )
-}
+}

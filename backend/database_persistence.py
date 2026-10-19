@@ -49,14 +49,24 @@ def save_databases_to_file(registry):
     """
     try:
         databases_data = {}
-        
+
         for db_name, db_info in registry.databases.items():
-            databases_data[db_name] = {
+            entry = {
                 'name': db_name,
                 'mongo_uri': db_info.get('mongo_uri'),
                 'database_name': db_info.get('database_name')
             }
-        
+            # AGGIUNTO 03/10/2026 — integrazione JCO DS: salvate solo se
+            # presenti (un database MongoDB non ha "server" in
+            # registry.databases, vedi database_registry.py), così un
+            # file scritto da una versione precedente di questo modulo
+            # resta nello stesso formato di sempre per i database Mongo.
+            server = db_info.get('server')
+            if server:
+                entry['server'] = server
+                entry['collections_list'] = db_info.get('collections_list')
+            databases_data[db_name] = entry
+
         with open(PERSISTENCE_FILE, 'w') as f:
             json.dump(databases_data, f, indent=2)
         
@@ -92,8 +102,13 @@ def load_databases_from_file(registry):
         for db_name, db_info in databases_data.items():
             registry.add_database(
                 db_name=db_name,
-                mongo_uri=db_info['mongo_uri'],
-                database_name=db_info['database_name']
+                mongo_uri=db_info.get('mongo_uri'),
+                database_name=db_info['database_name'],
+                # .get(): assenti in un file scritto prima del 03/10/2026
+                # (solo database MongoDB) — add_database li tratta come
+                # un database MongoDB, esattamente come già faceva.
+                server=db_info.get('server'),
+                collections=db_info.get('collections_list'),
             )
             count += 1
         

@@ -6,7 +6,7 @@ come "ISNOTNULL" (senza spazi) invece di "IS NOT NULL", o la parola chiave FIELD
 
 STATO ATTUALE:
 nonostante il nome e il docstring parlino di "errori comuni" al plurale,
-oggi è implementato UN solo correttore (ISNOTNULL, sotto). L'architettura
+oggi è implementato pochi correttori (ISNOTNULL, alias JOIN, MERGE REMOVE DUPLICATES, BETWEEN). L'architettura
 è però pensata per essere estesa: correct_query() applica in sequenza
 "tutti i corrector" registrati — se in futuro l'LLM genera altri errori
 sistematici (es. un altro operatore scritto con spazi quando il parser
@@ -67,6 +67,69 @@ def correct_isnotnull_syntax(query: str) -> tuple[str, bool]:
         corrector_logger.debug(f"Query DOPO:   {query}")
     return query, modified
 
+def _split_literals(text: str):
+    """Spezza il testo in (frammento, is_literal) separando le stringhe tra apici singoli."""
+    parts = re.split(r"('(?:[^'\\]|\\.)*')", text)
+    return [(p, i % 2 == 1) for i, p in enumerate(parts)]
+
+
+_JOIN_RE = re.compile(
+    r"(JOIN\s+OF\s+COLLECTIONS\s+[\w@.]+\s+AS\s+(\w+)\s*,\s*[\w@.]+\s+AS\s+(\w+))(\s+CASE\b[^;]*)",
+    re.IGNORECASE)
+
+
+def correct_join_alias_dots(query: str) -> tuple[str, bool]:
+    """
+    Nelle condizioni di JOIN gli alias dichiarati vanno scritti con il punto
+    iniziale (".alias.campo"), come ogni riferimento a campo. Il LLM spesso
+    scrive "alias.campo": il parser lo rifiuta. Qui si antepone il punto agli
+    alias dichiarati nello stesso JOIN (fuori dalle stringhe tra apici).
+    """
+    original = query
+
+    def _fix(m):
+        head, a1, a2, cond = m.group(1), m.group(2), m.group(3), m.group(4)
+        pat = re.compile(r"(?<![\w.@'\"])(" + "|".join(re.escape(a) for a in {a1, a2}) + r")(?=\.\w)")
+        out = ""
+        for frag, lit in _split_literals(cond):
+            out += frag if lit else pat.sub(r".\1", frag)
+        return head + out
+
+    query = _JOIN_RE.sub(_fix, query)
+    modified = query != original
+    if modified:
+        corrector_logger.info("Correzione punto iniziale sugli alias del JOIN applicata")
+    return query, modified
+
+
+def correct_merge_remove_duplicates(query: str) -> tuple[str, bool]:
+    """
+    "MERGE COLLECTIONS a, b; REMOVE DUPLICATES;" -> "MERGE COLLECTIONS a, b REMOVE DUPLICATES;"
+    (REMOVE DUPLICATES fa parte dello stesso statement, non e' un comando a se').
+    """
+    original = query
+    query = re.sub(r"(MERGE\s+COLLECTIONS\s+[^;]+?)\s*;\s*REMOVE\s+DUPLICATES\s*;",
+                   r"\1 REMOVE DUPLICATES;", query, flags=re.IGNORECASE)
+    modified = query != original
+    if modified:
+        corrector_logger.info("Correzione MERGE ... REMOVE DUPLICATES applicata")
+    return query, modified
+
+
+def correct_between_syntax(query: str) -> tuple[str, bool]:
+    """
+    ".campo BETWEEN a AND b" non esiste in J-CO-QL+: l'operatore e' IN_RANGE [a, b].
+    """
+    original = query
+    num = r"-?\d+(?:\.\d+)?"
+    val = rf"({num}|'[^']*')"
+    query = re.sub(rf"(\.[\w.]+)\s+BETWEEN\s+{val}\s+AND\s+{val}",
+                   r"\1 IN_RANGE [\2, \3]", query, flags=re.IGNORECASE)
+    modified = query != original
+    if modified:
+        corrector_logger.info("Correzione BETWEEN -> IN_RANGE applicata")
+    return query, modified
+
 
 def correct_query(query: str) -> tuple[str, list]:
     """
@@ -103,5 +166,12 @@ def correct_query(query: str) -> tuple[str, list]:
     query, is_modified = correct_isnotnull_syntax(query)
     if is_modified:
         corrections.append("ISNOTNULL syntax corrected")
+
+    for fn, label in ((correct_join_alias_dots, "JOIN alias dots added"),
+                      (correct_merge_remove_duplicates, "MERGE REMOVE DUPLICATES merged"),
+                      (correct_between_syntax, "BETWEEN rewritten as IN_RANGE")):
+        query, is_modified = fn(query)
+        if is_modified:
+            corrections.append(label)
     
     return query, corrections
