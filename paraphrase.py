@@ -9,6 +9,7 @@ Riprendibile (paraphrase.csv). ATTENZIONE: scrive anche in test_campaign_log.csv
 Uso:
     .\\venv\\Scripts\\python.exe .\\paraphrase.py --models gemini
     .\\venv\\Scripts\\python.exe .\\paraphrase.py --models gemma4 llama32 llama
+    .\\venv\\Scripts\\python.exe .\\paraphrase.py --models llama --tuned   (llama-server v3 + LLAMACPP_URL)
 Output: paraphrase.csv, paraphrase_riepilogo.csv
 """
 import argparse, csv, os, time
@@ -58,6 +59,7 @@ def main():
     ap.add_argument("--pause-gemini", type=int, default=20)
     ap.add_argument("--wait-rate-limit", type=int, default=70)
     ap.add_argument("--max-rate-retries", type=int, default=4)
+    ap.add_argument("--tuned", action="store_true", help="prompt tuned (llama-server v3); le righe sono salvate come <modello>-tuned")
     a = ap.parse_args()
     C = V.load_collections_mongo()
     rows = list(csv.DictReader(open(OUT, encoding="utf-8-sig"))) if os.path.exists(OUT) else []
@@ -66,13 +68,18 @@ def main():
     fh = open(OUT, "a", newline="", encoding="utf-8-sig"); w = csv.DictWriter(fh, fieldnames=FIELDS)
     if new_file: w.writeheader()
     for m in a.models:
+        lab = m + "-tuned" if a.tuned else m
         rr = requests.post(f"{V.BACKEND}/api/set_llm", params={"llm_type": m})
         if rr.status_code != 200:
             print(f"!! impossibile selezionare {m}"); continue
-        print(f"=== modello {m} ===")
+        if a.tuned:
+            r2 = requests.post(f"{V.BACKEND}/api/set_local_prompt_mode", params={"mode": "tuned"})
+            if r2.status_code != 200:
+                print("!! il backend non ha /api/set_local_prompt_mode"); return
+        print(f"=== modello {lab} ===")
         for pid, orig, ps in SET:
             for v, nl in enumerate([orig] + ps):
-                if (m, nl) in done: continue
+                if (lab, nl) in done: continue
                 row = R.one_run(m, pid, nl, 1, C, a.gen_timeout, a.exec_timeout)
                 tries = 0
                 while R.is_rate_limited(row) and tries < a.max_rate_retries:
@@ -80,14 +87,16 @@ def main():
                     time.sleep(a.wait_rate_limit)
                     row = R.one_run(m, pid, nl, 1, C, a.gen_timeout, a.exec_timeout)
                 if m == "gemini" and a.pause_gemini: time.sleep(a.pause_gemini)
-                out = {"modello": m, "id": pid, "variante": "originale" if v == 0 else f"parafrasi {v}", "query_nl": nl,
+                out = {"modello": lab, "id": pid, "variante": "originale" if v == 0 else f"parafrasi {v}", "query_nl": nl,
                        "valida": row["valida"], "tentativi": row["tentativi"], "tempo_gen_s": row["tempo_gen_s"],
                        "query_jcoql": row["query_jcoql"], "esito": row["esito"], "dettaglio": row["dettaglio"]}
                 w.writerow(out); fh.flush(); rows.append(out)
-                print(f"[{m}] {pid:4} {out['variante']:11} {row['esito'][:26]:26} {row['tempo_gen_s']}s")
+                print(f"[{lab}] {pid:4} {out['variante']:11} {row['esito'][:26]:26} {row['tempo_gen_s']}s")
     fh.close()
+    try: requests.post(f"{V.BACKEND}/api/set_local_prompt_mode", params={"mode": "compact"})
+    except Exception: pass
     summ = []
-    for m in a.models:
+    for m in [x + "-tuned" if a.tuned else x for x in a.models]:
         for pid, _, _ in SET + [("TOT", 0, 0)]:
             rs = [r for r in rows if r["modello"] == m and (pid == "TOT" or r["id"] == pid)]
             if not rs: continue

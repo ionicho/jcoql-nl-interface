@@ -12,6 +12,7 @@ Uso (backend avviato su localhost:8000):
     .\\venv\\Scripts\\python.exe .\\rerun_extended.py --models gemma4 --modes compact full
     .\\venv\\Scripts\\python.exe .\\rerun_extended.py --models llama llama32 --modes compact
     .\\venv\\Scripts\\python.exe .\\rerun_extended.py --models gemini
+    .\\venv\\Scripts\\python.exe .\\rerun_extended.py --models llama --modes tuned   (LLAMACPP_URL + llama-server v3)
     .\\venv\\Scripts\\python.exe .\\rerun_extended.py --models gemma4 --modes compact full --runs 3
 Opzioni: --groups R1 R2 R3 F D (default tutti), --runs N (giri per richiesta),
          --redo parola [parola ...]  rifà solo le richieste che contengono quelle parole, es. --redo tracking
@@ -40,7 +41,7 @@ def load_context():
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--models", nargs="+", default=["gemma4"])
-    ap.add_argument("--modes", nargs="+", default=["compact"], choices=["compact", "full"])
+    ap.add_argument("--modes", nargs="+", default=["compact"], choices=["compact", "full", "tuned"])
     ap.add_argument("--groups", nargs="+", default=[g for g, _ in GROUPS])
     ap.add_argument("--runs", type=int, default=1)
     ap.add_argument("--redo", nargs="+", default=[], help="rifà le richieste il cui testo contiene una di queste parole (le righe vecchie restano nel file; vale l'ultima)")

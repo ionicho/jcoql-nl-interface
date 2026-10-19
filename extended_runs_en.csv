@@ -1,0 +1,644 @@
+﻿modello,modo_prompt,gruppo,n,run,query_nl,valida,tentativi,tempo_gen_s,query_jcoql,esito,dettaglio
+gemini,n/a,R1,1,1,Show me all the users,SI,1,3.5,GET COLLECTION users;,ESATTO,"5 documenti, stesso insieme di _id"
+gemini,n/a,R1,2,1,Show me the products with a discount greater than 20%,SI,1,3.7,GET COLLECTION products; FILTER CASE WHERE .discount > 20;,ESATTO,"8 documenti, stesso insieme di _id"
+gemini,n/a,R1,3,1,Show me the organic products with a rating of at least 4,SI,1,3.5,GET COLLECTION products; FILTER CASE WHERE .organic = TRUE AND .rating >= 4;,ESATTO,"2 documenti, stesso insieme di _id"
+gemini,n/a,R1,4,1,Show me the organic products or the ones with a discount above 30%,SI,1,4.8,"GET COLLECTION products;
+FILTER CASE WHERE .organic = TRUE OR .discount > 30;",ESATTO,"3 documenti, stesso insieme di _id"
+gemini,n/a,R1,5,1,Expand the reviews of the products into separate rows,SI,1,3.7,"GET COLLECTION products;
+EXPAND UNPACK TRUE ARRAY .reviews TO .review;",ESATTO (solo conteggio),56
+gemini,n/a,R1,6,1,Link each order to the user who placed it,SI,1,3.7,"JOIN OF COLLECTIONS orders@jcoql_test AS a, users@jcoql_test AS b CASE WHERE .a.user_id = .b._id;",ESATTO (solo conteggio),2
+gemini,n/a,R1,7,1,Group the products by category,SI,1,3.2,"GET COLLECTION products;
+GROUP PARTITION TRUE BY .category INTO .risultato;",ESATTO (solo conteggio),5 n gruppi
+gemini,n/a,R1,8,1,"Merge the organic products and the discounted ones into a single collection, without duplicates",SI,1,3.4,"GET COLLECTION products;
+FILTER CASE WHERE .organic = TRUE;
+SAVE AS organic_products@jcoql_test;
+GET COLLECTION products;
+FILTER CASE WHERE .discount > 0;
+SAVE AS discounted_products@jcoql_test;
+MERGE COLLECTIONS organic_products@jcoql_test, discounted_products@jcoql_test REMOVE DUPLICATES;",ESATTO,"24 documenti, stesso insieme di _id"
+gemini,n/a,R2,1,1,Show me the products that are not organic,SI,1,3.3,GET COLLECTION products; FILTER CASE WHERE .organic = FALSE;,ESATTO,"27 documenti, stesso insieme di _id"
+gemini,n/a,R2,2,1,"Show me the organic products with a rating of at least 4, or the ones with a discount above 50%",SI,1,3.2,"GET COLLECTION products;
+FILTER CASE WHERE .organic = TRUE AND .rating >= 4 OR .discount > 50;",ESATTO,"2 documenti, stesso insieme di _id"
+gemini,n/a,R2,3,1,Show me the orders above 100 euros together with the user who placed them,SI,2,4.2,"JOIN OF COLLECTIONS orders@jcoql_test AS o, users@jcoql_test AS u CASE WHERE .o.user_id = .u._id;
+FILTER CASE WHERE .o.total > 100;",ESATTO (solo conteggio),2
+gemini,n/a,R2,4,1,Show me the reviews of the products with a rating above 4,SI,1,3.9,"GET COLLECTION products;
+EXPAND UNPACK TRUE ARRAY .reviews TO .elemento;
+FILTER CASE WHERE .elemento.item.rating > 4;",ESATTO (solo conteggio),24
+gemini,n/a,R2,5,1,Count how many products there are for each category,SI,1,3.9,"GET COLLECTION products;
+GROUP PARTITION TRUE BY .category INTO .risultato;",ESATTO (solo conteggio),5 n gruppi
+gemini,n/a,R3,1,1,Show me the products with a rating between 3 and 4.5,SI,1,3.3,"GET COLLECTION products; FILTER CASE WHERE .rating IN_RANGE [3.0, 4.5];",ESATTO,"25 documenti, stesso insieme di _id"
+gemini,n/a,R3,2,1,Show me the products with a discount between 10% and 30%,SI,1,3.3,"GET COLLECTION products; FILTER CASE WHERE .discount IN_RANGE [10, 30];",ESATTO,"17 documenti, stesso insieme di _id"
+gemini,n/a,R3,3,1,Show me the products with no discount,SI,1,3.2,GET COLLECTION products; FILTER CASE WHERE FIELD .discount IS NULL;,DIVERSO,"attesi 7 documenti, ottenuti 0"
+gemini,n/a,R3,4,1,Show me the products with a rating below 3,SI,1,3.2,GET COLLECTION products; FILTER CASE WHERE .rating < 3;,ESATTO,"0 documenti, stesso insieme di _id"
+gemini,n/a,R3,5,1,Show me the organic products with a discount greater than 20%,SI,1,3.1,GET COLLECTION products; FILTER CASE WHERE .organic = TRUE AND .discount > 20;,ESATTO,"1 documenti, stesso insieme di _id"
+gemini,n/a,R3,6,1,Show me the non-organic products with a rating of at least 4,SI,1,3.1,GET COLLECTION products; FILTER CASE WHERE .organic = FALSE AND .rating >= 4;,ESATTO,"13 documenti, stesso insieme di _id"
+gemini,n/a,R3,7,1,Show me the products that are not organic and have no discount,SI,1,3.1,GET COLLECTION products; FILTER CASE WHERE .organic = FALSE AND FIELD .discount IS NULL;,DIVERSO,"attesi 6 documenti, ottenuti 0"
+gemini,n/a,R3,8,1,Show me the organic products or the ones with a rating of at least 4.5,SI,1,3.4,"GET COLLECTION products;
+FILTER CASE WHERE .organic = TRUE OR .rating >= 4.5;",ESATTO,"7 documenti, stesso insieme di _id"
+gemini,n/a,R3,9,1,"Show me the products with a discount above 40%, or with a rating below 2",SI,1,3.2,GET COLLECTION products; FILTER CASE WHERE .discount > 40 OR .rating < 2;,ESATTO,"0 documenti, stesso insieme di _id"
+gemini,n/a,R3,10,1,"Show me the organic products with a discount above 10%, or the ones with a rating of at least 4.5",SI,1,3.2,"GET COLLECTION products;
+FILTER CASE WHERE .organic = TRUE AND .discount > 10 OR .rating >= 4.5;",ESATTO,"5 documenti, stesso insieme di _id"
+gemini,n/a,R3,11,1,Show me the non-organic products or the ones with a discount above 50%,SI,1,3.1,"GET COLLECTION products;
+FILTER CASE WHERE .organic = FALSE OR .discount > 50;",ESATTO,"27 documenti, stesso insieme di _id"
+gemini,n/a,R3,12,1,Show me the reviews of the products with a rating equal to 5,SI,1,3.4,"GET COLLECTION products;
+EXPAND UNPACK TRUE ARRAY .reviews TO .elemento;
+FILTER CASE WHERE .elemento.item.rating = 5;",ESATTO (solo conteggio),24
+gemini,n/a,R3,13,1,Show me the reviews of the products with a rating below 3,SI,1,3.3,"GET COLLECTION products;
+EXPAND UNPACK TRUE ARRAY .reviews TO .elemento;
+FILTER CASE WHERE .elemento.item.rating < 3;",ESATTO (solo conteggio),0
+gemini,n/a,R3,14,1,Show me the reviews of the organic products only,SI,1,3.2,"GET COLLECTION products;
+FILTER CASE WHERE .organic = TRUE;
+EXPAND UNPACK TRUE ARRAY .reviews TO .reviews;
+FILTER GENERATE BUILD { .reviews: .reviews.item };",ESATTO (solo conteggio),11
+gemini,n/a,R3,15,1,Expand the items of the orders into separate rows,SI,1,3.2,"GET COLLECTION orders;
+EXPAND UNPACK TRUE ARRAY .items TO .item;",ESATTO (solo conteggio),67
+gemini,n/a,R3,16,1,Link each review to the user who wrote it,SI,1,3.7,"GET COLLECTION products;
+EXPAND UNPACK TRUE ARRAY .reviews TO .review;
+SAVE AS chaintemp1@jcoql_test;
+JOIN OF COLLECTIONS chaintemp1@jcoql_test AS a, users@jcoql_test AS b
+CASE WHERE .a.review.item.user = .b._id;",ESATTO (solo conteggio),36
+gemini,n/a,R3,17,1,Show me the orders below 50 euros together with the user who placed them,SI,2,4.9,"JOIN OF COLLECTIONS orders@jcoql_test AS a, users@jcoql_test AS b CASE WHERE .a.user_id = .b._id;
+FILTER CASE WHERE .a.total < 50;",ESATTO (solo conteggio),0
+gemini,n/a,R3,18,1,Link each order to the products purchased,SI,1,3.3,"GET COLLECTION orders@jcoql_test;
+EXPAND UNPACK TRUE ARRAY .items TO .elemento;
+SAVE AS chaintemp1@jcoql_test;
+USE DB jcoql_test ON DEFAULT SERVER;
+JOIN OF COLLECTIONS chaintemp1@jcoql_test AS a, products@jcoql_test AS b
+CASE WHERE .a.elemento.item.product_id = .b._id;",ESATTO (solo conteggio),47
+gemini,n/a,R3,19,1,Link each user to their orders,SI,1,3.3,"JOIN OF COLLECTIONS users@jcoql_test AS u, orders@jcoql_test AS o CASE WHERE .o.user_id = .u._id;",ESATTO (solo conteggio),2
+gemini,n/a,R3,20,1,Group the orders by user,SI,1,4.6,"GET COLLECTION orders;
+GROUP PARTITION TRUE BY .user_id INTO .orders_by_user;",ESATTO (solo conteggio),15 n gruppi
+gemini,n/a,R3,21,1,Group the organic products by category,SI,1,7.0,"GET COLLECTION products;
+FILTER CASE WHERE .organic = TRUE;
+GROUP PARTITION TRUE BY .category INTO .organic_by_category;",ESATTO (solo conteggio),1 n gruppi
+gemini,n/a,R3,22,1,Group the products into organic and non-organic,SI,1,4.3,"GET COLLECTION products;
+GROUP PARTITION .organic = TRUE BY .organic INTO .organic_products
+PARTITION .organic = FALSE BY .organic INTO .non_organic_products;",ESATTO (solo conteggio),2 n gruppi
+gemini,n/a,R3,23,1,"Merge the products with a rating of at least 4 and the ones with a discount above 30% into a single collection, without duplicates",SI,1,3.5,"GET COLLECTION products;
+FILTER CASE WHERE .rating >= 4.0;
+SAVE AS sottoinsieme1@jcoql_test;
+GET COLLECTION products;
+FILTER CASE WHERE .discount > 30;
+SAVE AS sottoinsieme2@jcoql_test;
+MERGE COLLECTIONS sottoinsieme1@jcoql_test, sottoinsieme2@jcoql_test REMOVE DUPLICATES;",ESATTO,"15 documenti, stesso insieme di _id"
+gemini,n/a,R3,24,1,"Merge the organic products and the ones with no discount into a single collection, keeping the duplicates",SI,1,3.4,"GET COLLECTION products;
+FILTER CASE WHERE .organic = TRUE;
+SAVE AS organic_products@jcoql_test;
+GET COLLECTION products;
+FILTER CASE WHERE FIELD .discount IS NULL;
+SAVE AS no_discount_products@jcoql_test;
+MERGE COLLECTIONS organic_products@jcoql_test, no_discount_products@jcoql_test REMOVE DUPLICATES;",DIVERSO,"attesi 10 con duplicati = |A|+|B|, ottenuti 3"
+gemini,n/a,R3,25,1,Merge the orders above 100 euros and the ones below 20 euros into a single collection,SI,1,3.4,"GET COLLECTION orders;
+FILTER CASE WHERE .total > 100;
+SAVE AS sottoinsieme1@jcoql_test;
+GET COLLECTION orders;
+FILTER CASE WHERE .total < 20;
+SAVE AS sottoinsieme2@jcoql_test;
+MERGE COLLECTIONS sottoinsieme1@jcoql_test, sottoinsieme2@jcoql_test REMOVE DUPLICATES;",ESATTO,"20 documenti, stesso insieme di _id"
+gemini,n/a,R3,26,1,Add to each order a field with the total increased by 22% VAT,SI,2,5.1,"GET COLLECTION orders;
+FILTER GENERATE ADD FIELDS { .total_with_vat: .total};",DIVERSO,"0/20 documenti con valore calcolato corretto; n=20, atteso 20"
+gemini,n/a,R3,27,1,Add to each product a field with the difference between 5 and the rating,SI,1,3.1,"GET COLLECTION products;
+FILTER GENERATE ADD FIELDS { .rating_diff: .rating};",DIVERSO,"0/30 documenti con valore calcolato corretto; n=30, atteso 30"
+gemini,n/a,R3,28,1,Show me only the category and the rating of each product,SI,1,3.6,"GET COLLECTION products;
+FILTER GENERATE BUILD { .category: .category, .rating: .rating };",ESATTO,"0 documenti con campi diversi da {category, rating}; n=30, atteso 30"
+gemini,n/a,F,1,1,Show me the products in the food category,SI,1,3.3,GET COLLECTION products; FILTER CASE WHERE .category = 'food';,ESATTO,"12 documenti, stesso insieme di _id"
+gemini,n/a,F,2,1,Show me the products with a price above 1000 euros,SI,1,5.6,GET COLLECTION products; FILTER CASE WHERE .price > 1000;,ESATTO,"16 documenti, stesso insieme di _id"
+gemini,n/a,F,3,1,Show me the products with a price below 300 euros,SI,1,4.1,GET COLLECTION products; FILTER CASE WHERE .price < 300;,ESATTO,"5 documenti, stesso insieme di _id"
+gemini,n/a,F,4,1,Show me the products in the electronics category with a discount of at least 15%,SI,1,3.2,GET COLLECTION products; FILTER CASE WHERE .category = 'electronics' AND .discount >= 15;,ESATTO,"2 documenti, stesso insieme di _id"
+gemini,n/a,F,5,1,Show me the products in the books or sports category,SI,1,3.4,GET COLLECTION products; FILTER CASE WHERE .category = 'books' OR .category = 'sports';,ESATTO,"8 documenti, stesso insieme di _id"
+gemini,n/a,F,6,1,Show me the products that are not in the food category,SI,1,3.4,GET COLLECTION products; FILTER CASE WHERE NOT .category = 'food';,ESATTO,"18 documenti, stesso insieme di _id"
+gemini,n/a,F,7,1,Show me the products with more than 50 pieces in stock,SI,1,3.4,GET COLLECTION products; FILTER CASE WHERE .stock > 50;,ESATTO,"18 documenti, stesso insieme di _id"
+gemini,n/a,F,8,1,Show me the products with a price between 200 and 700 euros,SI,1,3.5,"GET COLLECTION products; FILTER CASE WHERE .price IN_RANGE [200, 700];",ESATTO,"8 documenti, stesso insieme di _id"
+gemini,n/a,F,9,1,Show me the premium users,SI,1,3.6,GET COLLECTION users; FILTER CASE WHERE .premium = TRUE;,ESATTO,"1 documenti, stesso insieme di _id"
+gemini,n/a,F,10,1,Show me the users older than 40,SI,1,3.3,GET COLLECTION users; FILTER CASE WHERE .age > 40;,ESATTO,"3 documenti, stesso insieme di _id"
+gemini,n/a,F,11,1,Show me the users who live in Torino,SI,1,3.2,GET COLLECTION users; FILTER CASE WHERE .city = 'Torino';,ESATTO,"2 documenti, stesso insieme di _id"
+gemini,n/a,F,12,1,Show me the active users with a verified email,SI,1,3.5,GET COLLECTION users; FILTER CASE WHERE .active = TRUE AND .email_verified = TRUE;,ESATTO,"3 documenti, stesso insieme di _id"
+gemini,n/a,F,13,1,Show me the users who are not premium,SI,1,3.1,GET COLLECTION users; FILTER CASE WHERE .premium = FALSE;,ESATTO,"4 documenti, stesso insieme di _id"
+gemini,n/a,F,14,1,Show me the orders with status confirmed,SI,1,3.9,GET COLLECTION orders; FILTER CASE WHERE .status = 'confirmed';,ESATTO,"3 documenti, stesso insieme di _id"
+gemini,n/a,F,15,1,Show me the orders with priority urgent,SI,1,3.4,GET COLLECTION orders; FILTER CASE WHERE .priority = 'urgent';,ESATTO,"5 documenti, stesso insieme di _id"
+gemini,n/a,F,16,1,Show me the orders without a tracking number,SI,1,3.6,GET COLLECTION orders; FILTER CASE WHERE FIELD .tracking_number IS NULL;,ESATTO,"7 documenti, stesso insieme di _id"
+gemini,n/a,F,17,1,Show me the orders with a total above 500 euros,SI,1,3.1,GET COLLECTION orders; FILTER CASE WHERE .total > 500;,ESATTO,"12 documenti, stesso insieme di _id"
+gemini,n/a,F,18,1,Show me the orders that have not been cancelled,SI,1,3.4,GET COLLECTION orders; FILTER CASE WHERE .status != 'cancelled';,ESATTO,"14 documenti, stesso insieme di _id"
+gemini,n/a,F,19,1,Show me the orders with a total between 200 and 600 euros,SI,1,3.3,"GET COLLECTION orders; FILTER CASE WHERE .total IN_RANGE [ 200 , 600 ];",ESATTO,"8 documenti, stesso insieme di _id"
+gemini,n/a,F,20,1,Group the users by city,SI,1,3.4,"GET COLLECTION users;
+GROUP PARTITION TRUE BY .city INTO .users_by_city;",ESATTO (solo conteggio),4 n gruppi
+gemini,n/a,F,21,1,Group the orders by status,SI,1,4.8,"GET COLLECTION orders;
+GROUP PARTITION TRUE BY .status INTO .ordersByStatus;",ESATTO (solo conteggio),5 n gruppi
+gemini,n/a,F,22,1,Show me only the name and the price of each product,SI,1,5.1,"GET COLLECTION products; FILTER GENERATE BUILD { .name: .name, .price: .price };",ESATTO,"0 documenti con campi diversi da ['name', 'price']; n=30, atteso 30"
+gemini,n/a,D,1,1,Show me the reviews with a rating equal to 5 of the organic products only,SI,1,3.7,"GET COLLECTION products;
+EXPAND UNPACK TRUE ARRAY .reviews TO .elemento;
+FILTER CASE WHERE .organic = TRUE AND .elemento.item.rating = 5;",ESATTO (solo conteggio),3
+gemini,n/a,D,2,1,"Show me the orders above 500 euros together with the user who placed them, only for premium users",SI,1,3.2,"JOIN OF COLLECTIONS orders@jcoql_test AS o, users@jcoql_test AS u CASE WHERE .o.user_id = .u._id;
+FILTER CASE WHERE .o.total > 500 AND .u.premium = TRUE;",ESATTO (solo conteggio),0
+gemini,n/a,D,3,1,Link each order to the user who placed it and to the products purchased,SI,1,3.5,"USE DB jcoql_test ON DEFAULT SERVER;
+JOIN OF COLLECTIONS orders@jcoql_test AS a, users@jcoql_test AS b
+CASE WHERE .a.user_id = .b._id;
+SAVE AS chaintemp1@jcoql_test;
+GET COLLECTION chaintemp1;
+EXPAND UNPACK TRUE ARRAY .a.items TO .item;
+SAVE AS chaintemp2@jcoql_test;
+USE DB jcoql_test ON DEFAULT SERVER;
+JOIN OF COLLECTIONS chaintemp2@jcoql_test AS c, products@jcoql_test AS d
+CASE WHERE .c.item.item.product_id = .d._id;",ESATTO (solo conteggio),6
+gemini,n/a,D,4,1,Show me the reviews written by premium users,SI,2,4.5,"USE DB jcoql_test ON DEFAULT SERVER;
+GET COLLECTION products;
+EXPAND UNPACK TRUE ARRAY .reviews TO .review;
+SAVE AS chaintemp1@jcoql_test;
+GET COLLECTION chaintemp1;
+JOIN OF COLLECTIONS chaintemp1@jcoql_test AS a, users@jcoql_test AS b
+CASE WHERE .a.review.item.user = .b._id;
+FILTER CASE WHERE .b.premium = TRUE;",ESATTO (solo conteggio),11
+gemini,n/a,D,5,1,Group the reviews by rating,SI,1,3.2,"GET COLLECTION products;
+EXPAND UNPACK TRUE ARRAY .reviews TO .review;
+GROUP PARTITION TRUE BY .review.item.rating INTO .reviews_by_rating;",ESATTO (solo conteggio),3 n gruppi
+gemini,n/a,D,6,1,Group by category the products with a discount greater than 10%,SI,1,3.0,"GET COLLECTION products;
+FILTER CASE WHERE .discount > 10;
+GROUP PARTITION TRUE BY .category INTO .risultato;",ESATTO (solo conteggio),5 n gruppi
+gemini,n/a,D,7,1,Group the orders by the city of the user who placed them,SI,1,3.2,"JOIN OF COLLECTIONS orders@jcoql_test AS a, users@jcoql_test AS b CASE WHERE .a.user_id = .b._id;
+GROUP PARTITION TRUE BY .b.city INTO .orders_by_city;",ESATTO (solo conteggio),2 n gruppi
+gemini,n/a,D,8,1,"Show me the products that are both organic and have a rating of at least 4, using the intersection",SI,1,3.8,"GET COLLECTION products;
+FILTER CASE WHERE .organic = TRUE;
+SAVE AS organic_products@jcoql_test;
+GET COLLECTION products;
+FILTER CASE WHERE .rating >= 4;
+SAVE AS high_rating_products@jcoql_test;
+INTERSECT COLLECTIONS organic_products@jcoql_test, high_rating_products@jcoql_test;",ESATTO,"2 documenti, stesso insieme di _id"
+gemini,n/a,D,9,1,"Show me the products with a rating of at least 4 excluding the organic ones, using the set difference",SI,1,3.4,"GET COLLECTION products;
+FILTER CASE WHERE .rating >= 4.0;
+SAVE AS sottoinsieme1@jcoql_test;
+GET COLLECTION products;
+FILTER CASE WHERE .organic = TRUE;
+SAVE AS sottoinsieme2@jcoql_test;
+SUBTRACT COLLECTIONS sottoinsieme1@jcoql_test, sottoinsieme2@jcoql_test;",ESATTO,"13 documenti, stesso insieme di _id"
+gemini,n/a,D,10,1,"Merge the food, electronics and books products into a single collection, without duplicates",SI,1,3.3,"GET COLLECTION products;
+FILTER CASE WHERE .category = 'food';
+SAVE AS food_products@jcoql_test;
+GET COLLECTION products;
+FILTER CASE WHERE .category = 'electronics';
+SAVE AS electronics_products@jcoql_test;
+GET COLLECTION products;
+FILTER CASE WHERE .category = 'books';
+SAVE AS books_products@jcoql_test;
+MERGE COLLECTIONS food_products@jcoql_test, electronics_products@jcoql_test, books_products@jcoql_test REMOVE DUPLICATES;",ESATTO,"23 documenti, stesso insieme di _id"
+gemini,n/a,D,11,1,"Show me the products that are organic or have a discount above 20%, and that also have a rating of at least 4",SI,1,3.1,GET COLLECTION products; FILTER CASE WHERE (.organic = TRUE OR .discount > 20) AND .rating >= 4;,ESATTO,"4 documenti, stesso insieme di _id"
+gemini,n/a,D,12,1,Translate the category of each product using the category dictionary,SI,1,3.2,"GET DICTIONARY category_translations@jcoql_test AS catdict;
+GET COLLECTION products;
+FILTER GENERATE ADD FIELDS { .category_translated: TRANSLATE(.category, catdict) };",ESATTO,"30/30 documenti con la categoria tradotta; n=30, atteso 30"
+gemini,n/a,D,13,1,Show me the orders with an assigned tracking number and a total above 300 euros,SI,1,3.7,GET COLLECTION orders; FILTER CASE WHERE FIELD .tracking_number IS NOT NULL AND .total > 300;,ESATTO,"11 documenti, stesso insieme di _id"
+gemini,n/a,D,14,1,Show me the reviews with a rating equal to 3 together with the user who wrote them,SI,2,6.5,"GET COLLECTION products;
+EXPAND UNPACK TRUE ARRAY .reviews TO .elemento;
+SAVE AS chaintemp1@jcoql_test;
+GET COLLECTION chaintemp1;
+JOIN OF COLLECTIONS chaintemp1@jcoql_test AS a, users@jcoql_test AS b
+CASE WHERE .a.elemento.item.user = .b._id;
+FILTER CASE WHERE .a.elemento.item.rating = 3;",ESATTO (solo conteggio),9
+gemini,n/a,D,15,1,Show me the reviews with a rating of at least 4 of the products with a discount above 10%,SI,1,3.2,"GET COLLECTION products;
+EXPAND UNPACK TRUE ARRAY .reviews TO .elemento;
+FILTER CASE WHERE .discount > 10 AND .elemento.item.rating >= 4;",ESATTO (solo conteggio),22
+llama,tuned,R1,1,1,Show me all the users,SI,1,2.8,GET COLLECTION users;,ESATTO,"5 documenti, stesso insieme di _id"
+llama,tuned,R1,2,1,Show me the products with a discount greater than 20%,SI,1,3.1,GET COLLECTION products; FILTER CASE WHERE .discount > 20;,ESATTO,"8 documenti, stesso insieme di _id"
+llama,tuned,R1,3,1,Show me the organic products with a rating of at least 4,SI,1,3.2,GET COLLECTION products; FILTER CASE WHERE .organic = TRUE AND .rating >= 4;,ESATTO,"2 documenti, stesso insieme di _id"
+llama,tuned,R1,4,1,Show me the organic products or the ones with a discount above 30%,SI,1,3.1,GET COLLECTION products; FILTER CASE WHERE .organic = TRUE OR .discount > 30;,ESATTO,"3 documenti, stesso insieme di _id"
+llama,tuned,R1,5,1,Expand the reviews of the products into separate rows,SI,1,3.1,GET COLLECTION products; EXPAND UNPACK TRUE ARRAY .reviews TO .e;,ESATTO (solo conteggio),56
+llama,tuned,R1,6,1,Link each order to the user who placed it,SI,1,3.2,"JOIN OF COLLECTIONS orders@jcoql_test AS x, users@jcoql_test AS y CASE WHERE .x.user_id = .y._id;",ESATTO (solo conteggio),2
+llama,tuned,R1,7,1,Group the products by category,SI,1,3.2,GET COLLECTION products; GROUP PARTITION TRUE BY .category INTO .productsByCategory;,ESATTO (solo conteggio),5 n gruppi
+llama,tuned,R1,8,1,"Merge the organic products and the discounted ones into a single collection, without duplicates",SI,1,4.1,"GET COLLECTION products; FILTER CASE WHERE .organic = TRUE; SAVE AS selA@jcoql_test; GET COLLECTION products; FILTER CASE WHERE .discount > 0; SAVE AS selB@jcoql_test; MERGE COLLECTIONS selA@jcoql_test, selB@jcoql_test REMOVE DUPLICATES;",ESATTO,"24 documenti, stesso insieme di _id"
+llama,tuned,R2,1,1,Show me the products that are not organic,SI,1,3.0,GET COLLECTION products; FILTER CASE WHERE .organic = FALSE;,ESATTO,"27 documenti, stesso insieme di _id"
+llama,tuned,R2,2,1,"Show me the organic products with a rating of at least 4, or the ones with a discount above 50%",SI,1,3.2,GET COLLECTION products; FILTER CASE WHERE .organic = TRUE OR .discount > 50;,DIVERSO,"attesi 2 documenti, ottenuti 3"
+llama,tuned,R2,3,1,Show me the orders above 100 euros together with the user who placed them,SI,1,4.2,"GET COLLECTION orders; FILTER CASE WHERE .total > 100; SAVE AS selA@jcoql_test; GET COLLECTION users; SAVE AS selB@jcoql_test; JOIN OF COLLECTIONS selA@jcoql_test AS x, selB@jcoql_test AS y CASE WHERE .x.user_id = .y._id;",ESATTO (solo conteggio),2
+llama,tuned,R2,4,1,Show me the reviews of the products with a rating above 4,SI,1,3.2,GET COLLECTION products; EXPAND UNPACK TRUE ARRAY .reviews TO .e; FILTER CASE WHERE .e.item.rating > 4;,ESATTO (solo conteggio),24
+llama,tuned,R2,5,1,Count how many products there are for each category,SI,1,3.1,GET COLLECTION products; GROUP PARTITION TRUE BY .category INTO .productsByCategory;,ESATTO (solo conteggio),5 n gruppi
+llama,tuned,R3,1,1,Show me the products with a rating between 3 and 4.5,SI,1,3.1,"GET COLLECTION products; FILTER CASE WHERE .rating IN_RANGE [3, 4.5];",ESATTO,"25 documenti, stesso insieme di _id"
+llama,tuned,R3,2,1,Show me the products with a discount between 10% and 30%,SI,1,3.0,"GET COLLECTION products; FILTER CASE WHERE .discount IN_RANGE [10, 30];",ESATTO,"17 documenti, stesso insieme di _id"
+llama,tuned,R3,3,1,Show me the products with no discount,SI,1,3.0,GET COLLECTION products; FILTER CASE WHERE .discount = 0;,ESATTO,"7 documenti, stesso insieme di _id"
+llama,tuned,R3,4,1,Show me the products with a rating below 3,SI,1,3.1,GET COLLECTION products; FILTER CASE WHERE .rating < 3;,ESATTO,"0 documenti, stesso insieme di _id"
+llama,tuned,R3,5,1,Show me the organic products with a discount greater than 20%,SI,1,3.1,GET COLLECTION products; FILTER CASE WHERE .organic = TRUE AND .discount > 20;,ESATTO,"1 documenti, stesso insieme di _id"
+llama,tuned,R3,6,1,Show me the non-organic products with a rating of at least 4,SI,1,3.1,GET COLLECTION products; FILTER CASE WHERE .organic = FALSE AND .rating >= 4;,ESATTO,"13 documenti, stesso insieme di _id"
+llama,tuned,R3,7,1,Show me the products that are not organic and have no discount,SI,1,3.1,GET COLLECTION products; FILTER CASE WHERE .organic = FALSE AND .discount = 0;,ESATTO,"6 documenti, stesso insieme di _id"
+llama,tuned,R3,8,1,Show me the organic products or the ones with a rating of at least 4.5,SI,1,3.1,GET COLLECTION products; FILTER CASE WHERE .organic = TRUE OR .rating >= 4.5;,ESATTO,"7 documenti, stesso insieme di _id"
+llama,tuned,R3,9,1,"Show me the products with a discount above 40%, or with a rating below 2",SI,1,3.1,GET COLLECTION products; FILTER CASE WHERE .discount > 40 OR .rating < 2;,ESATTO,"0 documenti, stesso insieme di _id"
+llama,tuned,R3,10,1,"Show me the organic products with a discount above 10%, or the ones with a rating of at least 4.5",SI,1,3.3,GET COLLECTION products; FILTER CASE WHERE .organic = TRUE OR .discount > 10 OR .rating >= 4.5;,DIVERSO,"attesi 5 documenti, ottenuti 16"
+llama,tuned,R3,11,1,Show me the non-organic products or the ones with a discount above 50%,SI,1,3.1,GET COLLECTION products; FILTER CASE WHERE .organic = FALSE OR .discount > 50;,ESATTO,"27 documenti, stesso insieme di _id"
+llama,tuned,R3,12,1,Show me the reviews of the products with a rating equal to 5,SI,1,3.1,GET COLLECTION products; EXPAND UNPACK TRUE ARRAY .reviews TO .e; FILTER CASE WHERE .e.item.rating = 5;,ESATTO (solo conteggio),24
+llama,tuned,R3,13,1,Show me the reviews of the products with a rating below 3,SI,1,3.3,GET COLLECTION products; EXPAND UNPACK TRUE ARRAY .reviews TO .e; FILTER CASE WHERE .e.item.rating < 3;,ESATTO (solo conteggio),0
+llama,tuned,R3,14,1,Show me the reviews of the organic products only,SI,1,3.3,GET COLLECTION products; EXPAND UNPACK TRUE ARRAY .reviews TO .e; FILTER CASE WHERE .e.item.organic = TRUE;,DIVERSO,"attesi 11 , ottenuti 0"
+llama,tuned,R3,15,1,Expand the items of the orders into separate rows,SI,1,3.0,GET COLLECTION orders; EXPAND UNPACK TRUE ARRAY .items TO .e;,ESATTO (solo conteggio),67
+llama,tuned,R3,16,1,Link each review to the user who wrote it,SI,1,4.2,"GET COLLECTION products; EXPAND UNPACK TRUE ARRAY .reviews TO .e; SAVE AS chaintemp1@jcoql_test; GET COLLECTION chaintemp1; JOIN OF COLLECTIONS users@jcoql_test AS x, chaintemp1@jcoql_test AS y CASE WHERE .y.e.item.user = .x._id;",ESATTO (solo conteggio),36
+llama,tuned,R3,17,1,Show me the orders below 50 euros together with the user who placed them,SI,1,4.3,"GET COLLECTION orders; FILTER CASE WHERE .total < 50; SAVE AS selA@jcoql_test; GET COLLECTION users; SAVE AS selB@jcoql_test; JOIN OF COLLECTIONS selA@jcoql_test AS x, selB@jcoql_test AS y CASE WHERE .x.user_id = .y._id;",ESATTO (solo conteggio),0
+llama,tuned,R3,18,1,Link each order to the products purchased,SI,1,4.3,"GET COLLECTION orders; EXPAND UNPACK TRUE ARRAY .items TO .e; SAVE AS chaintemp1@jcoql_test; GET COLLECTION chaintemp1; JOIN OF COLLECTIONS chaintemp1@jcoql_test AS x, products@jcoql_test AS y CASE WHERE .x.e.item.product_id = .y._id;",ESATTO (solo conteggio),47
+llama,tuned,R3,19,1,Link each user to their orders,SI,1,4.2,"GET COLLECTION users; EXPAND UNPACK TRUE ARRAY .orders TO .e; SAVE AS chaintemp1@jcoql_test; GET COLLECTION chaintemp1; JOIN OF COLLECTIONS chaintemp1@jcoql_test AS x, orders@jcoql_test AS y CASE WHERE .x.e.item.user_id = .y.user_id;",DIVERSO,"attesi 2 , ottenuti 0"
+llama,tuned,R3,20,1,Group the orders by user,SI,1,2.9,GET COLLECTION orders; GROUP PARTITION TRUE BY .user_id INTO .ordersByUserId;,ESATTO (solo conteggio),15 n gruppi
+llama,tuned,R3,21,1,Group the organic products by category,SI,1,3.0,GET COLLECTION products; FILTER CASE WHERE .organic = TRUE; GROUP PARTITION TRUE BY .category INTO .productsByCategory;,ESATTO (solo conteggio),1 n gruppi
+llama,tuned,R3,22,1,Group the products into organic and non-organic,SI,1,3.2,GET COLLECTION products; GROUP PARTITION TRUE BY .organic INTO .productsByOrganic;,ESATTO (solo conteggio),2 n gruppi
+llama,tuned,R3,23,1,"Merge the products with a rating of at least 4 and the ones with a discount above 30% into a single collection, without duplicates",SI,1,4.2,"GET COLLECTION products; FILTER CASE WHERE .rating >= 4; SAVE AS selA@jcoql_test; GET COLLECTION products; FILTER CASE WHERE .discount > 30; SAVE AS selB@jcoql_test; MERGE COLLECTIONS selA@jcoql_test, selB@jcoql_test REMOVE DUPLICATES;",ESATTO,"15 documenti, stesso insieme di _id"
+llama,tuned,R3,24,1,"Merge the organic products and the ones with no discount into a single collection, keeping the duplicates",SI,1,4.0,"GET COLLECTION products; FILTER CASE WHERE .organic = TRUE; SAVE AS selA@jcoql_test; GET COLLECTION products; FILTER CASE WHERE .discount = 0; SAVE AS selB@jcoql_test; MERGE COLLECTIONS selA@jcoql_test, selB@jcoql_test REMOVE DUPLICATES;",DIVERSO,"attesi 10 con duplicati = |A|+|B|, ottenuti 9"
+llama,tuned,R3,25,1,Merge the orders above 100 euros and the ones below 20 euros into a single collection,SI,1,4.1,"GET COLLECTION orders; FILTER CASE WHERE .total > 100; SAVE AS selA@jcoql_test; GET COLLECTION orders; FILTER CASE WHERE .total < 20; SAVE AS selB@jcoql_test; MERGE COLLECTIONS selA@jcoql_test, selB@jcoql_test REMOVE DUPLICATES;",ESATTO,"20 documenti, stesso insieme di _id"
+llama,tuned,R3,26,1,Add to each order a field with the total increased by 22% VAT,NO,1,3.2,GET COLLECTION orders; ALTER ELEMENT .total AS .totalWithVAT = .total * 1.22;,NON VALIDA,"[{'message': ""1.\tSyntax Error 1 at [1, 24]: Found ID ('ALTER') - missing EOF at 'ALTER' - missing EOF at 'ALTER'""}]"
+llama,tuned,R3,27,1,Add to each product a field with the difference between 5 and the rating,NO,1,3.0,GET COLLECTION products; COMPUTE FIELD .diff = 5 - .rating;,NON VALIDA,"[{'message': ""1.\tSyntax Error 1 at [1, 26]: Found ID ('COMPUTE') - missing EOF at 'COMPUTE' - missing EOF at 'COMPUTE'""}]"
+llama,tuned,R3,28,1,Show me only the category and the rating of each product,SI,1,3.1,"GET COLLECTION products; FILTER GENERATE BUILD { .category: .category, .rating: .rating };",ESATTO,"0 documenti con campi diversi da {category, rating}; n=30, atteso 30"
+llama,tuned,F,1,1,Show me the products in the food category,SI,1,3.0,GET COLLECTION products; FILTER CASE WHERE .category = 'food';,ESATTO,"12 documenti, stesso insieme di _id"
+llama,tuned,F,2,1,Show me the products with a price above 1000 euros,SI,1,2.9,GET COLLECTION products; FILTER CASE WHERE .price > 1000;,ESATTO,"16 documenti, stesso insieme di _id"
+llama,tuned,F,3,1,Show me the products with a price below 300 euros,SI,1,3.1,GET COLLECTION products; FILTER CASE WHERE .price < 300;,ESATTO,"5 documenti, stesso insieme di _id"
+llama,tuned,F,4,1,Show me the products in the electronics category with a discount of at least 15%,SI,1,3.2,GET COLLECTION products; FILTER CASE WHERE .category = 'electronics' AND .discount >= 15;,ESATTO,"2 documenti, stesso insieme di _id"
+llama,tuned,F,5,1,Show me the products in the books or sports category,NO,1,3.1,"GET COLLECTION category_translations; FILTER CASE WHERE .key IN_ARRAY ['books', 'sports'];",NON VALIDA,"[{'message': ""1.\tSyntax Error 1 at [1, 62]: Found ID ('IN_ARRAY') - mismatched input 'IN_ARRAY' expecting SC""}]"
+llama,tuned,F,6,1,Show me the products that are not in the food category,SI,1,3.0,GET COLLECTION products; FILTER CASE WHERE NOT (.category = 'food');,ESATTO,"18 documenti, stesso insieme di _id"
+llama,tuned,F,7,1,Show me the products with more than 50 pieces in stock,SI,1,3.1,GET COLLECTION products; FILTER CASE WHERE .stock > 50;,ESATTO,"18 documenti, stesso insieme di _id"
+llama,tuned,F,8,1,Show me the products with a price between 200 and 700 euros,SI,1,3.1,"GET COLLECTION products; FILTER CASE WHERE .price IN_RANGE [200, 700];",ESATTO,"8 documenti, stesso insieme di _id"
+llama,tuned,F,9,1,Show me the premium users,SI,1,3.0,GET COLLECTION users; FILTER CASE WHERE .premium = TRUE;,ESATTO,"1 documenti, stesso insieme di _id"
+llama,tuned,F,10,1,Show me the users older than 40,SI,1,2.9,GET COLLECTION users; FILTER CASE WHERE .age > 40;,ESATTO,"3 documenti, stesso insieme di _id"
+llama,tuned,F,11,1,Show me the users who live in Torino,SI,1,3.1,GET COLLECTION users; FILTER CASE WHERE .city = 'Torino';,ESATTO,"2 documenti, stesso insieme di _id"
+llama,tuned,F,12,1,Show me the active users with a verified email,SI,1,3.2,GET COLLECTION users; FILTER CASE WHERE .active = TRUE AND .email_verified = TRUE;,ESATTO,"3 documenti, stesso insieme di _id"
+llama,tuned,F,13,1,Show me the users who are not premium,SI,1,3.1,GET COLLECTION users; FILTER CASE WHERE .premium = FALSE;,ESATTO,"4 documenti, stesso insieme di _id"
+llama,tuned,F,14,1,Show me the orders with status confirmed,SI,1,3.1,GET COLLECTION orders; FILTER CASE WHERE .status = 'confirmed';,ESATTO,"3 documenti, stesso insieme di _id"
+llama,tuned,F,15,1,Show me the orders with priority urgent,SI,1,3.1,GET COLLECTION orders; FILTER CASE WHERE .priority = 'urgent';,ESATTO,"5 documenti, stesso insieme di _id"
+llama,tuned,F,16,1,Show me the orders without a tracking number,SI,1,3.1,GET COLLECTION orders; FILTER CASE WHERE FIELD .tracking_number IS NULL;,ESATTO,"7 documenti, stesso insieme di _id"
+llama,tuned,F,17,1,Show me the orders with a total above 500 euros,SI,1,3.1,GET COLLECTION orders; FILTER CASE WHERE .total > 500;,ESATTO,"12 documenti, stesso insieme di _id"
+llama,tuned,F,18,1,Show me the orders that have not been cancelled,SI,1,3.0,GET COLLECTION orders; FILTER CASE WHERE .status != 'cancelled';,ESATTO,"14 documenti, stesso insieme di _id"
+llama,tuned,F,19,1,Show me the orders with a total between 200 and 600 euros,SI,1,3.2,"GET COLLECTION orders; FILTER CASE WHERE .total IN_RANGE [200, 600];",ESATTO,"8 documenti, stesso insieme di _id"
+llama,tuned,F,20,1,Group the users by city,SI,1,3.1,GET COLLECTION users; GROUP PARTITION TRUE BY .city INTO .usersByCity;,ESATTO (solo conteggio),4 n gruppi
+llama,tuned,F,21,1,Group the orders by status,SI,1,3.1,GET COLLECTION orders; GROUP PARTITION TRUE BY .status INTO .ordersByStatus;,ESATTO (solo conteggio),5 n gruppi
+llama,tuned,F,22,1,Show me only the name and the price of each product,SI,1,3.2,"GET COLLECTION products; FILTER GENERATE BUILD { .name: .name, .price: .price };",ESATTO,"0 documenti con campi diversi da ['name', 'price']; n=30, atteso 30"
+llama,tuned,D,1,1,Show me the reviews with a rating equal to 5 of the organic products only,SI,1,3.5,GET COLLECTION products; EXPAND UNPACK TRUE ARRAY .reviews TO .e; FILTER CASE WHERE .e.item.rating = 5 AND .organic = TRUE;,ESATTO (solo conteggio),3
+llama,tuned,D,2,1,"Show me the orders above 500 euros together with the user who placed them, only for premium users",SI,1,4.3,"GET COLLECTION orders; FILTER CASE WHERE .total > 500; SAVE AS selA@jcoql_test; GET COLLECTION users; FILTER CASE WHERE .premium = TRUE; SAVE AS selB@jcoql_test; JOIN OF COLLECTIONS selA@jcoql_test, selB@jcoql_test CASE WHERE .user_id = .name;",ESATTO (solo conteggio),0
+llama,tuned,D,3,1,Link each order to the user who placed it and to the products purchased,NO,1,5.3,"GET COLLECTION orders; EXPAND UNPACK TRUE ARRAY .items TO .e; SAVE AS chaintemp1@jcoql_test; GET COLLECTION chaintemp1; JOIN OF COLLECTIONS chaintemp1@jcoql_test AS x, products@jcoql_test AS y CASE WHERE .x.e.item.product_id = .y._id; SAVE AS chaintemp2@jcoql_test; GET COLLECTION chaintemp2; JOIN OF COLLECTIONS chaintemp2@jcoql_test AS x, users@jcoql_test AS y CASE WHERE .x._id = .y._id;",NON VALIDA,"[{'message': 'Nel JOIN tra chaintemp2@jcoql_test e users@jcoql_test, la condizione confronta .x._id (in chaintemp2) con .y._id (tipo: string, in users) — ma .x._id non risulta esistere affatto nello schema scoperto di quella collection (nomi di campo simili non bastano, verifica quello giusto guarda"
+llama,tuned,D,4,1,Show me the reviews written by premium users,SI,1,3.5,GET COLLECTION products; EXPAND UNPACK TRUE ARRAY .reviews TO .e; FILTER CASE WHERE .e.item.user = 'user_000' AND .e.item.rating > 3;,DIVERSO,"attesi 11 , ottenuti 14"
+llama,tuned,D,5,1,Group the reviews by rating,NO,1,3.2,GET COLLECTION products; EXPAND UNPACK TRUE ARRAY .reviews TO .e; GROUP PARTITION BY .e.item.rating INTO .productsByEItemRating;,NON VALIDA,"[{'message': ""1.\tSyntax Error 1 at [1, 83]: Found BY ('BY') - no viable alternative at input 'BY'""}]"
+llama,tuned,D,6,1,Group by category the products with a discount greater than 10%,SI,1,3.2,GET COLLECTION products; FILTER CASE WHERE .discount > 10; GROUP PARTITION TRUE BY .category INTO .productsByCategory;,ESATTO (solo conteggio),5 n gruppi
+llama,tuned,D,7,1,Group the orders by the city of the user who placed them,NO,1,4.2,"GET COLLECTION orders; EXPAND UNPACK TRUE ARRAY .user_id TO .e; GET COLLECTION users; SAVE AS chaintemp1@jcoql_test; JOIN OF COLLECTIONS orders@jcoql_test AS x, chaintemp1@jcoql_test AS y CASE WHERE .x.user_id = .y._id;",NON VALIDA,"[{'message': 'Nel JOIN tra orders@jcoql_test e chaintemp1@jcoql_test, la condizione confronta .x.user_id con .y._id — ho verificato direttamente su MongoDB (non solo lo schema) e NESSUNO dei valori campionati da orders.user_id (es: user_021, user_017, user_006) risulta presente in chaintemp1._id, su"
+llama,tuned,D,8,1,"Show me the products that are both organic and have a rating of at least 4, using the intersection",SI,1,4.1,"GET COLLECTION products; FILTER CASE WHERE .organic = TRUE; SAVE AS selA@jcoql_test; GET COLLECTION products; FILTER CASE WHERE .rating >= 4; SAVE AS selB@jcoql_test; INTERSECT COLLECTIONS selA@jcoql_test, selB@jcoql_test;",ESATTO,"2 documenti, stesso insieme di _id"
+llama,tuned,D,9,1,"Show me the products with a rating of at least 4 excluding the organic ones, using the set difference",SI,1,4.2,"GET COLLECTION products; FILTER CASE WHERE .rating >= 4; SAVE AS selA@jcoql_test; GET COLLECTION products; FILTER CASE WHERE .organic = TRUE; SAVE AS selB@jcoql_test; SUBTRACT COLLECTIONS selA@jcoql_test, selB@jcoql_test;",ESATTO,"13 documenti, stesso insieme di _id"
+llama,tuned,D,10,1,"Merge the food, electronics and books products into a single collection, without duplicates",SI,1,4.9,"GET COLLECTION products; FILTER CASE WHERE .category = 'food'; SAVE AS selA@jcoql_test; GET COLLECTION products; FILTER CASE WHERE .category = 'electronics'; SAVE AS selB@jcoql_test; GET COLLECTION products; FILTER CASE WHERE .category = 'books'; SAVE AS selC@jcoql_test; MERGE COLLECTIONS selA@jcoql_test, selB@jcoql_test, selC@jcoql_test REMOVE DUPLICATES;",ESATTO,"23 documenti, stesso insieme di _id"
+llama,tuned,D,11,1,"Show me the products that are organic or have a discount above 20%, and that also have a rating of at least 4",SI,1,3.3,GET COLLECTION products; FILTER CASE WHERE .organic = TRUE OR .discount > 20 AND .rating >= 4;,DIVERSO,"attesi 4 documenti, ottenuti 5"
+llama,tuned,D,12,1,Translate the category of each product using the category dictionary,SI,1,3.5,"JOIN OF COLLECTIONS products@jcoql_test AS x, category_translations@jcoql_test AS y CASE WHERE .x.category = .y.key;",DIVERSO,"0/30 documenti con la categoria tradotta; n=30, atteso 30"
+llama,tuned,D,13,1,Show me the orders with an assigned tracking number and a total above 300 euros,SI,1,3.2,GET COLLECTION orders; FILTER CASE WHERE FIELD .tracking_number IS NOT NULL AND .total > 300;,ESATTO,"11 documenti, stesso insieme di _id"
+llama,tuned,D,14,1,Show me the reviews with a rating equal to 3 together with the user who wrote them,SI,1,3.4,GET COLLECTION products; EXPAND UNPACK TRUE ARRAY .reviews TO .e; FILTER CASE WHERE .e.item.rating = 3;,DIVERSO,"attesi 9 , ottenuti 15"
+llama,tuned,D,15,1,Show me the reviews with a rating of at least 4 of the products with a discount above 10%,SI,1,4.5,"GET COLLECTION products; EXPAND UNPACK TRUE ARRAY .reviews TO .e; FILTER CASE WHERE .e.item.rating >= 4; SAVE AS selA@jcoql_test; GET COLLECTION products; FILTER CASE WHERE .discount > 10; SAVE AS selB@jcoql_test; MERGE COLLECTIONS selA@jcoql_test, selB@jcoql_test REMOVE DUPLICATES;",DIVERSO,"attesi 22 , ottenuti 54"
+gemma4,compact,R1,1,1,Show me all the users,SI,1,2.9,GET COLLECTION users;,ESATTO,"5 documenti, stesso insieme di _id"
+gemma4,compact,R1,2,1,Show me the products with a discount greater than 20%,SI,1,5.0,GET COLLECTION products; FILTER CASE WHERE .discount > 20;,ESATTO,"8 documenti, stesso insieme di _id"
+gemma4,compact,R1,3,1,Show me the organic products with a rating of at least 4,SI,1,5.1,GET COLLECTION products; FILTER CASE WHERE .organic = TRUE AND .rating >= 4;,ESATTO,"2 documenti, stesso insieme di _id"
+gemma4,compact,R1,4,1,Show me the organic products or the ones with a discount above 30%,SI,1,5.2,GET COLLECTION products; FILTER CASE WHERE .organic = TRUE OR .discount > 30;,ESATTO,"3 documenti, stesso insieme di _id"
+gemma4,compact,R1,5,1,Expand the reviews of the products into separate rows,SI,1,5.0,"GET COLLECTION products;
+EXPAND UNPACK TRUE ARRAY .reviews TO .review;",ESATTO (solo conteggio),56
+gemma4,compact,R1,6,1,Link each order to the user who placed it,SI,1,4.4,"JOIN OF COLLECTIONS orders@jcoql_test AS o, users@jcoql_test AS u CASE WHERE .o.user_id = .u._id;",ESATTO (solo conteggio),2
+gemma4,compact,R1,7,1,Group the products by category,SI,1,4.3,GET COLLECTION products; GROUP PARTITION TRUE BY .category INTO .risultato;,ESATTO (solo conteggio),5 n gruppi
+gemma4,compact,R1,8,1,"Merge the organic products and the discounted ones into a single collection, without duplicates",SI,1,7.9,"GET COLLECTION products;
+FILTER CASE WHERE .organic = TRUE;
+SAVE AS organic@jcoql_test;
+GET COLLECTION products;
+FILTER CASE WHERE .discount > 0;
+SAVE AS discounted@jcoql_test;
+MERGE COLLECTIONS organic@jcoql_test, discounted@jcoql_test REMOVE DUPLICATES;",ESATTO,"24 documenti, stesso insieme di _id"
+gemma4,compact,R2,1,1,Show me the products that are not organic,SI,1,4.4,GET COLLECTION products; FILTER CASE WHERE NOT (.organic = TRUE);,ESATTO,"27 documenti, stesso insieme di _id"
+gemma4,compact,R2,2,1,"Show me the organic products with a rating of at least 4, or the ones with a discount above 50%",SI,1,6.8,GET COLLECTION products; FILTER CASE WHERE (.organic = TRUE AND .rating >= 4) OR (.discount > 50);,ESATTO,"2 documenti, stesso insieme di _id"
+gemma4,compact,R2,3,1,Show me the orders above 100 euros together with the user who placed them,SI,1,6.4,"JOIN OF COLLECTIONS orders@jcoql_test AS o, users@jcoql_test AS u CASE WHERE .o.user_id = .u._id AND .o.total > 100;",ESATTO (solo conteggio),2
+gemma4,compact,R2,4,1,Show me the reviews of the products with a rating above 4,SI,1,6.9,GET COLLECTION products; FILTER CASE WHERE .rating > 4;,DIVERSO,"attesi 24 , ottenuti 14"
+gemma4,compact,R2,5,1,Count how many products there are for each category,SI,1,5.7,GET COLLECTION products; GROUP PARTITION TRUE BY .category INTO .items;,ESATTO (solo conteggio),5 n gruppi
+gemma4,compact,R3,1,1,Show me the products with a rating between 3 and 4.5,SI,1,2.9,"GET COLLECTION products; FILTER CASE WHERE .rating IN_RANGE [3, 4.5];",ESATTO,"25 documenti, stesso insieme di _id"
+gemma4,compact,R3,2,1,Show me the products with a discount between 10% and 30%,SI,1,6.3,"GET COLLECTION products; FILTER CASE WHERE .discount IN_RANGE [10, 30];",ESATTO,"17 documenti, stesso insieme di _id"
+gemma4,compact,R3,3,1,Show me the products with no discount,SI,1,5.0,GET COLLECTION products; FILTER CASE WHERE .discount = 0;,ESATTO,"7 documenti, stesso insieme di _id"
+gemma4,compact,R3,4,1,Show me the products with a rating below 3,SI,1,4.6,GET COLLECTION products; FILTER CASE WHERE .rating < 3;,ESATTO,"0 documenti, stesso insieme di _id"
+gemma4,compact,R3,5,1,Show me the organic products with a discount greater than 20%,SI,1,4.9,GET COLLECTION products; FILTER CASE WHERE .organic = TRUE AND .discount > 20;,ESATTO,"1 documenti, stesso insieme di _id"
+gemma4,compact,R3,6,1,Show me the non-organic products with a rating of at least 4,SI,1,5.0,GET COLLECTION products; FILTER CASE WHERE .organic = FALSE AND .rating >= 4;,ESATTO,"13 documenti, stesso insieme di _id"
+gemma4,compact,R3,7,1,Show me the products that are not organic and have no discount,SI,1,5.4,GET COLLECTION products; FILTER CASE WHERE .organic = FALSE AND FIELD .discount IS NULL;,DIVERSO,"attesi 6 documenti, ottenuti 0"
+gemma4,compact,R3,8,1,Show me the organic products or the ones with a rating of at least 4.5,SI,1,5.1,GET COLLECTION products; FILTER CASE WHERE .organic = TRUE OR .rating >= 4.5;,ESATTO,"7 documenti, stesso insieme di _id"
+gemma4,compact,R3,9,1,"Show me the products with a discount above 40%, or with a rating below 2",SI,1,4.9,GET COLLECTION products; FILTER CASE WHERE .discount > 40 OR .rating < 2;,ESATTO,"0 documenti, stesso insieme di _id"
+gemma4,compact,R3,10,1,"Show me the organic products with a discount above 10%, or the ones with a rating of at least 4.5",SI,1,6.4,GET COLLECTION products; FILTER CASE WHERE (.organic = TRUE AND .discount > 10) OR (.rating >= 4.5);,ESATTO,"5 documenti, stesso insieme di _id"
+gemma4,compact,R3,11,1,Show me the non-organic products or the ones with a discount above 50%,SI,1,5.6,GET COLLECTION products; FILTER CASE WHERE .organic = FALSE OR .discount > 50;,ESATTO,"27 documenti, stesso insieme di _id"
+gemma4,compact,R3,12,1,Show me the reviews of the products with a rating equal to 5,SI,1,9.8,"GET COLLECTION products; FILTER CASE WHERE .rating = 5; SAVE AS products_rated_5@jcoql_test;
+GET COLLECTION products_rated_5@jcoql_test; EXPAND UNPACK TRUE ARRAY .reviews TO .c;",DIVERSO,"attesi 24 , ottenuti 0"
+gemma4,compact,R3,13,1,Show me the reviews of the products with a rating below 3,SI,1,8.0,GET COLLECTION products; FILTER CASE WHERE .rating < 3; EXPAND UNPACK TRUE ARRAY .reviews TO .review_item;,ESATTO (solo conteggio),0
+gemma4,compact,R3,14,1,Show me the reviews of the organic products only,SI,1,6.3,"GET COLLECTION products;
+FILTER CASE WHERE .organic = TRUE;
+EXPAND UNPACK TRUE ARRAY .reviews TO .r;",ESATTO (solo conteggio),11
+gemma4,compact,R3,15,1,Expand the items of the orders into separate rows,SI,1,4.5,"GET COLLECTION orders;
+EXPAND UNPACK TRUE ARRAY .items TO .item;",ESATTO (solo conteggio),67
+gemma4,compact,R3,16,1,Link each review to the user who wrote it,SI,1,7.3,"GET COLLECTION products;
+EXPAND UNPACK TRUE ARRAY .reviews TO .review;
+SAVE AS chaintemp1@jcoql_test;
+GET COLLECTION chaintemp1@jcoql_test;
+JOIN OF COLLECTIONS chaintemp1@jcoql_test AS a, users@jcoql_test AS b CASE WHERE .a.review.item.user = .b._id;",ESATTO (solo conteggio),36
+gemma4,compact,R3,17,1,Show me the orders below 50 euros together with the user who placed them,SI,1,6.2,"JOIN OF COLLECTIONS orders@jcoql_test AS a, users@jcoql_test AS b CASE WHERE .a.total < 50 AND .a.user_id = .b._id;",ESATTO (solo conteggio),0
+gemma4,compact,R3,18,1,Link each order to the products purchased,SI,1,8.2,"GET COLLECTION orders;
+EXPAND UNPACK TRUE ARRAY .items TO .item;
+SAVE AS chaintemp1@jcoql_test;
+GET COLLECTION chaintemp1;
+JOIN OF COLLECTIONS chaintemp1@jcoql_test AS a, products@jcoql_test AS b CASE WHERE .a.item.item.product_id = .b._id;",ESATTO (solo conteggio),47
+gemma4,compact,R3,19,1,Link each user to their orders,SI,1,5.5,"JOIN OF COLLECTIONS users@jcoql_test AS u, orders@jcoql_test AS o CASE WHERE .o.user_id = .u._id;",ESATTO (solo conteggio),2
+gemma4,compact,R3,20,1,Group the orders by user,SI,1,4.2,GET COLLECTION orders; GROUP PARTITION TRUE BY .user_id INTO .risultato;,ESATTO (solo conteggio),15 n gruppi
+gemma4,compact,R3,21,1,Group the organic products by category,SI,1,5.3,GET COLLECTION products; FILTER CASE WHERE .organic = TRUE; GROUP PARTITION TRUE BY .category INTO .risultato;,ESATTO (solo conteggio),1 n gruppi
+gemma4,compact,R3,22,1,Group the products into organic and non-organic,SI,1,5.0,GET COLLECTION products; GROUP PARTITION TRUE BY .organic INTO .risultato;,ESATTO (solo conteggio),2 n gruppi
+gemma4,compact,R3,23,1,"Merge the products with a rating of at least 4 and the ones with a discount above 30% into a single collection, without duplicates",SI,1,6.9,"GET COLLECTION products; FILTER CASE WHERE .rating >= 4; SAVE AS sub1@jcoql_test;
+GET COLLECTION products; FILTER CASE WHERE .discount > 30; SAVE AS sub2@jcoql_test;
+MERGE COLLECTIONS sub1@jcoql_test, sub2@jcoql_test REMOVE DUPLICATES;",ESATTO,"15 documenti, stesso insieme di _id"
+gemma4,compact,R3,24,1,"Merge the organic products and the ones with no discount into a single collection, keeping the duplicates",SI,1,6.4,"GET COLLECTION products;
+FILTER CASE WHERE .organic = TRUE;
+SAVE AS organic@jcoql_test;
+GET COLLECTION products;
+FILTER CASE WHERE FIELD .discount IS NULL;
+SAVE AS no_discount@jcoql_test;
+MERGE COLLECTIONS organic@jcoql_test, no_discount@jcoql_test REMOVE DUPLICATES;",DIVERSO,"attesi 10 con duplicati = |A|+|B|, ottenuti 3"
+gemma4,compact,R3,25,1,Merge the orders above 100 euros and the ones below 20 euros into a single collection,SI,1,6.9,"GET COLLECTION orders; FILTER CASE WHERE .total > 100; SAVE AS orders_high@jcoql_test;
+GET COLLECTION orders; FILTER CASE WHERE .total < 20; SAVE AS orders_low@jcoql_test;
+MERGE COLLECTIONS orders_high@jcoql_test, orders_low@jcoql_test REMOVE DUPLICATES;",ESATTO,"20 documenti, stesso insieme di _id"
+gemma4,compact,R3,26,1,Add to each order a field with the total increased by 22% VAT,SI,1,9.9,GET COLLECTION orders; FILTER GENERATE ADD FIELDS { .total_with_vat: .total };,DIVERSO,"0/20 documenti con valore calcolato corretto; n=20, atteso 20"
+gemma4,compact,R3,27,1,Add to each product a field with the difference between 5 and the rating,SI,1,10.8,GET COLLECTION products; FILTER GENERATE BUILD { .difference: .rating};,DIVERSO,"0/30 documenti con valore calcolato corretto; n=30, atteso 30"
+gemma4,compact,R3,28,1,Show me only the category and the rating of each product,SI,1,6.2,"GET COLLECTION products; FILTER GENERATE BUILD { .category: .category, .rating: .rating };",ESATTO,"0 documenti con campi diversi da {category, rating}; n=30, atteso 30"
+gemma4,compact,F,1,1,Show me the products in the food category,SI,1,2.9,"GET COLLECTION products;
+FILTER CASE WHERE .category = 'food';",ESATTO,"12 documenti, stesso insieme di _id"
+gemma4,compact,F,2,1,Show me the products with a price above 1000 euros,SI,1,5.1,GET COLLECTION products; FILTER CASE WHERE .price > 1000;,ESATTO,"16 documenti, stesso insieme di _id"
+gemma4,compact,F,3,1,Show me the products with a price below 300 euros,SI,1,3.0,GET COLLECTION products; FILTER CASE WHERE .price < 300;,ESATTO,"5 documenti, stesso insieme di _id"
+gemma4,compact,F,4,1,Show me the products in the electronics category with a discount of at least 15%,SI,1,5.3,"GET COLLECTION products;
+FILTER CASE WHERE .category = 'electronics' AND .discount >= 15;",ESATTO,"2 documenti, stesso insieme di _id"
+gemma4,compact,F,5,1,Show me the products in the books or sports category,SI,1,5.2,GET COLLECTION products; FILTER CASE WHERE .category = 'books' OR .category = 'sports';,ESATTO,"8 documenti, stesso insieme di _id"
+gemma4,compact,F,6,1,Show me the products that are not in the food category,SI,1,4.5,"GET COLLECTION products;
+FILTER CASE WHERE NOT .category = 'food';",ESATTO,"18 documenti, stesso insieme di _id"
+gemma4,compact,F,7,1,Show me the products with more than 50 pieces in stock,SI,1,5.3,GET COLLECTION products; FILTER CASE WHERE .stock > 50;,ESATTO,"18 documenti, stesso insieme di _id"
+gemma4,compact,F,8,1,Show me the products with a price between 200 and 700 euros,SI,1,2.9,"GET COLLECTION products; FILTER CASE WHERE .price IN_RANGE [200, 700];",ESATTO,"8 documenti, stesso insieme di _id"
+gemma4,compact,F,9,1,Show me the premium users,SI,1,2.8,"GET COLLECTION users;
+FILTER CASE WHERE .premium = TRUE;",ESATTO,"1 documenti, stesso insieme di _id"
+gemma4,compact,F,10,1,Show me the users older than 40,SI,1,4.1,GET COLLECTION users; FILTER CASE WHERE .age > 40;,ESATTO,"3 documenti, stesso insieme di _id"
+gemma4,compact,F,11,1,Show me the users who live in Torino,SI,1,4.8,GET COLLECTION users; FILTER CASE WHERE .city = 'Torino';,ESATTO,"2 documenti, stesso insieme di _id"
+gemma4,compact,F,12,1,Show me the active users with a verified email,SI,1,5.2,GET COLLECTION users; FILTER CASE WHERE .active = TRUE AND .email_verified = TRUE;,ESATTO,"3 documenti, stesso insieme di _id"
+gemma4,compact,F,13,1,Show me the users who are not premium,SI,1,4.2,GET COLLECTION users; FILTER CASE WHERE .premium = FALSE;,ESATTO,"4 documenti, stesso insieme di _id"
+gemma4,compact,F,14,1,Show me the orders with status confirmed,SI,1,3.7,GET COLLECTION orders; FILTER CASE WHERE .status = 'confirmed';,ESATTO,"3 documenti, stesso insieme di _id"
+gemma4,compact,F,15,1,Show me the orders with priority urgent,SI,1,4.4,GET COLLECTION orders; FILTER CASE WHERE .priority = 'urgent';,ESATTO,"5 documenti, stesso insieme di _id"
+gemma4,compact,F,16,1,Show me the orders without a tracking number,SI,1,4.8,GET COLLECTION orders; FILTER CASE WHERE FIELD .tracking_number IS NULL;,ESATTO,"7 documenti, stesso insieme di _id"
+gemma4,compact,F,17,1,Show me the orders with a total above 500 euros,SI,1,5.0,GET COLLECTION orders; FILTER CASE WHERE .total > 500;,ESATTO,"12 documenti, stesso insieme di _id"
+gemma4,compact,F,18,1,Show me the orders that have not been cancelled,SI,1,5.1,GET COLLECTION orders; FILTER CASE WHERE .status != 'cancelled';,ESATTO,"14 documenti, stesso insieme di _id"
+gemma4,compact,F,19,1,Show me the orders with a total between 200 and 600 euros,SI,1,5.5,"GET COLLECTION orders; FILTER CASE WHERE .total IN_RANGE [200, 600];",ESATTO,"8 documenti, stesso insieme di _id"
+gemma4,compact,F,20,1,Group the users by city,SI,1,4.0,GET COLLECTION users; GROUP PARTITION TRUE BY .city INTO .risultato;,ESATTO (solo conteggio),4 n gruppi
+gemma4,compact,F,21,1,Group the orders by status,SI,1,4.3,"GET COLLECTION orders;
+GROUP PARTITION TRUE BY .status INTO .risultato;",ESATTO (solo conteggio),5 n gruppi
+gemma4,compact,F,22,1,Show me only the name and the price of each product,SI,1,5.6,"GET COLLECTION products; FILTER GENERATE BUILD { .name: .name, .price: .price };",ESATTO,"0 documenti con campi diversi da ['name', 'price']; n=30, atteso 30"
+gemma4,compact,D,1,1,Show me the reviews with a rating equal to 5 of the organic products only,SI,1,6.9,GET COLLECTION products; EXPAND UNPACK TRUE ARRAY .reviews TO .review_item; FILTER CASE WHERE .organic = TRUE AND .review_item.item.rating = 5;,ESATTO (solo conteggio),3
+gemma4,compact,D,2,1,"Show me the orders above 500 euros together with the user who placed them, only for premium users",SI,1,6.7,"JOIN OF COLLECTIONS orders@jcoql_test AS o, users@jcoql_test AS u CASE WHERE .o.total > 500 AND .u.premium = TRUE;",DIVERSO,"attesi 0 , ottenuti 12"
+gemma4,compact,D,3,1,Link each order to the user who placed it and to the products purchased,SI,2,18.7,"GET COLLECTION orders; EXPAND UNPACK TRUE ARRAY .items TO .item; SAVE AS chaintemp1@jcoql_test; GET COLLECTION chaintemp1;
+JOIN OF COLLECTIONS chaintemp1@jcoql_test AS a, products@jcoql_test AS b CASE WHERE .a.item.item.product_id = .b._;",DIVERSO,"attesi 6 , ottenuti 0"
+gemma4,compact,D,4,1,Show me the reviews written by premium users,SI,1,8.7,"GET COLLECTION products;
+EXPAND UNPACK TRUE ARRAY .reviews TO .review;
+SAVE AS chaintemp1@jcoql_test;
+GET COLLECTION chaintemp1@jcoql_test;
+JOIN OF COLLECTIONS chaintemp1@jcoql_test AS a, users@jcoql_test AS b CASE WHERE .a.review.item.user = .b._id;
+FILTER CASE WHERE .b.premium = TRUE;",ESATTO (solo conteggio),11
+gemma4,compact,D,5,1,Group the reviews by rating,SI,1,6.0,GET COLLECTION products; EXPAND UNPACK TRUE ARRAY .reviews TO .elemento; GROUP PARTITION TRUE BY .elemento.item.rating INTO .risultato;,ESATTO (solo conteggio),3 n gruppi
+gemma4,compact,D,6,1,Group by category the products with a discount greater than 10%,SI,1,7.6,GET COLLECTION products; FILTER CASE WHERE .discount > 10; GROUP PARTITION TRUE BY .category INTO .risultato;,ESATTO (solo conteggio),5 n gruppi
+gemma4,compact,D,7,1,Group the orders by the city of the user who placed them,SI,1,7.1,"JOIN OF COLLECTIONS orders@jcoql_test AS o, users@jcoql_test AS u CASE WHERE .o.user_id = .u._id; GROUP PARTITION TRUE BY .u.city INTO .ordersByCity;",ESATTO (solo conteggio),2 n gruppi
+gemma4,compact,D,8,1,"Show me the products that are both organic and have a rating of at least 4, using the intersection",SI,1,6.1,"GET COLLECTION products; FILTER CASE WHERE .organic = TRUE; SAVE AS organic@jcoql_test;
+GET COLLECTION products; FILTER CASE WHERE .rating >= 4; SAVE AS high_rating@jcoql_test;
+INTERSECT COLLECTIONS organic@jcoql_test, high_rating@jcoql_test;",ESATTO,"2 documenti, stesso insieme di _id"
+gemma4,compact,D,9,1,"Show me the products with a rating of at least 4 excluding the organic ones, using the set difference",SI,1,8.0,"GET COLLECTION products; FILTER CASE WHERE .rating >= 4; SAVE AS set1@jcoql_test;
+GET COLLECTION products; FILTER CASE WHERE .organic = TRUE; SAVE AS set2@jcoql_test;
+SUBTRACT COLLECTIONS set1@jcoql_test, set2@jcoql_test;",ESATTO,"13 documenti, stesso insieme di _id"
+gemma4,compact,D,10,1,"Merge the food, electronics and books products into a single collection, without duplicates",SI,1,6.8,"GET COLLECTION products;
+FILTER CASE WHERE .category = 'food';
+SAVE AS food@jcoql_test;
+GET COLLECTION products;
+FILTER CASE WHERE .category = 'electronics';
+SAVE AS electronics@jcoql_test;
+GET COLLECTION products;
+FILTER CASE WHERE .category = 'books';
+SAVE AS books@jcoql_test;
+MERGE COLLECTIONS food@jcoql_test, electronics@jcoql_test, books@jcoql_test REMOVE DUPLICATES;",ESATTO,"23 documenti, stesso insieme di _id"
+gemma4,compact,D,11,1,"Show me the products that are organic or have a discount above 20%, and that also have a rating of at least 4",SI,1,6.1,GET COLLECTION products; FILTER CASE WHERE (.organic = TRUE OR .discount > 20) AND .rating >= 4;,ESATTO,"4 documenti, stesso insieme di _id"
+gemma4,compact,D,12,1,Translate the category of each product using the category dictionary,SI,1,6.0,"GET DICTIONARY category_translations@jcoql_test AS catdict;
+GET COLLECTION products;
+FILTER GENERATE ADD FIELDS { .category_translated: TRANSLATE(.category, catdict) };",ESATTO,"30/30 documenti con la categoria tradotta; n=30, atteso 30"
+gemma4,compact,D,13,1,Show me the orders with an assigned tracking number and a total above 300 euros,SI,1,5.4,GET COLLECTION orders; FILTER CASE WHERE FIELD .tracking_number IS NOT NULL AND .total > 300;,ESATTO,"11 documenti, stesso insieme di _id"
+gemma4,compact,D,14,1,Show me the reviews with a rating equal to 3 together with the user who wrote them,SI,1,8.8,"GET COLLECTION products; EXPAND UNPACK TRUE ARRAY .reviews TO .review; FILTER CASE WHERE .review.item.rating = 3; SAVE AS temp_reviews@jcoql_test; GET COLLECTION temp_reviews; JOIN OF COLLECTIONS temp_reviews@jcoql_test AS a, users@jcoql_test AS b CASE WHERE .a.review.item.user = .b._id;",ESATTO (solo conteggio),9
+gemma4,compact,D,15,1,Show me the reviews with a rating of at least 4 of the products with a discount above 10%,SI,1,7.9,GET COLLECTION products; FILTER CASE WHERE .discount > 10; EXPAND UNPACK TRUE ARRAY .reviews TO .review_item; FILTER CASE WHERE .review_item.item.rating >= 4;,ESATTO (solo conteggio),22
+llama,compact,R1,1,1,Show me all the users,SI,1,9.3,GET COLLECTION users;,ESATTO,"5 documenti, stesso insieme di _id"
+llama,compact,R1,2,1,Show me the products with a discount greater than 20%,SI,1,6.8,GET COLLECTION products; FILTER CASE WHERE .discount > 20;,ESATTO,"8 documenti, stesso insieme di _id"
+llama,compact,R1,3,1,Show me the organic products with a rating of at least 4,SI,1,7.1,GET COLLECTION products; FILTER CASE WHERE .organic = TRUE AND .rating >= 4;,ESATTO,"2 documenti, stesso insieme di _id"
+llama,compact,R1,4,1,Show me the organic products or the ones with a discount above 30%,SI,1,6.8,GET COLLECTION products; FILTER CASE WHERE .organic = TRUE OR .discount > 30;,ESATTO,"3 documenti, stesso insieme di _id"
+llama,compact,R1,5,1,Expand the reviews of the products into separate rows,SI,1,9.2,GET COLLECTION products; EXPAND UNPACK TRUE ARRAY .reviews TO .review;,ESATTO (solo conteggio),56
+llama,compact,R1,6,1,Link each order to the user who placed it,SI,1,8.5,"GET COLLECTION orders; JOIN OF COLLECTIONS orders@jcoql_test AS a, users@jcoql_test AS b CASE WHERE .a.user_id = .b._id;",ESATTO (solo conteggio),2
+llama,compact,R1,7,1,Group the products by category,SI,1,7.2,GET COLLECTION products; GROUP PARTITION TRUE BY .category INTO .items;,ESATTO (solo conteggio),5 n gruppi
+llama,compact,R1,8,1,"Merge the organic products and the discounted ones into a single collection, without duplicates",SI,1,13.7,"GET COLLECTION products;
+FILTER CASE WHERE .organic = TRUE;
+SAVE AS organic@jcoql_test;
+GET COLLECTION products;
+FILTER CASE WHERE .discount > 0;
+SAVE AS discounted@jcoql_test;
+MERGE COLLECTIONS organic@jcoql_test, discounted@jcoql_test REMOVE DUPLICATES;",ESATTO,"24 documenti, stesso insieme di _id"
+llama,compact,R2,1,1,Show me the products that are not organic,SI,1,6.4,GET COLLECTION products; FILTER CASE WHERE .organic = FALSE;,ESATTO,"27 documenti, stesso insieme di _id"
+llama,compact,R2,2,1,"Show me the organic products with a rating of at least 4, or the ones with a discount above 50%",SI,1,7.2,GET COLLECTION products; FILTER CASE WHERE .organic = TRUE OR .discount > 50;,DIVERSO,"attesi 2 documenti, ottenuti 3"
+llama,compact,R2,3,1,Show me the orders above 100 euros together with the user who placed them,SI,1,8.8,"GET COLLECTION orders; FILTER CASE WHERE .total > 100; JOIN OF COLLECTIONS orders@jcoql_test AS o, users@jcoql_test AS u CASE WHERE .o.user_id = .u._id;",ESATTO (solo conteggio),2
+llama,compact,R2,4,1,Show me the reviews of the products with a rating above 4,SI,1,7.9,GET COLLECTION products; EXPAND UNPACK TRUE ARRAY .reviews TO .r; FILTER CASE WHERE .r.item.rating > 4;,ESATTO (solo conteggio),24
+llama,compact,R2,5,1,Count how many products there are for each category,SI,1,7.3,GET COLLECTION products; GROUP PARTITION TRUE BY .category INTO .items;,ESATTO (solo conteggio),5 n gruppi
+llama,compact,R3,1,1,Show me the products with a rating between 3 and 4.5,SI,1,7.5,"GET COLLECTION products; FILTER CASE WHERE .rating IN_RANGE [3.0, 4.5];",ESATTO,"25 documenti, stesso insieme di _id"
+llama,compact,R3,2,1,Show me the products with a discount between 10% and 30%,SI,1,7.1,"GET COLLECTION products; FILTER CASE WHERE .discount IN_RANGE [10, 30];",ESATTO,"17 documenti, stesso insieme di _id"
+llama,compact,R3,3,1,Show me the products with no discount,SI,1,6.5,GET COLLECTION products; FILTER CASE WHERE .discount = 0;,ESATTO,"7 documenti, stesso insieme di _id"
+llama,compact,R3,4,1,Show me the products with a rating below 3,SI,1,6.8,GET COLLECTION products; FILTER CASE WHERE .rating < 3;,ESATTO,"0 documenti, stesso insieme di _id"
+llama,compact,R3,5,1,Show me the organic products with a discount greater than 20%,SI,1,7.2,GET COLLECTION products; FILTER CASE WHERE .organic = TRUE AND .discount > 20;,ESATTO,"1 documenti, stesso insieme di _id"
+llama,compact,R3,6,1,Show me the non-organic products with a rating of at least 4,SI,1,7.4,GET COLLECTION products; FILTER CASE WHERE .organic = FALSE AND .rating >= 4;,ESATTO,"13 documenti, stesso insieme di _id"
+llama,compact,R3,7,1,Show me the products that are not organic and have no discount,SI,1,7.0,GET COLLECTION products; FILTER CASE WHERE .organic = FALSE AND FIELD .discount IS NULL;,DIVERSO,"attesi 6 documenti, ottenuti 0"
+llama,compact,R3,8,1,Show me the organic products or the ones with a rating of at least 4.5,SI,1,7.4,GET COLLECTION products; FILTER CASE WHERE .organic = TRUE OR .rating >= 4.5;,ESATTO,"7 documenti, stesso insieme di _id"
+llama,compact,R3,9,1,"Show me the products with a discount above 40%, or with a rating below 2",SI,1,7.3,GET COLLECTION products; FILTER CASE WHERE .discount > 40 OR .rating < 2;,ESATTO,"0 documenti, stesso insieme di _id"
+llama,compact,R3,10,1,"Show me the organic products with a discount above 10%, or the ones with a rating of at least 4.5",SI,1,7.5,GET COLLECTION products; FILTER CASE WHERE .organic = TRUE OR .rating >= 4.5;,DIVERSO,"attesi 5 documenti, ottenuti 7"
+llama,compact,R3,11,1,Show me the non-organic products or the ones with a discount above 50%,SI,1,7.0,GET COLLECTION products; FILTER CASE WHERE .organic = FALSE OR .discount > 50;,ESATTO,"27 documenti, stesso insieme di _id"
+llama,compact,R3,12,1,Show me the reviews of the products with a rating equal to 5,SI,1,8.3,GET COLLECTION products; EXPAND UNPACK TRUE ARRAY .reviews TO .r; FILTER CASE WHERE .r.item.rating = 5;,ESATTO (solo conteggio),24
+llama,compact,R3,13,1,Show me the reviews of the products with a rating below 3,SI,1,6.9,GET COLLECTION products; FILTER CASE WHERE .rating < 3;,ESATTO (solo conteggio),0
+llama,compact,R3,14,1,Show me the reviews of the organic products only,SI,1,8.2,GET COLLECTION products; EXPAND UNPACK TRUE ARRAY .reviews TO .r; FILTER CASE WHERE .organic = TRUE AND .r.item.rating > 4;,DIVERSO,"attesi 11 , ottenuti 3"
+llama,compact,R3,15,1,Expand the items of the orders into separate rows,SI,1,8.9,GET COLLECTION orders; EXPAND UNPACK TRUE ARRAY .items TO .item;,ESATTO (solo conteggio),67
+llama,compact,R3,16,1,Link each review to the user who wrote it,SI,1,12.3,"GET COLLECTION products; EXPAND UNPACK TRUE ARRAY .reviews TO .review; JOIN OF COLLECTIONS chaintemp1@jcoql_test AS a, users@jcoql_test AS b CASE WHERE .a.review.item.user = .b._id;",DIVERSO,"attesi 36 , ottenuti 0"
+llama,compact,R3,17,1,Show me the orders below 50 euros together with the user who placed them,SI,1,9.0,"GET COLLECTION orders; FILTER CASE WHERE .total < 50; JOIN OF COLLECTIONS orders@jcoql_test AS a, users@jcoql_test AS b CASE WHERE .a.user_id = .b._id;",DIVERSO,"attesi 0 , ottenuti 2"
+llama,compact,R3,18,1,Link each order to the products purchased,SI,2,20.1,"GET COLLECTION orders; EXPAND UNPACK TRUE ARRAY .items TO .elemento; SAVE AS chaintemp1@jcoql_test; GET COLLECTION chaintemp1; JOIN OF COLLECTIONS chaintemp1@jcoql_test AS a, products@jcoql_test AS b CASE WHERE .a.elemento.item.product_id = .b._id;",ESATTO (solo conteggio),47
+llama,compact,R3,19,1,Link each user to their orders,SI,1,10.9,"GET COLLECTION users; JOIN OF COLLECTIONS users@jcoql_test AS u, orders@jcoql_test AS o CASE WHERE .o.user_id = .u._id;",ESATTO (solo conteggio),2
+llama,compact,R3,20,1,Group the orders by user,SI,1,9.0,"GET COLLECTION orders;
+GROUP PARTITION TRUE BY .user_id INTO .ordersByUser;",ESATTO (solo conteggio),15 n gruppi
+llama,compact,R3,21,1,Group the organic products by category,SI,1,8.1,GET COLLECTION products; FILTER CASE WHERE .organic = TRUE; GROUP PARTITION TRUE BY .category INTO .items;,ESATTO (solo conteggio),1 n gruppi
+llama,compact,R3,22,1,Group the products into organic and non-organic,SI,1,7.4,GET COLLECTION products; GROUP PARTITION TRUE BY .organic INTO .risultato;,ESATTO (solo conteggio),2 n gruppi
+llama,compact,R3,23,1,"Merge the products with a rating of at least 4 and the ones with a discount above 30% into a single collection, without duplicates",SI,1,8.2,"GET COLLECTION products; FILTER CASE WHERE .rating >= 4 OR .discount > 30; MERGE COLLECTIONS products@jcoql_test, products@jcoql_test;",DIVERSO,"attesi 15 documenti, ottenuti 60"
+llama,compact,R3,24,1,"Merge the organic products and the ones with no discount into a single collection, keeping the duplicates",SI,1,10.7,"GET COLLECTION products;
+FILTER CASE WHERE .organic = TRUE OR FIELD .discount IS NULL;
+MERGE COLLECTIONS products@jcoql_test, products@jcoql_test REMOVE DUPLICATES;",DIVERSO,"attesi 10 con duplicati = |A|+|B|, ottenuti 30"
+llama,compact,R3,25,1,Merge the orders above 100 euros and the ones below 20 euros into a single collection,SI,2,11.4,"GET COLLECTION orders; MERGE COLLECTIONS orders@jcoql_test, orders@jcoql_test; FILTER CASE WHERE .total > 100 OR .total < 20;",DIVERSO,"attesi 20 documenti, ottenuti 40"
+llama,compact,R3,26,1,Add to each order a field with the total increased by 22% VAT,SI,2,15.7,GET COLLECTION orders; FILTER CASE WHERE .total * 1.22 = .total + (.total * 0.22) GENERATE ADD FIELDS { .totale_con_IVA: .total};,DIVERSO,"0/20 documenti con valore calcolato corretto; n=18, atteso 20"
+llama,compact,R3,27,1,Add to each product a field with the difference between 5 and the rating,SI,1,7.7,GET COLLECTION products; FILTER GENERATE ADD FIELDS { .rating_difference: .rating};,DIVERSO,"0/30 documenti con valore calcolato corretto; n=30, atteso 30"
+llama,compact,R3,28,1,Show me only the category and the rating of each product,SI,2,12.0,GET COLLECTION products; FILTER CASE WHERE .category = 'electronics' AND .rating >= 4;,DIVERSO,"3 documenti con campi diversi da {category, rating}; n=3, atteso 30"
+llama,compact,F,1,1,Show me the products in the food category,SI,1,7.0,GET COLLECTION products; FILTER CASE WHERE .category = 'food';,ESATTO,"12 documenti, stesso insieme di _id"
+llama,compact,F,2,1,Show me the products with a price above 1000 euros,SI,1,7.1,GET COLLECTION products; FILTER CASE WHERE .price > 1000;,ESATTO,"16 documenti, stesso insieme di _id"
+llama,compact,F,3,1,Show me the products with a price below 300 euros,SI,1,5.7,GET COLLECTION products; FILTER CASE WHERE .price < 300;,ESATTO,"5 documenti, stesso insieme di _id"
+llama,compact,F,4,1,Show me the products in the electronics category with a discount of at least 15%,SI,1,8.0,GET COLLECTION products; FILTER CASE WHERE .category = 'electronics' AND .discount >= 15;,ESATTO,"2 documenti, stesso insieme di _id"
+llama,compact,F,5,1,Show me the products in the books or sports category,SI,1,7.1,GET COLLECTION products; FILTER CASE WHERE .category = 'books' OR .category = 'sports';,ESATTO,"8 documenti, stesso insieme di _id"
+llama,compact,F,6,1,Show me the products that are not in the food category,SI,1,6.5,GET COLLECTION products; FILTER CASE WHERE NOT .category = 'food';,ESATTO,"18 documenti, stesso insieme di _id"
+llama,compact,F,7,1,Show me the products with more than 50 pieces in stock,SI,1,7.0,GET COLLECTION products; FILTER CASE WHERE .stock > 50;,ESATTO,"18 documenti, stesso insieme di _id"
+llama,compact,F,8,1,Show me the products with a price between 200 and 700 euros,SI,1,6.9,"GET COLLECTION products; FILTER CASE WHERE .price IN_RANGE [200, 700];",ESATTO,"8 documenti, stesso insieme di _id"
+llama,compact,F,9,1,Show me the premium users,SI,1,7.4,GET COLLECTION users; FILTER CASE WHERE .premium = TRUE;,ESATTO,"1 documenti, stesso insieme di _id"
+llama,compact,F,10,1,Show me the users older than 40,SI,1,8.1,GET COLLECTION users; FILTER CASE WHERE .age > 40;,ESATTO,"3 documenti, stesso insieme di _id"
+llama,compact,F,11,1,Show me the users who live in Torino,SI,1,6.6,GET COLLECTION users; FILTER CASE WHERE .city = 'Torino';,ESATTO,"2 documenti, stesso insieme di _id"
+llama,compact,F,12,1,Show me the active users with a verified email,SI,1,9.8,GET COLLECTION users; FILTER CASE WHERE .active = TRUE AND .email_verified = TRUE;,ESATTO,"3 documenti, stesso insieme di _id"
+llama,compact,F,13,1,Show me the users who are not premium,SI,1,7.4,GET COLLECTION users; FILTER CASE WHERE .premium = FALSE;,ESATTO,"4 documenti, stesso insieme di _id"
+llama,compact,F,14,1,Show me the orders with status confirmed,SI,1,6.3,GET COLLECTION orders; FILTER CASE WHERE .status = 'confirmed';,ESATTO,"3 documenti, stesso insieme di _id"
+llama,compact,F,15,1,Show me the orders with priority urgent,SI,1,7.3,GET COLLECTION orders; FILTER CASE WHERE .priority = 'urgent';,ESATTO,"5 documenti, stesso insieme di _id"
+llama,compact,F,16,1,Show me the orders without a tracking number,SI,1,6.6,GET COLLECTION orders; FILTER CASE WHERE FIELD .tracking_number IS NULL;,ESATTO,"7 documenti, stesso insieme di _id"
+llama,compact,F,17,1,Show me the orders with a total above 500 euros,SI,1,7.0,GET COLLECTION orders; FILTER CASE WHERE .total > 500;,ESATTO,"12 documenti, stesso insieme di _id"
+llama,compact,F,18,1,Show me the orders that have not been cancelled,SI,1,6.2,GET COLLECTION orders; FILTER CASE WHERE .status != 'cancelled';,ESATTO,"14 documenti, stesso insieme di _id"
+llama,compact,F,19,1,Show me the orders with a total between 200 and 600 euros,SI,1,7.3,"GET COLLECTION orders; FILTER CASE WHERE .total IN_RANGE [ 200 , 600 ];",ESATTO,"8 documenti, stesso insieme di _id"
+llama,compact,F,20,1,Group the users by city,SI,1,7.1,GET COLLECTION users; GROUP PARTITION TRUE BY .city INTO .risultato;,ESATTO (solo conteggio),4 n gruppi
+llama,compact,F,21,1,Group the orders by status,SI,1,7.1,"GET COLLECTION orders;
+GROUP PARTITION TRUE BY .status INTO .ordersByStatus;",ESATTO (solo conteggio),5 n gruppi
+llama,compact,F,22,1,Show me only the name and the price of each product,SI,1,7.5,"GET COLLECTION products; FILTER GENERATE BUILD { .name: .name, .price: .price };",ESATTO,"0 documenti con campi diversi da ['name', 'price']; n=30, atteso 30"
+llama,compact,D,1,1,Show me the reviews with a rating equal to 5 of the organic products only,SI,1,8.4,GET COLLECTION products; EXPAND UNPACK TRUE ARRAY .reviews TO .r; FILTER CASE WHERE .organic = TRUE AND .r.item.rating = 5;,ESATTO (solo conteggio),3
+llama,compact,D,2,1,"Show me the orders above 500 euros together with the user who placed them, only for premium users",SI,1,9.6,"GET COLLECTION orders; FILTER CASE WHERE .total > 500; JOIN OF COLLECTIONS orders@jcoql_test AS o, users@jcoql_test AS u CASE WHERE .o.user_id = .u._id; FILTER CASE WHERE .u.premium = TRUE;",ESATTO (solo conteggio),0
+llama,compact,D,3,1,Link each order to the user who placed it and to the products purchased,NO,3,23.0,"GET COLLECTION orders; JOIN OF COLLECTIONS orders@jcoql_test AS a, users@jcoql_test AS b CASE WHERE .a.user_id = .b._id; JOIN OF COLLECTIONS orders@jcoql_test AS c, products@jcoql_test AS d CASE WHERE .c.items[].product_id = .d._id;",NON VALIDA,"[{'message': ""1.\tSyntax Error 1 at [1, 210]: Found LB ('[') - mismatched input '[' expecting SC""}]"
+llama,compact,D,4,1,Show me the reviews written by premium users,SI,1,15.4,"GET COLLECTION users; FILTER CASE WHERE .premium = TRUE; EXPAND UNPACK TRUE ARRAY .orders TO .order; JOIN OF COLLECTIONS chaintemp1@jcoql_test AS a, users@jcoql_test AS b CASE WHERE .a.order.item.user_id = .b._id; FILTER CASE WHERE FIELD .b._id IS NOT NULL; EXPAND UNPACK TRUE ARRAY .reviews TO .review; FILTER CASE WHERE .review.item.user = .b._id;",DIVERSO,"attesi 11 , ottenuti 0"
+llama,compact,D,5,1,Group the reviews by rating,SI,1,8.6,GET COLLECTION products; GROUP PARTITION TRUE BY .reviews.rating INTO .risultato;,DIVERSO,"attesi 3 n gruppi, ottenuti 0"
+llama,compact,D,6,1,Group by category the products with a discount greater than 10%,SI,1,8.2,GET COLLECTION products; FILTER CASE WHERE .discount > 10; GROUP PARTITION TRUE BY .category INTO .items;,ESATTO (solo conteggio),5 n gruppi
+llama,compact,D,7,1,Group the orders by the city of the user who placed them,SI,1,7.9,"GET COLLECTION orders;
+GROUP PARTITION TRUE BY .user_id INTO .ordersByUser;",DIVERSO,"attesi 2 n gruppi, ottenuti 15"
+llama,compact,D,8,1,"Show me the products that are both organic and have a rating of at least 4, using the intersection",SI,1,9.8,"GET COLLECTION products; FILTER CASE WHERE .organic = TRUE AND .rating >= 4; INTERSECT COLLECTIONS discounted@jcoql_test, electronics@jcoql_test;",DIVERSO,"attesi 2 documenti, ottenuti 0"
+llama,compact,D,9,1,"Show me the products with a rating of at least 4 excluding the organic ones, using the set difference",SI,1,12.2,"GET COLLECTION products; FILTER CASE WHERE .rating >= 4 AND .organic = FALSE; MERGE COLLECTIONS products@jcoql_test, products@jcoql_test; SAVE AS sub1@jcoql_test; GET COLLECTION sub1@jcoql_test; FILTER CASE WHERE .organic = TRUE; SAVE AS sub2@jcoql_test; INTERSECT COLLECTIONS sub1@jcoql_test, sub2@jcoql_test;",ERRORE ESECUZIONE,"jco.ql.engine.exception.ExecuteProcessException: Bulk write operation error on server localhost:27017. Write errors: [BulkWriteError{index=30, code=11000, message='E11000 duplicate key error collectio"
+llama,compact,D,10,1,"Merge the food, electronics and books products into a single collection, without duplicates",SI,1,11.5,"GET COLLECTION products; FILTER CASE WHERE .category = 'food' OR .category = 'electronics' OR .category = 'books'; MERGE COLLECTIONS discounted@jcoql_test, electronics@jcoql_test, books@jcoql_test REMOVE DUPLICATES;",DIVERSO,"stesso conteggio 23 ma _id diversi (mancanti 7, extra 7)"
+llama,compact,D,11,1,"Show me the products that are organic or have a discount above 20%, and that also have a rating of at least 4",SI,1,7.9,GET COLLECTION products; FILTER CASE WHERE .organic = TRUE OR .discount > 20 AND .rating >= 4;,DIVERSO,"attesi 4 documenti, ottenuti 5"
+llama,compact,D,12,1,Translate the category of each product using the category dictionary,SI,1,9.8,"GET DICTIONARY category_translations@jcoql_test AS catdict;
+GET COLLECTION products;
+FILTER GENERATE ADD FIELDS { .category_translated: TRANSLATE(.category, catdict) };",ESATTO,"30/30 documenti con la categoria tradotta; n=30, atteso 30"
+llama,compact,D,13,1,Show me the orders with an assigned tracking number and a total above 300 euros,SI,1,7.1,GET COLLECTION orders; FILTER CASE WHERE FIELD .tracking_number IS NOT NULL AND .total > 300;,ESATTO,"11 documenti, stesso insieme di _id"
+llama,compact,D,14,1,Show me the reviews with a rating equal to 3 together with the user who wrote them,SI,1,9.6,"GET COLLECTION products; EXPAND UNPACK TRUE ARRAY .reviews TO .r; FILTER CASE WHERE .r.item.rating = 3; JOIN OF COLLECTIONS products@jcoql_test AS a, users@jcoql_test AS b CASE WHERE .a._id = .b._id;",DIVERSO,"attesi 9 , ottenuti 0"
+llama,compact,D,15,1,Show me the reviews with a rating of at least 4 of the products with a discount above 10%,SI,1,6.9,GET COLLECTION products; FILTER CASE WHERE .discount > 10 AND .rating >= 4;,DIVERSO,"attesi 22 , ottenuti 8"
+llama32,compact,R1,1,1,Show me all the users,SI,1,5.1,GET COLLECTION users;,ESATTO,"5 documenti, stesso insieme di _id"
+llama32,compact,R1,2,1,Show me the products with a discount greater than 20%,SI,1,2.8,"GET COLLECTION products;
+FILTER CASE WHERE .discount > 20;",ESATTO,"8 documenti, stesso insieme di _id"
+llama32,compact,R1,3,1,Show me the organic products with a rating of at least 4,SI,1,2.8,"GET COLLECTION products;
+FILTER CASE WHERE .organic = TRUE AND .rating >= 4;",ESATTO,"2 documenti, stesso insieme di _id"
+llama32,compact,R1,4,1,Show me the organic products or the ones with a discount above 30%,SI,1,2.7,"GET COLLECTION products;
+FILTER CASE WHERE .organic = TRUE OR .discount > 30;",ESATTO,"3 documenti, stesso insieme di _id"
+llama32,compact,R1,5,1,Expand the reviews of the products into separate rows,SI,1,3.2,"GET COLLECTION products; EXPAND UNPACK TRUE ARRAY .reviews TO .review; JOIN OF COLLECTIONS chaintemp1@jcoql_test AS a, users@jcoql_test AS b
+CASE WHERE .a.review.item.user = .b._id;",DIVERSO,"attesi 56 , ottenuti 0"
+llama32,compact,R1,6,1,Link each order to the user who placed it,SI,1,3.1,"GET COLLECTION users;
+JOIN OF COLLECTIONS users@jcoql_test AS u, orders@jcoql_test AS o
+CASE WHERE .o.user_id = .u._id;
+FILTER CASE WHERE FIELD .tracking_number IS NULL;",ESATTO (solo conteggio),2
+llama32,compact,R1,7,1,Group the products by category,SI,1,2.9,"GET COLLECTION products;
+GROUP PARTITION TRUE BY .category INTO .items ORDER BY .price TYPE NUMERIC DESC;",ESATTO (solo conteggio),5 n gruppi
+llama32,compact,R1,8,1,"Merge the organic products and the discounted ones into a single collection, without duplicates",SI,2,3.5,"GET COLLECTION products;
+FILTER CASE WHERE .organic = TRUE OR .discount > 0;
+SAVE AS merged@jcoql_test;",ESATTO,"24 documenti, stesso insieme di _id"
+llama32,compact,R2,1,1,Show me the products that are not organic,SI,1,2.7,"GET COLLECTION products;
+FILTER CASE WHERE NOT .organic = TRUE;",ESATTO,"27 documenti, stesso insieme di _id"
+llama32,compact,R2,2,1,"Show me the organic products with a rating of at least 4, or the ones with a discount above 50%",SI,1,2.8,"GET COLLECTION products;
+FILTER CASE WHERE .organic = TRUE AND .rating >= 4 OR .discount > 50;",ESATTO,"2 documenti, stesso insieme di _id"
+llama32,compact,R2,3,1,Show me the orders above 100 euros together with the user who placed them,SI,1,3.0,"GET COLLECTION orders; FILTER CASE WHERE .total > 100; JOIN OF COLLECTIONS users@jcoql_test AS u, orders@jcoql_test AS o CASE WHERE .o.user_id = .u._id;",ESATTO (solo conteggio),2
+llama32,compact,R2,4,1,Show me the reviews of the products with a rating above 4,SI,1,2.9,GET COLLECTION products; FILTER CASE WHERE SIZE(.reviews) > 0;,DIVERSO,"attesi 24 , ottenuti 0"
+llama32,compact,R2,5,1,Count how many products there are for each category,SI,1,2.8,GET COLLECTION products; GROUP PARTITION TRUE BY .category INTO .items GENERATE ADD FIELDS { .count: COUNT(.items) };,ESATTO (solo conteggio),5 n gruppi
+llama32,compact,R3,1,1,Show me the products with a rating between 3 and 4.5,SI,1,2.8,"GET COLLECTION products; FILTER CASE WHERE .rating IN_RANGE [ 3.5 , 4.5 ];",DIVERSO,"attesi 25 documenti, ottenuti 18"
+llama32,compact,R3,2,1,Show me the products with a discount between 10% and 30%,SI,1,2.8,"GET COLLECTION products;
+FILTER CASE WHERE .discount IN_RANGE [10, 30];",ESATTO,"17 documenti, stesso insieme di _id"
+llama32,compact,R3,3,1,Show me the products with no discount,SI,1,2.8,"GET COLLECTION products;
+FILTER CASE WHERE .discount = 0;",ESATTO,"7 documenti, stesso insieme di _id"
+llama32,compact,R3,4,1,Show me the products with a rating below 3,SI,1,2.8,"GET COLLECTION products;
+FILTER CASE WHERE .rating < 3;",ESATTO,"0 documenti, stesso insieme di _id"
+llama32,compact,R3,5,1,Show me the organic products with a discount greater than 20%,SI,1,2.9,"GET COLLECTION products;
+FILTER CASE WHERE .organic = TRUE AND .discount > 20;",ESATTO,"1 documenti, stesso insieme di _id"
+llama32,compact,R3,6,1,Show me the non-organic products with a rating of at least 4,SI,1,2.9,"GET COLLECTION products;
+FILTER CASE WHERE .organic = FALSE AND .rating >= 4;",ESATTO,"13 documenti, stesso insieme di _id"
+llama32,compact,R3,7,1,Show me the products that are not organic and have no discount,SI,1,2.9,"GET COLLECTION products;
+FILTER CASE WHERE .organic = FALSE AND .discount = 0;",ESATTO,"6 documenti, stesso insieme di _id"
+llama32,compact,R3,8,1,Show me the organic products or the ones with a rating of at least 4.5,SI,1,2.9,"GET COLLECTION products;
+FILTER CASE WHERE .organic = TRUE OR .rating >= 4.5;",ESATTO,"7 documenti, stesso insieme di _id"
+llama32,compact,R3,9,1,"Show me the products with a discount above 40%, or with a rating below 2",SI,1,2.9,"GET COLLECTION products;
+FILTER CASE WHERE .discount > 40 OR .rating < 2;",ESATTO,"0 documenti, stesso insieme di _id"
+llama32,compact,R3,10,1,"Show me the organic products with a discount above 10%, or the ones with a rating of at least 4.5",SI,1,2.8,"GET COLLECTION products;
+FILTER CASE WHERE .organic = TRUE OR .rating >= 4.5;",DIVERSO,"attesi 5 documenti, ottenuti 7"
+llama32,compact,R3,11,1,Show me the non-organic products or the ones with a discount above 50%,SI,1,2.9,GET COLLECTION products; FILTER CASE WHERE NOT (.organic = TRUE) OR .discount > 50;,ESATTO,"27 documenti, stesso insieme di _id"
+llama32,compact,R3,12,1,Show me the reviews of the products with a rating equal to 5,SI,1,2.8,"GET COLLECTION products;
+EXPAND UNPACK TRUE ARRAY .reviews TO .expanded_reviews;
+FILTER CASE WHERE .expanded_reviews.item.item.valutazione = 5;",DIVERSO,"attesi 24 , ottenuti 0"
+llama32,compact,R3,13,1,Show me the reviews of the products with a rating below 3,SI,1,2.8,GET COLLECTION products; FILTER CASE WHERE .rating < 3;,ESATTO (solo conteggio),0
+llama32,compact,R3,14,1,Show me the reviews of the organic products only,SI,1,2.7,"GET COLLECTION products;
+FILTER CASE WHERE .organic = TRUE AND FIELD .reviews IS NOT NULL;",DIVERSO,"attesi 11 , ottenuti 3"
+llama32,compact,R3,15,1,Expand the items of the orders into separate rows,SI,1,4.2,"USE DB jcoql_test ON DEFAULT SERVER;
+JOIN OF COLLECTIONS orders@jcoql_test AS a, users@jcoql_test AS b
+CASE WHERE .a.user_id = .b._id;
+SAVE AS chaintemp1@jcoql_test;
+GET COLLECTION chaintemp1;
+EXPAND UNPACK TRUE ARRAY .a.items TO .item;
+SAVE AS chaintemp2@jcoql_test;
+USE DB jcoql_test ON DEFAULT SERVER;
+JOIN OF COLLECTIONS chaintemp2@jcoql_test AS c, products@jcoql_test AS d
+CASE WHERE .item.item.product_id = .d._id;",DIVERSO,"attesi 67 , ottenuti 0"
+llama32,compact,R3,16,1,Link each review to the user who wrote it,SI,1,3.4,"USE DB jcoql_test ON DEFAULT SERVER;
+GET COLLECTION products;
+EXPAND UNPACK TRUE ARRAY .reviews TO .review;
+SAVE AS chaintemp1@jcoql_test;
+JOIN OF COLLECTIONS chaintemp1@jcoql_test AS a, users@jcoql_test AS b
+CASE WHERE .a.review.item.user = .b._id;",ESATTO (solo conteggio),36
+llama32,compact,R3,17,1,Show me the orders below 50 euros together with the user who placed them,SI,2,3.7,"GET COLLECTION users; FILTER CASE WHERE .premium = FALSE; JOIN OF COLLECTIONS users@jcoql_test AS a, orders@jcoql_test AS b CASE WHERE .a._id = .b.user_id;",DIVERSO,"attesi 0 , ottenuti 2"
+llama32,compact,R3,18,1,Link each order to the products purchased,NO,3,5.6,"USE DB jcoql_test ON DEFAULT SERVER;
+JOIN OF COLLECTIONS orders@jcoql_test AS a, users@jcoql_test AS b, products@jcoql_test AS d
+CASE WHERE .a.user_id = .b._id AND .c.item.item.product_id = .d._id;
+FILTER CASE WHERE .a.items IN_RANGE [3, SIZE(.a.items)];",NON VALIDA,"[{'message': ""1.\tSyntax Error 1 at [2, 66]: Found COMMA (',') - mismatched input ',' expecting SC""}, {'message': ""2.\tSyntax Error 1 at [4, 41]: Found ID ('SIZE') - no viable alternative at input 'SIZE'""}, {'message': '3.\tSyntax Error 16 at [4, 54]: Missing number'}, {'message': ""4.\tSyntax Error "
+llama32,compact,R3,19,1,Link each user to their orders,SI,1,2.9,GET COLLECTION users; FILTER CASE WHERE ._id = 'user_001';,DIVERSO,"attesi 2 , ottenuti 1"
+llama32,compact,R3,20,1,Group the orders by user,SI,1,2.9,"GET COLLECTION users;
+FILTER CASE WHERE ._id = 'user_001';",DIVERSO,"attesi 15 n gruppi, ottenuti 1"
+llama32,compact,R3,21,1,Group the organic products by category,SI,1,2.8,GET COLLECTION products; GROUP PARTITION TRUE BY .category INTO .items GENERATE ADD FIELDS { .categoria_riassunto: .category };,DIVERSO,"attesi 1 n gruppi, ottenuti 5"
+llama32,compact,R3,22,1,Group the products into organic and non-organic,SI,1,2.8,"GET COLLECTION products;
+GROUP PARTITION TRUE BY .organic INTO .items;",ESATTO (solo conteggio),2 n gruppi
+llama32,compact,R3,23,1,"Merge the products with a rating of at least 4 and the ones with a discount above 30% into a single collection, without duplicates",SI,1,2.9,GET COLLECTION products; FILTER CASE WHERE .rating >= 4 AND .discount > 30;,DIVERSO,"attesi 15 documenti, ottenuti 0"
+llama32,compact,R3,24,1,"Merge the organic products and the ones with no discount into a single collection, keeping the duplicates",SI,2,4.0,"GET COLLECTION products; FILTER CASE WHERE .organic = TRUE OR FIELD .discount IS NULL; SAVE AS organicNoDiscount@jcoql_test; GET COLLECTION products; FILTER CASE WHERE .discount > 0; SAVE AS discounted@jcoql_test; MERGE COLLECTIONS organicNoDiscount@jcoql_test, discounted@jcoql_test REMOVE DUPLICATES;",DIVERSO,"attesi 10 con duplicati = |A|+|B|, ottenuti 24"
+llama32,compact,R3,25,1,Merge the orders above 100 euros and the ones below 20 euros into a single collection,SI,1,3.0,GET COLLECTION orders; FILTER CASE WHERE .total > 100; GET COLLECTION orders; FILTER CASE WHERE .total < 20;,DIVERSO,"attesi 20 documenti, ottenuti 0"
+llama32,compact,R3,26,1,Add to each order a field with the total increased by 22% VAT,SI,1,3.0,"GET COLLECTION orders;
+FILTER CASE WHERE .total * 1.22 > .total;",DIVERSO,"0/20 documenti con valore calcolato corretto; n=20, atteso 20"
+llama32,compact,R3,27,1,Add to each product a field with the difference between 5 and the rating,SI,2,3.4,"GET COLLECTION products; FILTER CASE WHERE .rating IN_RANGE [ 3.5 , 4.5 ];",DIVERSO,"0/30 documenti con valore calcolato corretto; n=18, atteso 30"
+llama32,compact,R3,28,1,Show me only the category and the rating of each product,SI,1,2.9,"GET COLLECTION products;
+FILTER CASE WHERE .category = 'food' AND .rating IN_RANGE [3.0, 4.0];",DIVERSO,"8 documenti con campi diversi da {category, rating}; n=8, atteso 30"
+llama32,compact,F,1,1,Show me the products in the food category,SI,1,2.7,"GET COLLECTION products;
+FILTER CASE WHERE .category = 'food';",ESATTO,"12 documenti, stesso insieme di _id"
+llama32,compact,F,2,1,Show me the products with a price above 1000 euros,SI,1,2.7,"GET COLLECTION products;
+FILTER CASE WHERE .price > 1000;",ESATTO,"16 documenti, stesso insieme di _id"
+llama32,compact,F,3,1,Show me the products with a price below 300 euros,SI,1,2.8,"GET COLLECTION products;
+FILTER CASE WHERE .price < 300;",ESATTO,"5 documenti, stesso insieme di _id"
+llama32,compact,F,4,1,Show me the products in the electronics category with a discount of at least 15%,SI,1,2.9,"GET COLLECTION products;
+FILTER CASE WHERE .category = 'electronics' AND .discount >= 15;",ESATTO,"2 documenti, stesso insieme di _id"
+llama32,compact,F,5,1,Show me the products in the books or sports category,NO,3,3.6,"GET COLLECTION products; FILTER CASE WHERE .category IN ('books', 'sports');",NON VALIDA,"[{'message': ""1.\tSyntax Error 1 at [1, 54]: Found IN ('IN') - mismatched input 'IN' expecting SC""}]"
+llama32,compact,F,6,1,Show me the products that are not in the food category,SI,1,2.8,GET COLLECTION products; FILTER CASE WHERE NOT .category = 'food';,ESATTO,"18 documenti, stesso insieme di _id"
+llama32,compact,F,7,1,Show me the products with more than 50 pieces in stock,SI,1,2.8,"GET COLLECTION products;
+FILTER CASE WHERE .stock > 50;",ESATTO,"18 documenti, stesso insieme di _id"
+llama32,compact,F,8,1,Show me the products with a price between 200 and 700 euros,SI,1,2.8,"GET COLLECTION products;
+FILTER CASE WHERE .price IN_RANGE [200, 700];",ESATTO,"8 documenti, stesso insieme di _id"
+llama32,compact,F,9,1,Show me the premium users,SI,1,2.9,GET COLLECTION users; FILTER CASE WHERE ._id = 'user_001';,DIVERSO,"stesso conteggio 1 ma _id diversi (mancanti 1, extra 1)"
+llama32,compact,F,10,1,Show me the users older than 40,SI,1,2.6,"GET COLLECTION users;
+FILTER CASE WHERE .age > 40;",ESATTO,"3 documenti, stesso insieme di _id"
+llama32,compact,F,11,1,Show me the users who live in Torino,SI,1,2.8,GET COLLECTION users; FILTER CASE WHERE .city = 'Torino';,ESATTO,"2 documenti, stesso insieme di _id"
+llama32,compact,F,12,1,Show me the active users with a verified email,SI,1,2.8,GET COLLECTION users; FILTER CASE WHERE ._id = 'user_001';,DIVERSO,"attesi 3 documenti, ottenuti 1"
+llama32,compact,F,13,1,Show me the users who are not premium,SI,1,2.8,"GET COLLECTION users;
+FILTER CASE WHERE NOT (.premium = TRUE);",ESATTO,"4 documenti, stesso insieme di _id"
+llama32,compact,F,14,1,Show me the orders with status confirmed,SI,1,2.7,"GET COLLECTION orders;
+FILTER CASE WHERE .status = 'confirmed';",ESATTO,"3 documenti, stesso insieme di _id"
+llama32,compact,F,15,1,Show me the orders with priority urgent,SI,1,2.8,"GET COLLECTION orders;
+FILTER CASE WHERE .priority = 'urgent';",ESATTO,"5 documenti, stesso insieme di _id"
+llama32,compact,F,16,1,Show me the orders without a tracking number,SI,1,2.9,"GET COLLECTION orders;
+FILTER CASE WHERE FIELD .tracking_number IS NULL;",ESATTO,"7 documenti, stesso insieme di _id"
+llama32,compact,F,17,1,Show me the orders with a total above 500 euros,SI,1,2.8,"GET COLLECTION orders;
+FILTER CASE WHERE .status = 'shipped' AND .total > 500;",DIVERSO,"attesi 12 documenti, ottenuti 2"
+llama32,compact,F,18,1,Show me the orders that have not been cancelled,SI,1,2.9,GET COLLECTION orders; FILTER CASE WHERE NOT (.status = 'cancelled');,ESATTO,"14 documenti, stesso insieme di _id"
+llama32,compact,F,19,1,Show me the orders with a total between 200 and 600 euros,SI,1,2.8,"GET COLLECTION orders;
+FILTER CASE WHERE .total >= 200 AND .total <= 600;",ESATTO,"8 documenti, stesso insieme di _id"
+llama32,compact,F,20,1,Group the users by city,SI,1,2.7,"GET COLLECTION users;
+GROUP PARTITION TRUE BY .city INTO .risultato;",ESATTO (solo conteggio),4 n gruppi
+llama32,compact,F,21,1,Group the orders by status,SI,1,2.9,"GET COLLECTION orders;
+GROUP PARTITION TRUE BY .status INTO .ordersByStatus;",ESATTO (solo conteggio),5 n gruppi
+llama32,compact,F,22,1,Show me only the name and the price of each product,SI,1,3.0,GET COLLECTION products; FILTER CASE WHERE FIELD .name IS NOT NULL AND FIELD .price IS NOT NULL;,DIVERSO,"30 documenti con campi diversi da ['name', 'price']; n=30, atteso 30"
+llama32,compact,D,1,1,Show me the reviews with a rating equal to 5 of the organic products only,SI,1,2.8,"GET COLLECTION products;
+FILTER CASE WHERE .organic = TRUE AND .rating = 5;",DIVERSO,"attesi 3 , ottenuti 0"
+llama32,compact,D,2,1,"Show me the orders above 500 euros together with the user who placed them, only for premium users",SI,1,3.0,"GET COLLECTION orders; FILTER CASE WHERE .total > 500; JOIN OF COLLECTIONS orders@jcoql_test AS o, users@jcoql_test AS u CASE WHERE .o.user_id = .u._id;
+FILTER CASE WHERE .u.premium = TRUE;",ESATTO (solo conteggio),0
+llama32,compact,D,3,1,Link each order to the user who placed it and to the products purchased,SI,1,2.8,GET COLLECTION orders; FILTER CASE WHERE .total < 100;,DIVERSO,"attesi 6 , ottenuti 0"
+llama32,compact,D,4,1,Show me the reviews written by premium users,SI,1,3.0,GET COLLECTION users; FILTER CASE WHERE .premium = TRUE; GET COLLECTION users; FILTER CASE WHERE .email_verified = TRUE;,DIVERSO,"attesi 11 , ottenuti 3"
+llama32,compact,D,5,1,Group the reviews by rating,SI,1,2.8,GET COLLECTION products; FILTER CASE WHERE SIZE(.reviews) > 0;,DIVERSO,"attesi 3 n gruppi, ottenuti 0"
+llama32,compact,D,6,1,Group by category the products with a discount greater than 10%,SI,2,3.5,"GET COLLECTION products; FILTER CASE WHERE .discount > 10;
+GROUP PARTITION TRUE BY .category INTO .items;",ESATTO (solo conteggio),5 n gruppi
+llama32,compact,D,7,1,Group the orders by the city of the user who placed them,NO,3,3.8,"GET COLLECTION users;
+FILTER CASE WHERE .city = 'Torino' GROUP PARTITION TRUE BY .city INTO .ordersByCity;",NON VALIDA,"[{'message': ""1.\tSyntax Error 1 at [2, 36]: Found GROUP ('GROUP') - missing SC at 'GROUP' - missing SC at 'GROUP'""}]"
+llama32,compact,D,8,1,"Show me the products that are both organic and have a rating of at least 4, using the intersection",SI,1,2.8,GET COLLECTION products; FILTER CASE WHERE .organic = TRUE AND .rating >= 4;,ESATTO,"2 documenti, stesso insieme di _id"
+llama32,compact,D,9,1,"Show me the products with a rating of at least 4 excluding the organic ones, using the set difference",SI,1,2.9,"GET COLLECTION products;
+FILTER CASE WHERE .rating >= 4 AND NOT (.organic = TRUE);",ESATTO,"13 documenti, stesso insieme di _id"
+llama32,compact,D,10,1,"Merge the food, electronics and books products into a single collection, without duplicates",NO,3,3.6,"GET COLLECTION products; FILTER CASE WHERE .category IN ('food', 'electronics', 'books');",NON VALIDA,"[{'message': ""1.\tSyntax Error 1 at [1, 54]: Found IN ('IN') - mismatched input 'IN' expecting SC""}]"
+llama32,compact,D,11,1,"Show me the products that are organic or have a discount above 20%, and that also have a rating of at least 4",SI,1,2.7,GET COLLECTION products; FILTER CASE WHERE .organic = TRUE OR .discount > 20;,DIVERSO,"attesi 4 documenti, ottenuti 10"
+llama32,compact,D,12,1,Translate the category of each product using the category dictionary,NO,3,3.9,"GET COLLECTION products; FILTER CASE WHERE TRANSLATE(.category, GET DICTIONARY categories@jcoql_test AS catdict) IS NOT NULL;",NON VALIDA,"[{'message': ""1.\tSyntax Error 1 at [1, 65]: Found GET ('GET') - mismatched input 'GET' expecting ID""}, {'message': ""2.\tSyntax Error 1 at [1, 112]: Found RP (')') - mismatched input ')' expecting SC""}]"
+llama32,compact,D,13,1,Show me the orders with an assigned tracking number and a total above 300 euros,SI,1,2.8,"GET COLLECTION orders;
+FILTER CASE WHERE FIELD .tracking_number IS NOT NULL AND .total > 300;",ESATTO,"11 documenti, stesso insieme di _id"
+llama32,compact,D,14,1,Show me the reviews with a rating equal to 3 together with the user who wrote them,SI,1,2.9,"GET COLLECTION products; EXPAND UNPACK TRUE ARRAY .reviews TO .expanded_reviews;
+FILTER CASE WHERE .expanded_reviews.item.item.valutazione = 3 AND .expanded_reviews.item.item.user = 'user_000';",DIVERSO,"attesi 9 , ottenuti 0"
+llama32,compact,D,15,1,Show me the reviews with a rating of at least 4 of the products with a discount above 10%,SI,2,3.3,GET COLLECTION products; FILTER CASE WHERE SIZE(.reviews) > 0;,DIVERSO,"attesi 22 , ottenuti 0"

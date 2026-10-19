@@ -1,0 +1,85 @@
+﻿modello,query_id,livello,query_nl,giri,valide,valide_pct,query_distinte,query_piu_frequente_pct,identiche_tutti_i_giri,giri_esatti,esatti_pct,distinte_esatte,distinte_sbagliate,tentativi_medi,tempo_medio_s
+llama32,S1,comune,Mostrami i prodotti con un prezzo compreso tra 200 e 700 euro,50,50,100.0,1,100.0,SI,50,100.0,1,0,1.0,2.7
+llama32,S2,comune,Mostrami gli ordini senza numero di tracking,50,50,100.0,1,100.0,SI,50,100.0,1,0,1.0,2.6
+llama32,S3,comune,Mostrami gli utenti attivi con l'email verificata,50,50,100.0,1,100.0,SI,50,100.0,1,0,1.0,2.7
+llama32,S4,media,Raggruppa gli ordini per stato,50,50,100.0,1,100.0,SI,50,100.0,1,0,1.0,2.7
+llama32,S5,media,Mostrami le recensioni dei prodotti con un voto uguale a 5,50,50,100.0,2,98.0,NO,0,0.0,0,2,1.0,2.6
+llama32,S6,media,Collega ogni ordine ai prodotti acquistati,50,50,100.0,1,100.0,SI,0,0.0,0,1,1.0,2.9
+llama32,S7,difficile,Collega ogni ordine all'utente che lo ha effettuato e ai prodotti acquistati,10,10,100.0,1,100.0,SI,0,0.0,0,1,1.0,3.1
+llama32,S8,difficile,"Unisci in un'unica collezione i prodotti food, electronics e books, senza duplicati",50,50,100.0,1,100.0,SI,0,0.0,0,1,1.0,2.7
+llama32,S9,difficile,Traduci la categoria di ogni prodotto usando il dizionario delle categorie,50,50,100.0,1,100.0,SI,50,100.0,1,0,1.0,3.0
+llama32,S10,difficile,"Mostrami i prodotti che sono sia biologici sia con un rating di almeno 4, usando l'intersezione",50,50,100.0,2,98.0,NO,50,100.0,2,0,1.02,2.7
+llama32,TOT-comune,comune,3 richieste,150,150,100.0,1.0,100.0,3/3 richieste,150,100.0,3,0,1.0,2.67
+llama32,TOT-media,media,3 richieste,150,150,100.0,1.3,99.3,2/3 richieste,50,33.3,1,3,1.0,2.73
+llama32,TOT-difficile,difficile,4 richieste,160,160,100.0,1.2,99.5,3/4 richieste,100,62.5,3,2,1.01,2.82
+llama32,TOT,tutte,10 richieste,460,460,100.0,1.2,99.6,8/10 richieste,300,65.2,7,5,1.0,2.74
+gemma4,S1,comune,Mostrami i prodotti con un prezzo compreso tra 200 e 700 euro,50,50,100.0,1,100.0,SI,50,100.0,1,0,1.0,4.3
+gemma4,S2,comune,Mostrami gli ordini senza numero di tracking,50,50,100.0,1,100.0,SI,50,100.0,1,0,1.0,4.2
+gemma4,S3,comune,Mostrami gli utenti attivi con l'email verificata,50,50,100.0,1,100.0,SI,50,100.0,1,0,1.0,4.0
+gemma4,S4,media,Raggruppa gli ordini per stato,50,50,100.0,1,100.0,SI,50,100.0,1,0,1.0,4.2
+gemma4,S5,media,Mostrami le recensioni dei prodotti con un voto uguale a 5,50,50,100.0,1,100.0,SI,50,100.0,1,0,1.0,6.9
+gemma4,S6,media,Collega ogni ordine ai prodotti acquistati,50,50,100.0,1,100.0,SI,50,100.0,1,0,1.0,6.8
+gemma4,S7,difficile,Collega ogni ordine all'utente che lo ha effettuato e ai prodotti acquistati,10,3,30.0,5,60.0,NO,0,0.0,0,3,2.7,25.8
+gemma4,S8,difficile,"Unisci in un'unica collezione i prodotti food, electronics e books, senza duplicati",50,50,100.0,2,98.0,NO,50,100.0,2,0,1.0,8.2
+gemma4,S9,difficile,Traduci la categoria di ogni prodotto usando il dizionario delle categorie,50,50,100.0,1,100.0,SI,50,100.0,1,0,1.0,6.0
+gemma4,S10,difficile,"Mostrami i prodotti che sono sia biologici sia con un rating di almeno 4, usando l'intersezione",50,50,100.0,1,100.0,SI,50,100.0,1,0,1.0,6.4
+gemma4,TOT-comune,comune,3 richieste,150,150,100.0,1.0,100.0,3/3 richieste,150,100.0,3,0,1.0,4.17
+gemma4,TOT-media,media,3 richieste,150,150,100.0,1.0,100.0,3/3 richieste,150,100.0,3,0,1.0,5.97
+gemma4,TOT-difficile,difficile,4 richieste,160,153,95.6,2.2,89.5,2/4 richieste,150,93.8,4,3,1.11,8.05
+gemma4,TOT,tutte,10 richieste,460,453,98.5,1.5,95.8,8/10 richieste,450,97.8,10,3,1.04,6.1
+llama,S1,comune,Mostrami i prodotti con un prezzo compreso tra 200 e 700 euro,50,50,100.0,1,100.0,SI,50,100.0,1,0,1.0,4.5
+llama,S2,comune,Mostrami gli ordini senza numero di tracking,50,50,100.0,1,100.0,SI,50,100.0,1,0,1.0,4.0
+llama,S3,comune,Mostrami gli utenti attivi con l'email verificata,50,50,100.0,1,100.0,SI,50,100.0,1,0,1.0,4.4
+llama,S4,media,Raggruppa gli ordini per stato,50,50,100.0,1,100.0,SI,50,100.0,1,0,1.0,4.3
+llama,S5,media,Mostrami le recensioni dei prodotti con un voto uguale a 5,50,50,100.0,1,100.0,SI,50,100.0,1,0,1.0,5.0
+llama,S6,media,Collega ogni ordine ai prodotti acquistati,50,50,100.0,1,100.0,SI,0,0.0,0,1,1.0,6.1
+llama,S7,difficile,Collega ogni ordine all'utente che lo ha effettuato e ai prodotti acquistati,10,10,100.0,1,100.0,SI,0,0.0,0,1,1.0,8.7
+llama,S8,difficile,"Unisci in un'unica collezione i prodotti food, electronics e books, senza duplicati",10,10,100.0,2,90.0,NO,0,0.0,0,2,1.0,4.6
+llama,S9,difficile,Traduci la categoria di ogni prodotto usando il dizionario delle categorie,50,50,100.0,1,100.0,SI,50,100.0,1,0,1.0,6.7
+llama,S10,difficile,"Mostrami i prodotti che sono sia biologici sia con un rating di almeno 4, usando l'intersezione",50,50,100.0,1,100.0,SI,0,0.0,0,1,1.0,5.1
+llama,TOT-comune,comune,3 richieste,150,150,100.0,1.0,100.0,3/3 richieste,150,100.0,3,0,1.0,4.3
+llama,TOT-media,media,3 richieste,150,150,100.0,1.0,100.0,3/3 richieste,100,66.7,2,1,1.0,5.13
+llama,TOT-difficile,difficile,4 richieste,120,120,100.0,1.2,97.5,3/4 richieste,50,41.7,1,4,1.0,6.03
+llama,TOT,tutte,10 richieste,420,420,100.0,1.1,99.0,9/10 richieste,300,71.4,6,5,1.0,5.09
+gemma,S1,comune,Mostrami i prodotti con un prezzo compreso tra 200 e 700 euro,50,0,0.0,1,100.0,SI,0,0.0,0,0,3.0,55.6
+gemma,S2,comune,Mostrami gli ordini senza numero di tracking,50,49,98.0,2,98.0,NO,49,98.0,1,0,1.04,8.0
+gemma,S3,comune,Mostrami gli utenti attivi con l'email verificata,50,50,100.0,2,98.0,NO,49,98.0,1,1,2.02,48.7
+gemma,S4,media,Raggruppa gli ordini per stato,50,50,100.0,1,100.0,SI,0,0.0,0,1,2.0,64.2
+gemma,S5,media,Mostrami le recensioni dei prodotti con un voto uguale a 5,18,0,0.0,1,100.0,SI,0,0.0,0,0,3.0,128.0
+gemma,S6,media,Collega ogni ordine ai prodotti acquistati,5,0,0.0,1,100.0,SI,0,0.0,0,0,3.0,125.2
+gemma,S7,difficile,Collega ogni ordine all'utente che lo ha effettuato e ai prodotti acquistati,5,0,0.0,1,100.0,SI,0,0.0,0,0,3.0,115.3
+gemma,S8,difficile,"Unisci in un'unica collezione i prodotti food, electronics e books, senza duplicati",5,5,100.0,1,100.0,SI,0,0.0,0,1,1.4,31.3
+gemma,S9,difficile,Traduci la categoria di ogni prodotto usando il dizionario delle categorie,5,0,0.0,1,100.0,SI,0,0.0,0,0,3.0,107.0
+gemma,S10,difficile,"Mostrami i prodotti che sono sia biologici sia con un rating di almeno 4, usando l'intersezione",5,5,100.0,1,100.0,SI,5,100.0,1,0,3.0,97.7
+gemma,TOT-comune,comune,3 richieste,150,99,66.0,1.7,98.7,1/3 richieste,98,65.3,2,1,2.02,37.43
+gemma,TOT-media,media,3 richieste,73,50,68.5,1.0,100.0,3/3 richieste,0,0.0,0,1,2.32,84.11
+gemma,TOT-difficile,difficile,4 richieste,20,10,50.0,1.0,100.0,4/4 richieste,5,25.0,1,1,2.6,87.83
+gemma,TOT,tutte,10 richieste,243,159,65.4,1.2,99.6,8/10 richieste,103,42.4,3,3,2.16,55.6
+gemini,S1,comune,Mostrami i prodotti con un prezzo compreso tra 200 e 700 euro,50,50,100.0,1,100.0,SI,50,100.0,1,0,1.0,11.5
+gemini,S2,comune,Mostrami gli ordini senza numero di tracking,50,50,100.0,1,100.0,SI,50,100.0,1,0,1.0,3.6
+gemini,S3,comune,Mostrami gli utenti attivi con l'email verificata,50,50,100.0,1,100.0,SI,50,100.0,1,0,1.0,3.9
+gemini,S4,media,Raggruppa gli ordini per stato,50,50,100.0,1,100.0,SI,50,100.0,1,0,1.0,8.3
+gemini,S5,media,Mostrami le recensioni dei prodotti con un voto uguale a 5,50,50,100.0,1,100.0,SI,50,100.0,1,0,1.0,4.3
+gemini,S6,media,Collega ogni ordine ai prodotti acquistati,50,50,100.0,1,100.0,SI,50,100.0,1,0,2.0,6.4
+gemini,S7,difficile,Collega ogni ordine all'utente che lo ha effettuato e ai prodotti acquistati,50,50,100.0,1,100.0,SI,50,100.0,1,0,1.0,4.0
+gemini,S8,difficile,"Unisci in un'unica collezione i prodotti food, electronics e books, senza duplicati",50,50,100.0,1,100.0,SI,50,100.0,1,0,1.0,6.0
+gemini,S9,difficile,Traduci la categoria di ogni prodotto usando il dizionario delle categorie,50,50,100.0,1,100.0,SI,50,100.0,1,0,1.0,4.3
+gemini,S10,difficile,"Mostrami i prodotti che sono sia biologici sia con un rating di almeno 4, usando l'intersezione",50,50,100.0,1,100.0,SI,50,100.0,1,0,1.0,5.2
+gemini,TOT-comune,comune,3 richieste,150,150,100.0,1.0,100.0,3/3 richieste,150,100.0,3,0,1.0,6.33
+gemini,TOT-media,media,3 richieste,150,150,100.0,1.0,100.0,3/3 richieste,150,100.0,3,0,1.33,6.33
+gemini,TOT-difficile,difficile,4 richieste,200,200,100.0,1.0,100.0,4/4 richieste,200,100.0,4,0,1.0,4.88
+gemini,TOT,tutte,10 richieste,500,500,100.0,1.0,100.0,10/10 richieste,500,100.0,10,0,1.1,5.75
+llama-tuned,S1,comune,Mostrami i prodotti con un prezzo compreso tra 200 e 700 euro,50,50,100.0,1,100.0,SI,50,100.0,1,0,1.0,3.0
+llama-tuned,S2,comune,Mostrami gli ordini senza numero di tracking,50,50,100.0,1,100.0,SI,50,100.0,1,0,1.0,3.0
+llama-tuned,S3,comune,Mostrami gli utenti attivi con l'email verificata,50,50,100.0,1,100.0,SI,50,100.0,1,0,1.0,3.0
+llama-tuned,S4,media,Raggruppa gli ordini per stato,50,50,100.0,1,100.0,SI,50,100.0,1,0,1.0,3.0
+llama-tuned,S5,media,Mostrami le recensioni dei prodotti con un voto uguale a 5,50,50,100.0,1,100.0,SI,50,100.0,1,0,1.0,3.2
+llama-tuned,S6,media,Collega ogni ordine ai prodotti acquistati,50,50,100.0,1,100.0,SI,50,100.0,1,0,1.0,4.2
+llama-tuned,S7,difficile,Collega ogni ordine all'utente che lo ha effettuato e ai prodotti acquistati,50,0,0.0,1,100.0,SI,0,0.0,0,0,1.0,5.4
+llama-tuned,S8,difficile,"Unisci in un'unica collezione i prodotti food, electronics e books, senza duplicati",50,50,100.0,1,100.0,SI,50,100.0,1,0,1.0,5.3
+llama-tuned,S9,difficile,Traduci la categoria di ogni prodotto usando il dizionario delle categorie,50,50,100.0,1,100.0,SI,0,0.0,0,1,1.0,3.4
+llama-tuned,S10,difficile,"Mostrami i prodotti che sono sia biologici sia con un rating di almeno 4, usando l'intersezione",50,50,100.0,1,100.0,SI,50,100.0,1,0,1.0,4.1
+llama-tuned,TOT-comune,comune,3 richieste,150,150,100.0,1.0,100.0,3/3 richieste,150,100.0,3,0,1.0,3.0
+llama-tuned,TOT-media,media,3 richieste,150,150,100.0,1.0,100.0,3/3 richieste,150,100.0,3,0,1.0,3.47
+llama-tuned,TOT-difficile,difficile,4 richieste,200,150,75.0,1.0,100.0,4/4 richieste,100,50.0,2,1,1.0,4.55
+llama-tuned,TOT,tutte,10 richieste,500,450,90.0,1.0,100.0,10/10 richieste,400,80.0,8,1,1.0,3.76
