@@ -1,7 +1,0 @@
-﻿modello,modo_prompt,gruppo,righe,valide,esatte,tempo_medio_s
-llama,tuned,R1,8,8,8,3.5
-llama,tuned,R2,5,5,4,3.5
-llama,tuned,R3,28,28,23,3.6
-llama,tuned,F,22,22,22,3.2
-llama,tuned,D,15,15,9,4.1
-llama,tuned,TOT,78,78,66,3.6

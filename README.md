@@ -537,12 +537,12 @@ The scripts used for the test campaign are in the project root:
 | `rerun_rounds.py`, `rerun_extended.py` | Re-run the test rounds / the extended test set on selected models and prompt modes |
 | `rerun_english.py` | The requests of the extended test set written in English, with the same expected results |
 | `stability.py` | Repeats the same request many times (default 50) on each model and counts the distinct queries and the correct ones |
-| `run_test_mancanti.ps1` | Runs the extended test, the paraphrases and the stability test on the fine-tuned model (v4); writes in `completa_v4/` |
+| `run_test_mancanti.ps1` | Runs the extended test, the paraphrases and the stability test on the fine-tuned model (v4); writes in the folder `completa_v4/`, which is not in the repository |
 | `extended_tests.py` | Defines the extended test set (additional common and difficult requests) and its expected results |
 | `paraphrase.py` | Tests the robustness of the generation to paraphrased requests |
 | `pulisci_collezioni.py` | Deletes the temporary collections left in `jcoql_test` (keeps `products`, `orders`, `users`, `category_translations`) |
 
-Results are saved as CSV files (`*_runs.csv`, `*_riepilogo.csv`, `test_campaign_log.csv`); the results of the fine-tuned model (v4) are in `completa_v4/`.
+Results are saved as CSV files (`*_runs.csv`, `*_riepilogo.csv`, `test_campaign_log.csv`).
 The header of each script describes the options. Every call to `/api/generate` is also recorded in `test_campaign_log.csv`.
 
 ---
@@ -602,7 +602,6 @@ jcoql-nl-interface/
 │                                   # start scripts (*.ps1), evaluation (ft_eval*.py, eval_*.csv)
 │
 ├── *.py, *.csv (root)              # Test scripts and their results (see "Test Scripts")
-├── completa_v4/                    # Test results of the fine-tuned model (v4)
 ├── chroma_data/                    # Persistent ChromaDB storage (not in the repository)
 └── logs/                           # Application logs (not in the repository)
 ```

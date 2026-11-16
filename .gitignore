@@ -174,3 +174,5 @@ finetune/out_v*/
 
 # Backups of result files made before each test run
 *_prima_*.csv
+
+completa_v4/
