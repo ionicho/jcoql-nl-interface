@@ -16,8 +16,9 @@ so you do not have to rediscover them one by one.
 | MongoDB | — | running locally on `localhost:27017` |
 | Java | 8+ | needed by the J-CO Framework engine and the official ANTLR3 parser |
 | Ollama | — | only if you want to use Llama/Gemma locally; optional if you only use Gemini |
+| llama.cpp (`llama-server`) | build with CUDA support | only for the tuned mode (fine-tuned Llama 3.1); optional |
 | Gradle | — | only if you modify the `jco-framework` fork, not needed to use the interface as it is |
-| JCO DS server | — | only if you want to query JCO DS databases (https://github.com/JcoProjectTeam); optional |
+| JCO DS server | Java 17 | only if you want to query JCO DS databases (https://github.com/JcoProjectTeam); optional |
 
 ---
 
@@ -54,7 +55,8 @@ The other variables (`ACTIVE_LLM`, `ACTIVE_PARSER`, `ACTIVE_EXECUTOR`,
 - `ACTIVE_LLM` — default `gemini`. Can also be changed at runtime from the UI, not only from here.
 - `ACTIVE_PARSER` — default `antlr3_official`. **There is no way to change it at runtime**, only here + restart.
 - `ACTIVE_EXECUTOR` — default `jco_framework`. **It is the only one used and tested in this project** — `python_translator` also exists (direct translation without the Java engine, coverage limited to `GET COLLECTION`+simple `FILTER`), but it is not the one the examples/tests of this repository are based on. Do not change it unless you are running a specific experiment.
-- `LOCAL_PROMPT_MODE` — default `compact`. Prompt mode for the local models (`compact` or `full`); it can also be changed at runtime with `POST /api/set_local_prompt_mode?mode=compact|full`.
+- `LOCAL_PROMPT_MODE` — default `compact`. Prompt mode for the local models (`compact`, `full` or `tuned`); it can also be changed at runtime from the UI (Mode selector: Standard = `compact`, or Tuned) or with `POST /api/set_local_prompt_mode?mode=compact|full|tuned`. A restart of the backend brings it back to the value set here.
+- `LLAMACPP_URL` — only for the tuned mode, and only if `llama-server` is not on the default `http://127.0.0.1:8081` (see step 8).
 
 ---
 
@@ -138,6 +140,9 @@ meantime) instead of the one just recreated.
 
 ## 7. Start
 
+The backend and the interface are always needed, each in its own terminal. If you use the
+tuned mode or a JCO DS database, start those servers first (steps 8 and 9).
+
 ```bash
 # Terminal 1 — Backend (from the project root: main.py imports
 # modules with paths like "backend.xxx", it must be launched from there)
@@ -151,12 +156,41 @@ npm run dev
 
 Open your browser at **http://localhost:5173**.
 
+The backend listens on port 8000. The schema of a database is discovered when the database
+is connected and is kept in memory: after a collection is created or deleted, restart the
+backend to see the new schema.
+
 ---
 
-## 8. Optional: connect a JCO DS database
+## 8. Optional: the tuned mode (fine-tuned Llama 3.1)
+
+The tuned mode uses Llama 3.1 8B with a LoRA adapter applied at run time by `llama-server`
+(llama.cpp). The adapter is **not** in the repository (see the section "Fine-tuning" of the
+README): you need the file `finetune\soup\lora_v4.f16.gguf`, produced by the training and
+by `ft_lora_gguf_v4.ps1`.
+
+1. Download the base model with Ollama (`ollama pull llama3.1:8b-instruct-q4_K_M`): the start
+   script reads the path of the model file from Ollama.
+2. Check the path of `llama-server.exe` at the top of
+   `finetune\soup\start_llama_server_v4.ps1` (default `C:\llama-cuda\llama-server.exe`).
+3. Free the memory of the graphics card from other models (`ollama ps`, then
+   `ollama stop <model-name>`): otherwise part of the model is loaded on the processor and
+   the generation is slower.
+4. From `finetune\soup`, run `.\start_llama_server_v4.ps1` and wait for the line
+   `listening` in the window that opens (port 8081).
+5. In the UI set the **Mode** selector to *Tuned* (Llama 3.1 is selected automatically).
+
+If the server is not reachable, the backend answers with an error that says how to start it;
+it does not fall back on another model.
+
+---
+
+## 9. Optional: connect a JCO DS database
 
 1. Start your JCO DS server (https://github.com/JcoProjectTeam) and note its host and port
-   (the examples in this project use `localhost` and `17017`).
+   (the examples in this project use `localhost` and `17017`). With the executables of the
+   J-CO project: `java -jar jcoql-ds-server-1.0.0.jar --thin.root=jcoql-ds-server/deps`,
+   from the folder of the executables (Java 17).
 2. In the UI, sidebar → "➕ Add Database" → Server: "JCO DS (professors' server)".
 3. Fill in the internal name, host, port, the database name on JCO DS and the
    **collections, comma-separated**: J-CO-QL+ has no command to list the collections of a
@@ -173,7 +207,7 @@ GET COLLECTION testcoll@testds;
 
 ---
 
-## 9. Check that everything is fine
+## 10. Check that everything is fine
 
 Quick checklist after the first start:
 
@@ -181,12 +215,13 @@ Quick checklist after the first start:
 - [ ] From the UI, typing a simple natural-language request (e.g. "products with a discount greater than 20%") you get a generated J-CO-QL+ query and results
 - [ ] The Dashboard (`/dashboard`) shows connected databases and collections consistent with what you expect
 - [ ] If you also use the local models: selecting one from the UI, generation works (otherwise go back to step 4)
+- [ ] If you use the tuned mode: with the Mode selector on Tuned, generation works (otherwise go back to step 8)
 - [ ] If you connected more than one database: asking for a JOIN between two collections with the same name on different databases (or writing it by hand in the query panel) returns results (not an "Invalid database" error)
 - [ ] The "❓ Guide" button opens the quick guide
 
 ---
 
-## 10. Debug
+## 11. Debug
 
 The full query sent to the Java engine (prolog + command, `USE DB` included) is
 **always** printed in the console, regardless of `JCOQL_DEBUG` — useful to
@@ -205,12 +240,15 @@ session with a timestamp in the name).
 
 ---
 
-## 11. Common problems and where to look
+## 12. Common problems and where to look
 
 | Symptom | Most likely cause |
 |---|---|
 | Error at start-up about ChromaDB/`jcoql_examples` | Step 6 (`load_examples.py`) not run before the first start |
 | "Model not found" or "connection refused" when selecting a local model | Ollama not running, or model not downloaded with the exact tag (step 4) |
+| Error about `llama-server` when generating in the tuned mode | `llama-server` not started, or not yet `listening` on port 8081 (step 8) |
+| The tuned mode answers slowly | Another model is still loaded in the graphics card by Ollama (`ollama ps`, `ollama stop <model-name>`) |
+| A collection just created or deleted does not appear in the schema | The schema is read when the database is connected: restart the backend |
 | Generation works but the results are on an unexpected database | Check which database is "current" in the sidebar — it is a state of the process, not per request |
 | Generation uses a collection you did not expect (e.g. one named after a previous test) | Leftover collections from earlier `SAVE AS` queries appear in the schema; delete them (`python pulisci_collezioni.py` removes everything in `jcoql_test` except the four base collections) |
 | A query on a JCO DS database does not return | Check the DS-Server is running and the collection exists; use the Timeout selector so the wait is bounded |

@@ -12,6 +12,7 @@ A Natural Language → J-CO-QL+ translation system with RAG (Retrieval-Augmented
 
 Let users query databases using **natural language** instead of writing J-CO-QL+ queries by hand, with:
 - Automatic generation of J-CO-QL+ queries through an LLM (multi-provider: cloud and local)
+- A local model fine-tuned on J-CO-QL+ (Llama 3.1 8B with a LoRA adapter), offered by the interface as the "tuned" mode
 - Validation through the official ANTLR3 parser of the J-CO project
 - Real execution through the J-CO Framework engine, not a reimplementation
 - Support for 10 language commands, including cross-database and chained JOINs, MERGE over N databases, GENERATE, GET DICTIONARY
@@ -19,7 +20,7 @@ Let users query databases using **natural language** instead of writing J-CO-QL+
 
 > Methodological note: the sections of this README only report data verified with direct tests on the system. Where a measurement has not been re-verified recently, this is stated explicitly.
 
-> Note on languages: the user interface is in English. The system prompt, the RAG examples and the test requests used so far are written in Italian; the natural-language examples below are shown translated into English for readability.
+> Note on languages: the user interface is in English. The system prompt and the RAG examples are written in Italian. Requests can be written in Italian or in English: the test campaign was run in both languages, and the training data of the fine-tuned model are bilingual. The natural-language examples below are shown in English for readability.
 
 ---
 
@@ -50,6 +51,9 @@ Let users query databases using **natural language** instead of writing J-CO-QL+
 │  • Gemini: complete prompt with the full J-CO-QL+ grammar │
 │  • Local models: "compact" prompt (default) or "full"     │
 │    (see section "Prompt modes for local models")          │
+│  • "tuned" mode: fine-tuned Llama 3.1 8B (base model +   │
+│    LoRA adapter applied at run time by llama-server),    │
+│    short prompt, no RAG examples                         │
 └──────────────────┬────────────────────────────────────────┘
                    ↓
 ┌─────────────────────────────────────────────────────────┐
@@ -109,6 +113,7 @@ Let users query databases using **natural language** instead of writing J-CO-QL+
 - **Node.js**
 - **MongoDB**
 - **Ollama** (for local LLMs, optional)
+- **llama.cpp** (`llama-server`, build with CUDA support; optional, only for the tuned mode)
 - **Java 8+** (for the J-CO Framework engine and the ANTLR3 parser)
 - **Gradle** (to build the J-CO Framework, if modified)
 - **A JCO DS server** (optional, only to query JCO DS databases)
@@ -166,6 +171,19 @@ npm run dev
 
 Open your browser at: **http://localhost:5173**
 
+The backend and the interface are always needed. Two more processes are needed only for
+specific features, and each one runs in its own terminal:
+
+| # | Process | Command | When needed |
+|---|---|---|---|
+| 1 | Server of the tuned model | `finetune\soup\start_llama_server_v4.ps1` | Tuned mode (port 8081) |
+| 2 | JCO DS server | `java -jar jcoql-ds-server-1.0.0.jar --thin.root=jcoql-ds-server/deps`, from the folder of the J-CO executables | JCO DS databases (port 17017) |
+| 3 | Backend | `uvicorn main:app --reload`, from the project root | Always (port 8000) |
+| 4 | Interface | `npm run dev`, from `frontend` | Always (`localhost:5173`) |
+
+MongoDB is assumed to be running, and so is Ollama if the local models are used.
+See **[SETUP.md](SETUP.md)** for the details of each process.
+
 ### Debug
 
 The system prints detailed diagnostic logs (the full query sent to the Java engine,
@@ -187,6 +205,7 @@ It is off by default, to avoid cluttering the console during normal use.
 - **Vector DB:** ChromaDB (persistent, local)
 - **Cloud LLM:** Google Gemini
 - **Local LLMs:** Ollama (Llama 3.1 8B, Llama 3.2 3B, Gemma 1 7B, Gemma 4 E4B)
+- **Fine-tuned model:** Llama 3.1 8B + LoRA adapter, served by llama.cpp (`llama-server`); adapter trained with Soup (QLoRA)
 - **Embeddings:** sentence-transformers (all-MiniLM-L6-v2, local)
 - **Parser:** ANTLR3 (official J-CO project repository)
 - **Executor:** J-CO Framework engine (Java), launched as a subprocess
@@ -312,18 +331,67 @@ architecture above).
 
 ## Prompt modes for local models
 
-Local models receive a prompt in one of two modes:
+Local models receive a prompt in one of three modes:
 
 - **`compact`** (default): a condensed set of language rules plus the real schema and the
   retrieved RAG examples.
 - **`full`**: the complete set of rules plus the Basic grammar (`JCoQLBasic`, instead of the
   full grammar, to fit the context of local models), and a reminder to use the full path
   of nested fields.
+- **`tuned`**: the short prompt that the fine-tuned model saw in training (the schema and the
+  request, no rules and no RAG examples). Only Llama 3.1 is available in this mode, and the
+  model is called through `llama-server` (default `http://127.0.0.1:8081`, see `LLAMACPP_URL`
+  in `.env.example`). If the server is not reachable the backend reports an error and does
+  not fall back on another model. See section "Fine-tuning" below.
 
-The mode can be set with the `LOCAL_PROMPT_MODE` environment variable or changed at
-runtime without restarting, through `POST /api/set_local_prompt_mode?mode=compact|full`
-(current value: `GET /api/local_prompt_mode`). Cloud Gemini is not affected by this setting: it always receives the complete prompt with
-the full J-CO-QL+ grammar.
+In the interface the **Mode** selector, next to the choice of the model, offers *Standard*
+(the `compact` prompt) and *Tuned*; choosing *Tuned* selects Llama 3.1 automatically. The
+`full` mode is not offered by the interface. The mode can also be set with the `LOCAL_PROMPT_MODE` environment variable or changed at
+runtime through `POST /api/set_local_prompt_mode?mode=compact|full|tuned`
+(current value: `GET /api/local_prompt_mode`). A restart of the backend brings the mode back
+to the initial value. Cloud Gemini is not affected by this setting: it always receives the
+complete prompt with the full J-CO-QL+ grammar.
+
+---
+
+## Fine-tuning
+
+The folder `finetune/` contains everything that was used to fine-tune Llama 3.1 8B Instruct
+on J-CO-QL+ and to evaluate the result. Four versions were trained (v1 to v4); the interface
+serves the adapter of the fourth one.
+
+**Training data** (`finetune/*.py`, run with the virtual environment of the backend):
+
+| Script | Purpose |
+|---|---|
+| `ft_gen.py`, `ft_gen_v3.py`, `ft_gen_v4.py` | Generate synthetic databases and pairs of request and query; the expected result is computed in Python on the same data |
+| `ft_paraphrase.py`, `ft_paraphrase_v4.py` | Rewrite the requests with Gemini; every rewriting is checked by code |
+| `ft_verify.py`, `ft_verify_v4.py` | Execute a sample of the reference queries through the backend and compare the result with the expected one |
+| `ft_merge_v3.py`, `ft_merge_v4.py` | Put together the data of a version with the data of the previous one |
+| `ft_translate_train_v4.py`, `ft_translate_eval.py` | Translate the requests into English with Gemini (training set of v4 and evaluation set), with checks on every translation |
+
+The header of each script describes the options and the command to launch it.
+
+**Training** (`finetune/soup/`, in a separate Python environment with
+[Soup](https://github.com/MakazhanAlpamys/Soup)): `soup train --config soup_v4.yaml`. The
+files `soup*.yaml` are the configurations of the four versions (QLoRA, rank 16, scaling
+factor 32, learning rate 2e-4, base model loaded with 4-bit quantization).
+
+**Use of the adapter**: the adapter is not merged into the model. `ft_lora_gguf_v4.ps1`
+converts the adapter to the GGUF format, and `start_llama_server_v4.ps1` starts `llama-server`
+with the quantized base model (the file that Ollama downloaded for
+`llama3.1:8b-instruct-q4_K_M`) and the adapter applied at run time.
+
+**Evaluation** (`finetune/soup/`): `ft_eval_cpp.py` sends each held-out request to the model,
+takes the first answer without corrections, executes it through the backend and compares the
+number of documents with the expected one. The results are the files `eval_*.csv` and the
+folder `heldout_altri/` (the other models on the same requests).
+
+**Not in the repository**: the generated datasets (`finetune/out*/`), the adapters and the
+models (`*.gguf`, `finetune/soup/output*/`) are excluded because of their size (see
+`.gitignore`). The tuned mode therefore needs an adapter trained with the scripts above;
+the paths of `llama-server` and of the adapter are set at the top of
+`start_llama_server_v4.ps1`.
 
 ---
 
@@ -438,6 +506,10 @@ class ExecutorFactory:
   noticeably lower success rate than the cloud provider on the same inputs, as well as a
   higher latency per call; the smaller models struggle most on difficult requests
   (3-way JOINs, MERGE of subsets, arithmetic, which is not supported by the language).
+- **Fine-tuned model**: the adapter was trained and evaluated mostly on synthetic databases
+  generated by the same procedure; on the test database `jcoql_test` the gain over the base
+  model is smaller than on the synthetic held-out requests. The adapter is trained on one
+  quantization of the base model and used on another one.
 - **Leftover collections**: `SAVE AS` in a query leaves the saved collection in the
   database, and from then on it appears in the schema passed to the LLM, which may use it
   instead of the original collection. Delete test collections between runs.
@@ -463,11 +535,15 @@ The scripts used for the test campaign are in the project root:
 | `verify_execution.py` | Executes the generated queries and compares the result with an expected one (exact / count only / different / invalid) |
 | `repeatability.py` | Repeats the same request several times on each model and records the generated queries |
 | `rerun_rounds.py`, `rerun_extended.py` | Re-run the test rounds / the extended test set on selected models and prompt modes |
+| `rerun_english.py` | The requests of the extended test set written in English, with the same expected results |
+| `stability.py` | Repeats the same request many times (default 50) on each model and counts the distinct queries and the correct ones |
+| `run_test_mancanti.ps1` | Runs the extended test, the paraphrases and the stability test on the fine-tuned model (v4); writes in `completa_v4/` |
 | `extended_tests.py` | Defines the extended test set (additional common and difficult requests) and its expected results |
 | `paraphrase.py` | Tests the robustness of the generation to paraphrased requests |
 | `pulisci_collezioni.py` | Deletes the temporary collections left in `jcoql_test` (keeps `products`, `orders`, `users`, `category_translations`) |
 
-Results are saved as CSV files (`*_runs.csv`, `*_riepilogo.csv`, `test_campaign_log.csv`).
+Results are saved as CSV files (`*_runs.csv`, `*_riepilogo.csv`, `test_campaign_log.csv`); the results of the fine-tuned model (v4) are in `completa_v4/`.
+The header of each script describes the options. Every call to `/api/generate` is also recorded in `test_campaign_log.csv`.
 
 ---
 
@@ -482,7 +558,8 @@ jcoql-nl-interface/
 ├── backend/
 │   ├── query_corrector.py
 │   ├── join_executor.py           # Builds native JOIN queries (INNER only)
-│   ├── llm_local.py               # Ollama models (Llama 3.1/3.2, Gemma 1/4)
+│   ├── llm_local.py               # Local models: Ollama (Llama 3.1/3.2, Gemma 1/4) and
+│   │                               # llama-server (fine-tuned Llama 3.1, tuned mode)
 │   ├── database_persistence.py    # Saves/restores the connected databases
 │   ├── rag_examples_extended.txt  # ALWAYS injected into every prompt - only generic
 │   │                               # syntactic patterns, no field names tied to
@@ -519,7 +596,15 @@ jcoql-nl-interface/
 │   │   └── Dashboard.jsx
 │   └── package.json
 │
-└── chroma_data/                    # Persistent ChromaDB storage
+├── finetune/
+│   ├── ft_*.py                     # Training data: generation, rewriting, translation, checks
+│   └── soup/                       # Training configurations (soup*.yaml), conversion and
+│                                   # start scripts (*.ps1), evaluation (ft_eval*.py, eval_*.csv)
+│
+├── *.py, *.csv (root)              # Test scripts and their results (see "Test Scripts")
+├── completa_v4/                    # Test results of the fine-tuned model (v4)
+├── chroma_data/                    # Persistent ChromaDB storage (not in the repository)
+└── logs/                           # Application logs (not in the repository)
 ```
 
 ---
