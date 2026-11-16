@@ -46,6 +46,8 @@ def main():
     ap.add_argument("--prompt", choices=["tuned", "compact"], default="tuned")
     ap.add_argument("--retry", type=int, default=0, help="rigenerazioni dopo ERRORE_QUERY, con errore del parser nel prompt")
     ap.add_argument("--llamacpp", default=None, help="URL di llama-server (es. http://localhost:8081): genera li' con il template chat di addestramento invece di usare Ollama")
+    ap.add_argument("--gemini", action="store_true", help="genera con Gemini (stesso modello e temperatura 0 del backend; serve GEMINI_API_KEY nel .env); con --prompt compact")
+    ap.add_argument("--pause", type=float, default=0.0, help="secondi di pausa dopo ogni richiesta (Gemini: 4)")
     ap.add_argument("--out", default=None)
     a = ap.parse_args()
 
@@ -54,6 +56,18 @@ def main():
     if a.llamacpp:
         from transformers import AutoTokenizer
         tok = AutoTokenizer.from_pretrained("meta-llama/Llama-3.1-8B-Instruct")
+    gem = None
+    if a.gemini:
+        try:
+            from dotenv import load_dotenv
+            for p in (".env", "../.env", "../../.env"):
+                if os.path.exists(p):
+                    load_dotenv(p); break
+        except Exception:
+            pass
+        import google.generativeai as genai
+        genai.configure(api_key=os.getenv("GEMINI_API_KEY"))
+        gem = genai.GenerativeModel("gemini-3.1-flash-lite-preview", generation_config=genai.GenerationConfig(temperature=0))
     rows = [json.loads(l) for l in open(a.eval, encoding="utf-8")]
     by = collections.defaultdict(list)
     for r in rows:
@@ -89,7 +103,21 @@ def main():
             """una generazione + esecuzione; ritorna (gen, esito, dettaglio, errore_completo)"""
             gen, err = "", ""
             try:
-                if a.llamacpp:
+                if gem is not None:
+                    gen, last = "", None
+                    for w in range(5):          # quota/limite di frequenza: attende e riprova (fino a 5 volte)
+                        try:
+                            gen = clean(gem.generate_content(p).text); last = None; break
+                        except Exception as ex:
+                            last = ex
+                            if "429" in str(ex) or "quota" in str(ex).lower() or "exhausted" in str(ex).lower():
+                                time.sleep(70)
+                            else:
+                                break
+                    if last is not None:
+                        return gen, "ERRORE_MODELLO", str(last)[:150], ""
+                    if a.pause: time.sleep(a.pause)
+                elif a.llamacpp:
                     pr = tok.apply_chat_template([{"role": "user", "content": p}], tokenize=False, add_generation_prompt=True).replace("<|begin_of_text|>", "", 1)
                     g = requests.post(a.llamacpp + "/completion", json={"prompt": pr, "n_predict": 600, "temperature": 0,
                                       "stop": ["<|eot_id|>"], "cache_prompt": False}, timeout=1800).json()
@@ -135,7 +163,7 @@ def main():
         print(f"[{k}/{len(sample)}] {m['family']:16} {esito:14} {'=' if same else ' '} {det[:60]}")
 
     suffix = ("" if a.prompt == "tuned" else f"_{a.prompt}") + (f"_retry{a.retry}" if a.retry else "")
-    out = a.out or f"eval_{re.sub(r'[^A-Za-z0-9]+', '_', a.model)}{suffix}.csv"
+    out = a.out or f"eval_{'gemini' if a.gemini else ''}{re.sub(r'[^A-Za-z0-9]+', '_', a.model)}{suffix}.csv"
     with open(out, "w", newline="", encoding="utf-8-sig") as f:
         w = csv.DictWriter(f, fieldnames=list(res[0].keys())); w.writeheader(); w.writerows(res)
     tot = collections.Counter()

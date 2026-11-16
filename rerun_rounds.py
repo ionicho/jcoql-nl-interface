@@ -88,6 +88,7 @@ def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--models", nargs="+", default=DEFAULT_MODELS)
     ap.add_argument("--runs", type=int, default=1)
+    ap.add_argument("--tuned", action="store_true", help="per llama: usa il prompt tuned (llama-server con LoRA)")
     ap.add_argument("--gen-timeout", type=int, default=1500)
     ap.add_argument("--exec-timeout", type=int, default=120)
     ap.add_argument("--pause-gemini", type=int, default=20)
@@ -110,6 +111,10 @@ def main():
         if rr.status_code != 200:
             print(f"!! impossibile selezionare {m}: {rr.text[:100]}"); continue
         print(f"=== modello {m} ===")
+        if a.tuned and m == "llama":
+            r2 = requests.post(f"{V.BACKEND}/api/set_local_prompt_mode", params={"mode": "tuned"})
+            if r2.status_code != 200:
+                print("!! impossibile impostare il prompt tuned"); continue
         k = 0
         for run in range(1, a.runs + 1):
             for rname, qs in ROUNDS:
@@ -133,6 +138,9 @@ def main():
                     w.writerow(out); fh.flush(); rows.append(out)
                     print(f"[{m} {k}/{tot}] {rname}-{n:<2} {row['esito'][:26]:26} (prima: {out['esito_originale'][:22]})  {row['tempo_gen_s']}s")
     fh.close()
+    if a.tuned:
+        try: requests.post(f"{V.BACKEND}/api/set_local_prompt_mode", params={"mode": "compact"})
+        except Exception: pass
 
     summ = []
     for m in a.models:
