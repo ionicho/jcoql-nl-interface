@@ -8,16 +8,29 @@ Per ogni riga valida di test_campaign_log.csv:
 
 Uso (dalla cartella del progetto, backend gia' avviato su localhost:8000):
     pip install requests pymongo
-    python verify_execution.py                # tutte le righe
-    python verify_execution.py --only gemini  # solo un modello
-    python verify_execution.py --selftest     # prova gli oracoli sui JSON seed, senza backend
+    python tests/verify_execution.py                # tutte le righe
+    python tests/verify_execution.py --only gemini  # solo un modello
+    python tests/verify_execution.py --selftest     # prova gli oracoli sui JSON seed, senza backend
 """
-import argparse, csv, json, re, sys, time
+import argparse, csv, json, os, re, sys, time
 
 BACKEND = "http://localhost:8000"
 DB = "jcoql_test"
-CSV_IN = "test_campaign_log.csv"
-CSV_OUT = "verification_results.csv"
+# Percorsi: questo script sta in tests/, la radice del progetto e' la cartella sopra.
+# I CSV dei risultati vanno in tests/results/ (oppure nella cartella indicata da JCOQL_RESULTS_DIR).
+# test_campaign_log.csv lo scrive il backend nella radice del progetto e resta li'.
+HERE = os.path.dirname(os.path.abspath(__file__))
+ROOT = os.path.dirname(HERE)
+SEED_DIR = os.path.join(ROOT, "backend", "database")
+
+def res(name):
+    """Percorso di un file di risultati (crea la cartella se manca)."""
+    d = os.environ.get("JCOQL_RESULTS_DIR") or os.path.join(HERE, "results")
+    os.makedirs(d, exist_ok=True)
+    return os.path.join(d, name)
+
+CSV_IN = os.path.join(ROOT, "test_campaign_log.csv")
+CSV_OUT = res("verification_results.csv")
 
 
 # --------------------------------------------------------------------------
@@ -186,7 +199,7 @@ def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--only")
     ap.add_argument("--selftest", action="store_true")
-    ap.add_argument("--seed-dir", default="backend/database")
+    ap.add_argument("--seed-dir", default=SEED_DIR)
     ap.add_argument("--timeout", type=int, default=120)
     a = ap.parse_args()
 

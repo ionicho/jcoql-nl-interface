@@ -12,9 +12,9 @@ ATTENZIONE: ogni chiamata a /api/generate viene registrata anche in test_campaig
     copy test_campaign_log.csv test_campaign_log_prima_ripetibilita.csv
 
 Uso (backend avviato su localhost:8000):
-    python repeatability.py                              # tutti i modelli, 5 run
-    python repeatability.py --models gemini gemma4       # solo alcuni
-    python repeatability.py --models llama --runs 3
+    python tests/repeatability.py                              # tutti i modelli, 5 run
+    python tests/repeatability.py --models gemini gemma4       # solo alcuni
+    python tests/repeatability.py --models llama --runs 3
 """
 import argparse, collections, csv, os, re, time
 import requests
@@ -28,8 +28,8 @@ QUERIES = [
     ("E GROUP",      "Raggruppa i prodotti biologici per categoria"),
 ]
 DEFAULT_MODELS = ["gemini", "llama32", "gemma4", "llama"]   # dal piu' veloce al piu' lento
-OUT_RUNS = "repeatability_runs.csv"
-OUT_SUM = "repeatability_summary.csv"
+OUT_RUNS = V.res("repeatability_runs.csv")
+OUT_SUM = V.res("repeatability_summary.csv")
 FIELDS = ["modello", "query_id", "query_nl", "run", "valida", "tentativi", "tempo_gen_s",
           "query_jcoql", "esito", "dettaglio"]
 

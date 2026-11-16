@@ -3,7 +3,7 @@ extended_tests.py - 37 richieste nuove (22 comuni + 15 difficili) con oracolo, d
 
 Contiene: NEW_SETS (gruppo, richieste) e expected_new(nl, C): atteso calcolato dai dati (stessi formati di verify_execution.expected).
 Autotest sui JSON seed, senza backend:
-    .\\venv\\Scripts\\python.exe .\\extended_tests.py
+    .\\venv\\Scripts\\python.exe tests/extended_tests.py
 """
 import json, re, sys
 import verify_execution as V
@@ -136,7 +136,7 @@ def install():
     V.expected = lambda nl, C: (expected_new(nl, C) if nl in NEW_ALL else orig(nl, C))
 
 if __name__ == "__main__":
-    base = sys.argv[1] if len(sys.argv) > 1 else "/mnt/user-data/uploads/jcoql-project/jcoql-nl-interface/backend/database"
+    base = sys.argv[1] if len(sys.argv) > 1 else V.SEED_DIR
     C = V.load_collections_seed(base)
     C["category_translations"] = json.load(open(f"{base}/data_category_translations.json", encoding="utf-8"))
     for g, qs in NEW_SETS:

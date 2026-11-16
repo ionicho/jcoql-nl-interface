@@ -13,9 +13,9 @@ Prima di lanciare fai una copia:
     copy test_campaign_log.csv test_campaign_log_prima_rerun.csv
 
 Uso (backend avviato su localhost:8000):
-    .\\venv\\Scripts\\python.exe .\\rerun_rounds.py
-    .\\venv\\Scripts\\python.exe .\\rerun_rounds.py --models gemini gemma4
-    .\\venv\\Scripts\\python.exe .\\rerun_rounds.py --runs 3      # più passate (modelli non deterministici)
+    .\\venv\\Scripts\\python.exe tests/rerun_rounds.py
+    .\\venv\\Scripts\\python.exe tests/rerun_rounds.py --models gemini gemma4
+    .\\venv\\Scripts\\python.exe tests/rerun_rounds.py --runs 3      # più passate (modelli non deterministici)
 Output: rerun_rounds.csv, rerun_rounds_riepilogo.csv
 """
 import argparse, collections, csv, os, time
@@ -70,16 +70,16 @@ ROUNDS = [
         "Mostrami solo la categoria e il rating di ogni prodotto"]),
 ]
 DEFAULT_MODELS = ["gemini", "gemma4", "llama32", "llama"]
-OUT = "rerun_rounds.csv"
-OUT_SUM = "rerun_rounds_riepilogo.csv"
+OUT = V.res("rerun_rounds.csv")
+OUT_SUM = V.res("rerun_rounds_riepilogo.csv")
 FIELDS = ["modello", "round", "n", "run", "query_nl", "valida", "tentativi", "tempo_gen_s",
           "query_jcoql", "esito", "dettaglio", "esito_originale"]
 
 
 def load_old():
     old = {}
-    if os.path.exists("verification_results.csv"):
-        for r in csv.DictReader(open("verification_results.csv", encoding="utf-8-sig")):
+    if os.path.exists(V.CSV_OUT):
+        for r in csv.DictReader(open(V.CSV_OUT, encoding="utf-8-sig")):
             old[(r["modello"], r["query_nl"].strip().rstrip("."))] = r["esito"]     # ultima riga vince
     return old
 

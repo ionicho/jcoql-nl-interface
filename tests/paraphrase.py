@@ -7,9 +7,9 @@ Riprendibile (paraphrase.csv). ATTENZIONE: scrive anche in test_campaign_log.csv
     copy test_campaign_log.csv test_campaign_log_prima_parafrasi.csv
 
 Uso:
-    .\\venv\\Scripts\\python.exe .\\paraphrase.py --models gemini
-    .\\venv\\Scripts\\python.exe .\\paraphrase.py --models gemma4 llama32 llama
-    .\\venv\\Scripts\\python.exe .\\paraphrase.py --models llama --tuned   (llama-server v3 + LLAMACPP_URL)
+    .\\venv\\Scripts\\python.exe tests/paraphrase.py --models gemini
+    .\\venv\\Scripts\\python.exe tests/paraphrase.py --models gemma4 llama32 llama
+    .\\venv\\Scripts\\python.exe tests/paraphrase.py --models llama --tuned   (llama-server v3 + LLAMACPP_URL)
 Output: paraphrase.csv, paraphrase_riepilogo.csv
 """
 import argparse, csv, os, time
@@ -48,7 +48,7 @@ MAP = {p: orig for _, orig, ps in SET for p in ps}
 _orig_expected = V.expected
 V.expected = lambda nl, C: _orig_expected(MAP.get(nl, nl), C)
 
-OUT, OUT_SUM = "paraphrase.csv", "paraphrase_riepilogo.csv"
+OUT, OUT_SUM = V.res("paraphrase.csv"), V.res("paraphrase_riepilogo.csv")
 FIELDS = ["modello", "id", "variante", "query_nl", "valida", "tentativi", "tempo_gen_s", "query_jcoql", "esito", "dettaglio"]
 
 def main():

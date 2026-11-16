@@ -14,10 +14,10 @@ ATTENZIONE: ogni chiamata a /api/generate viene registrata anche in test_campaig
     copy test_campaign_log.csv test_campaign_log_prima_stabilita.csv
 
 Uso:
-    python stability.py --models llama32 gemma4 llama gemma
-    python stability.py --models gemini --max-new 200       # Gemini a blocchi, per la quota giornaliera
-    python stability.py --models llama --tuned               # Llama 3.1 con LoRA v3 (llama-server)
-    python stability.py --summary-only                       # rigenera solo il riepilogo dai dati gia' raccolti
+    python tests/stability.py --models llama32 gemma4 llama gemma
+    python tests/stability.py --models gemini --max-new 200       # Gemini a blocchi, per la quota giornaliera
+    python tests/stability.py --models llama --tuned               # Llama 3.1 con LoRA v3 (llama-server)
+    python tests/stability.py --summary-only                       # rigenera solo il riepilogo dai dati gia' raccolti
 Opzioni: --runs N (default 50), --ids S1 S5 (solo alcune richieste), --max-new N (si ferma dopo N generazioni
          nuove in questa esecuzione), --no-clean (non cancella le collezioni temporanee in jcoql_test)
 Output: stability_runs.csv (una riga per giro), stability_riepilogo.csv (una riga per modello e richiesta + totali)
@@ -44,7 +44,7 @@ STAB_QUERIES = [
 DEFAULT_MODELS = ["llama32", "gemma4", "llama", "gemma", "gemini"]   # dal piu' veloce; Gemini per ultimo (quota)
 LOCAL = ("gemma4", "llama", "llama32", "gemma")
 BASE_COLLECTIONS = {"products", "orders", "users", "category_translations"}
-OUT, OUT_SUM = "stability_runs.csv", "stability_riepilogo.csv"
+OUT, OUT_SUM = V.res("stability_runs.csv"), V.res("stability_riepilogo.csv")
 FIELDS = ["modello", "query_id", "livello", "query_nl", "run", "valida", "tentativi", "tempo_gen_s",
           "query_jcoql", "esito", "dettaglio", "versione"]
 # "versione" = versione della pipeline con cui e' stata fatta la riga. Le righe nate prima della colonna sono

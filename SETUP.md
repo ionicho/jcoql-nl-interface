@@ -250,7 +250,7 @@ session with a timestamp in the name).
 | The tuned mode answers slowly | Another model is still loaded in the graphics card by Ollama (`ollama ps`, `ollama stop <model-name>`) |
 | A collection just created or deleted does not appear in the schema | The schema is read when the database is connected: restart the backend |
 | Generation works but the results are on an unexpected database | Check which database is "current" in the sidebar — it is a state of the process, not per request |
-| Generation uses a collection you did not expect (e.g. one named after a previous test) | Leftover collections from earlier `SAVE AS` queries appear in the schema; delete them (`python pulisci_collezioni.py` removes everything in `jcoql_test` except the four base collections) |
+| Generation uses a collection you did not expect (e.g. one named after a previous test) | Leftover collections from earlier `SAVE AS` queries appear in the schema; delete them (`python tests/pulisci_collezioni.py --drop` removes everything in `jcoql_test` except the four base collections) |
 | A query on a JCO DS database does not return | Check the DS-Server is running and the collection exists; use the Timeout selector so the wait is bounded |
 | File upload/collection management from the UI not available | Feature intentionally disabled in this version (requires architectural work not yet done on the multi-database side) |
 | A standalone script (e.g. `test_retrieval.py`, `sample_data.py`) gives `FileNotFoundError` | Almost always a working-directory problem: these scripts use relative paths and must be launched from the project root, not from the folder they are in |

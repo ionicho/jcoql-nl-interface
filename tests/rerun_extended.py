@@ -9,11 +9,11 @@ ATTENZIONE: ogni chiamata a /api/generate scrive anche in test_campaign_log.csv.
     copy test_campaign_log.csv test_campaign_log_prima_extended.csv
 
 Uso (backend avviato su localhost:8000):
-    .\\venv\\Scripts\\python.exe .\\rerun_extended.py --models gemma4 --modes compact full
-    .\\venv\\Scripts\\python.exe .\\rerun_extended.py --models llama llama32 --modes compact
-    .\\venv\\Scripts\\python.exe .\\rerun_extended.py --models gemini
-    .\\venv\\Scripts\\python.exe .\\rerun_extended.py --models llama --modes tuned   (LLAMACPP_URL + llama-server v3)
-    .\\venv\\Scripts\\python.exe .\\rerun_extended.py --models gemma4 --modes compact full --runs 3
+    .\\venv\\Scripts\\python.exe tests/rerun_extended.py --models gemma4 --modes compact full
+    .\\venv\\Scripts\\python.exe tests/rerun_extended.py --models llama llama32 --modes compact
+    .\\venv\\Scripts\\python.exe tests/rerun_extended.py --models gemini
+    .\\venv\\Scripts\\python.exe tests/rerun_extended.py --models llama --modes tuned   (LLAMACPP_URL + llama-server v3)
+    .\\venv\\Scripts\\python.exe tests/rerun_extended.py --models gemma4 --modes compact full --runs 3
 Opzioni: --groups R1 R2 R3 F D (default tutti), --runs N (giri per richiesta),
          --redo parola [parola ...]  rifà solo le richieste che contengono quelle parole, es. --redo tracking
 Output: extended_runs.csv, extended_riepilogo.csv
@@ -27,7 +27,7 @@ import extended_tests as X
 
 LOCAL = ("gemma4", "llama", "llama32", "gemma")
 GROUPS = [(name, qs) for name, qs in RR.ROUNDS] + list(X.NEW_SETS)
-OUT, OUT_SUM = "extended_runs.csv", "extended_riepilogo.csv"
+OUT, OUT_SUM = V.res("extended_runs.csv"), V.res("extended_riepilogo.csv")
 FIELDS = ["modello", "modo_prompt", "gruppo", "n", "run", "query_nl", "valida", "tentativi", "tempo_gen_s",
           "query_jcoql", "esito", "dettaglio"]
 

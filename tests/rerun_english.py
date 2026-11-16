@@ -10,10 +10,10 @@ ATTENZIONE: ogni chiamata a /api/generate scrive anche in test_campaign_log.csv:
     copy test_campaign_log.csv test_campaign_log_prima_inglese.csv
 
 Uso (backend avviato su localhost:8000), stessi argomenti di rerun_extended.py:
-    .\\venv\\Scripts\\python.exe .\\rerun_english.py --selftest
-    .\\venv\\Scripts\\python.exe .\\rerun_english.py --models gemini
-    .\\venv\\Scripts\\python.exe .\\rerun_english.py --models gemma4 llama llama32 --modes compact
-    .\\venv\\Scripts\\python.exe .\\rerun_english.py --models llama --modes tuned
+    .\\venv\\Scripts\\python.exe tests/rerun_english.py --selftest
+    .\\venv\\Scripts\\python.exe tests/rerun_english.py --models gemini
+    .\\venv\\Scripts\\python.exe tests/rerun_english.py --models gemma4 llama llama32 --modes compact
+    .\\venv\\Scripts\\python.exe tests/rerun_english.py --models llama --modes tuned
 """
 import sys
 import verify_execution as V
@@ -125,7 +125,7 @@ if __name__ == "__main__":
     if "--selftest" in sys.argv:
         install()
         import json
-        base = "backend/database"
+        base = V.SEED_DIR
         C = V.load_collections_seed(base)
         C["category_translations"] = json.load(open(f"{base}/data_category_translations.json", encoding="utf-8"))
         bad = 0
@@ -137,6 +137,6 @@ if __name__ == "__main__":
         print("\nrichieste:", len(EN2IT), "| senza atteso:", bad); sys.exit(0)
     install()
     RE.GROUPS[:] = [(n, EN[n]) for n, _ in IT_GROUPS]
-    RE.OUT, RE.OUT_SUM = "extended_runs_en.csv", "extended_riepilogo_en.csv"
+    RE.OUT, RE.OUT_SUM = V.res("extended_runs_en.csv"), V.res("extended_riepilogo_en.csv")
     RE.X.install = lambda: None      # l'install di rerun_extended wrapperebbe di nuovo: non serve, gia' fatto
     RE.main()

@@ -528,7 +528,9 @@ class ExecutorFactory:
 
 ## Test Scripts
 
-The scripts used for the test campaign are in the project root:
+The scripts used for the test campaign are in the folder `tests/`. They are launched from the
+project root, with the backend running, for example
+`venv\Scripts\python.exe tests/rerun_extended.py --models gemini`:
 
 | Script | Purpose |
 |---|---|
@@ -537,13 +539,15 @@ The scripts used for the test campaign are in the project root:
 | `rerun_rounds.py`, `rerun_extended.py` | Re-run the test rounds / the extended test set on selected models and prompt modes |
 | `rerun_english.py` | The requests of the extended test set written in English, with the same expected results |
 | `stability.py` | Repeats the same request many times (default 50) on each model and counts the distinct queries and the correct ones |
-| `run_test_mancanti.ps1` | Runs the extended test, the paraphrases and the stability test on the fine-tuned model (v4); writes in the folder `completa_v4/`, which is not in the repository |
+| `run_test_mancanti.ps1` | Runs the extended test, the paraphrases and the stability test on the fine-tuned model (v4); writes in `tests/results/v4/` |
 | `extended_tests.py` | Defines the extended test set (additional common and difficult requests) and its expected results |
 | `paraphrase.py` | Tests the robustness of the generation to paraphrased requests |
 | `pulisci_collezioni.py` | Deletes the temporary collections left in `jcoql_test` (keeps `products`, `orders`, `users`, `category_translations`) |
 
-Results are saved as CSV files (`*_runs.csv`, `*_riepilogo.csv`, `test_campaign_log.csv`).
-The header of each script describes the options. Every call to `/api/generate` is also recorded in `test_campaign_log.csv`.
+Results are saved as CSV files in `tests/results/` (`*_runs.csv`, `*_riepilogo.csv`); the results
+of the fine-tuned model (v4) are in `tests/results/v4/`. The environment variable
+`JCOQL_RESULTS_DIR` sends the results of a run to another folder.
+The header of each script describes the options. Every call to `/api/generate` is also recorded by the backend in `test_campaign_log.csv`, in the project root.
 
 ---
 
@@ -601,7 +605,10 @@ jcoql-nl-interface/
 │   └── soup/                       # Training configurations (soup*.yaml), conversion and
 │                                   # start scripts (*.ps1), evaluation (ft_eval*.py, eval_*.csv)
 │
-├── *.py, *.csv (root)              # Test scripts and their results (see "Test Scripts")
+├── tests/                          # Test scripts (see "Test Scripts")
+│   └── results/                    # Results of the tests (CSV); v4/ = fine-tuned model
+│
+├── test_campaign_log.csv           # Log of every generation, written by the backend
 ├── chroma_data/                    # Persistent ChromaDB storage (not in the repository)
 └── logs/                           # Application logs (not in the repository)
 ```
